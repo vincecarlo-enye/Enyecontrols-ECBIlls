@@ -1,6 +1,6 @@
-# EnyeControls EC Bills System — v9
+# EnyeControls EC Bills System
 
-Refactored React + Vite billing system.
+React + Vite billing system.
 
 ## Quick Start
 
