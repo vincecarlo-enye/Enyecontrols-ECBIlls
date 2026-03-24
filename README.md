@@ -1,4 +1,4 @@
-# EnyeControls EC Bills System
+# Enyecontrols EC Bills System
 
 React + Vite billing system.
 
