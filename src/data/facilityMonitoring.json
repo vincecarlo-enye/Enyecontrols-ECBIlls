@@ -1,0 +1,20 @@
+{
+  "floorData": [
+    { "floor": "B1", "electricity": 320, "water": 42, "thermal": 180, "status": "normal" },
+    { "floor": "1F", "electricity": 580, "water": 75, "thermal": 310, "status": "high"   },
+    { "floor": "2F", "electricity": 490, "water": 61, "thermal": 265, "status": "normal" },
+    { "floor": "3F", "electricity": 720, "water": 88, "thermal": 410, "status": "alert"  },
+    { "floor": "4F", "electricity": 410, "water": 55, "thermal": 220, "status": "normal" },
+    { "floor": "5F", "electricity": 380, "water": 49, "thermal": 195, "status": "normal" }
+  ],
+  "liveData": [
+    { "time": "08:00", "load": 62 },
+    { "time": "09:00", "load": 74 },
+    { "time": "10:00", "load": 81 },
+    { "time": "11:00", "load": 88 },
+    { "time": "12:00", "load": 95 },
+    { "time": "13:00", "load": 91 },
+    { "time": "14:00", "load": 85 },
+    { "time": "15:00", "load": 79 }
+  ]
+}

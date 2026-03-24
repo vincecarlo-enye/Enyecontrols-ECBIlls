@@ -1,0 +1,22 @@
+[
+  {
+    "id": "RCP-2026-001",
+    "billId": "BL-2026-002",
+    "receiptImage": null,
+    "paymentDate": "2026-03-04",
+    "referenceNumber": "GCASH-112233",
+    "note": "March payment via GCash",
+    "submittedBy": "tenant",
+    "submittedAt": "2026-03-04T10:23:00.000Z"
+  },
+  {
+    "id": "RCP-2026-002",
+    "billId": "BL-2026-003",
+    "receiptImage": null,
+    "paymentDate": "2026-03-05",
+    "referenceNumber": "BT-994455",
+    "note": "Bank transfer payment",
+    "submittedBy": "tenant",
+    "submittedAt": "2026-03-05T09:11:00.000Z"
+  }
+]

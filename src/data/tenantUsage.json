@@ -1,0 +1,19 @@
+{
+  "daily": [
+    { "day": "Mon", "electric": 38.2, "water": 5.1, "thermal": 82  },
+    { "day": "Tue", "electric": 42.5, "water": 6.2, "thermal": 91  },
+    { "day": "Wed", "electric": 35.8, "water": 4.8, "thermal": 76  },
+    { "day": "Thu", "electric": 44.1, "water": 6.8, "thermal": 94  },
+    { "day": "Fri", "electric": 48.9, "water": 7.2, "thermal": 102 },
+    { "day": "Sat", "electric": 51.3, "water": 8.0, "thermal": 110 },
+    { "day": "Sun", "electric": 29.7, "water": 3.9, "thermal": 64  }
+  ],
+  "monthly": [
+    { "month": "Oct", "electric": 1120, "water": 168, "thermal": 2480 },
+    { "month": "Nov", "electric": 1180, "water": 172, "thermal": 2620 },
+    { "month": "Dec", "electric": 1560, "water": 220, "thermal": 3340 },
+    { "month": "Jan", "electric": 1420, "water": 208, "thermal": 3100 },
+    { "month": "Feb", "electric": 1290, "water": 185, "thermal": 2840 },
+    { "month": "Mar", "electric": 1380, "water": 196, "thermal": 2970 }
+  ]
+}

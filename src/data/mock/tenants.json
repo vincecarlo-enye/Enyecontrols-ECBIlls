@@ -1,0 +1,8 @@
+[
+  { "id": "T-001", "name": "ABC Corporation", "units": ["12F-A", "12F-B"], "floor": 12, "contact": "Juan Dela Cruz", "email": "juan@abc.com", "phone": "+63 917 100 0001", "status": "active", "since": "Jan 2024" },
+  { "id": "T-002", "name": "XYZ Holdings Inc.", "units": ["8F-B"], "floor": 8, "contact": "Maria Santos", "email": "maria@xyz.com", "phone": "+63 917 100 0002", "status": "active", "since": "Mar 2023" },
+  { "id": "T-003", "name": "Global Tech Solutions", "units": ["15F-C"], "floor": 15, "contact": "Roberto Lim", "email": "roberto@gts.com", "phone": "+63 917 100 0003", "status": "active", "since": "Jun 2022" },
+  { "id": "T-004", "name": "Sunrise Medical Group", "units": ["5F-A"], "floor": 5, "contact": "Ana Reyes", "email": "ana@sunrise.com", "phone": "+63 917 100 0004", "status": "active", "since": "Nov 2023" },
+  { "id": "T-005", "name": "Metro Law Offices", "units": ["10F-D"], "floor": 10, "contact": "Marcos Bautista", "email": "marcos@metro.com", "phone": "+63 917 100 0005", "status": "inactive", "since": "Feb 2024" },
+  { "id": "T-006", "name": "Pacific Ventures LLC", "units": ["7F-B"], "floor": 7, "contact": "Carla Tan", "email": "carla@pacific.com", "phone": "+63 917 100 0006", "status": "active", "since": "Sep 2023" }
+]
