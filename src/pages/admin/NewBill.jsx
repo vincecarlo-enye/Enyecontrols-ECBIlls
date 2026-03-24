@@ -6,9 +6,12 @@ import { NewBillSkeleton } from '@/components/skeletons'
 import { Zap, Droplets, Flame, ArrowLeft, Info } from 'lucide-react'
 
 const EMPTY = {
-  tenant: '', unit: '', month: 'March 2026',
-  billingPeriod: 'Feb 1 – Feb 28', dueDate: 'March 15, 2026',
-  status: 'draft', breakdown: { electricity: '', water: '', thermal: '' },
+  tenant: '', unit: '', month: 'March',
+  billingFrom: '', 
+  billingTo: '',
+  dueDate: '',
+  status: 'draft',
+  breakdown: { electricity: '', water: '', thermal: '' },
   notes: '',
 }
 
@@ -89,7 +92,7 @@ export default function NewBillPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-6 shadow-sm space-y-5">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl  p-4 sm:p-6 shadow-sm space-y-5">
         {/* Tenant + Unit */}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
@@ -110,19 +113,49 @@ export default function NewBillPage() {
           </div>
         </div>
 
-        {/* Period / Due Date */}
-        <div className="grid sm:grid-cols-3 gap-4">
+        {/* Period / Due Date — all four fields share one uniform row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Month</label>
-            <input value={form.month} onChange={e => setForm(f => ({ ...f, month: e.target.value }))} className={field(false)}/>
+            <select
+              value={form.month}
+              onChange={e => setForm(f => ({ ...f, month: e.target.value }))}
+              className={field(false)}
+            >
+              {[
+                'January','February','March','April','May','June',
+                'July','August','September','October','November','December'
+              ].map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Billing Period</label>
-            <input value={form.billingPeriod} onChange={e => setForm(f => ({ ...f, billingPeriod: e.target.value }))} className={field(false)}/>
+            <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Billing From</label>
+            <input
+              type="date"
+              value={form.billingFrom}
+              onChange={e => setForm(f => ({ ...f, billingFrom: e.target.value }))}
+              className={field(false)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Billing To</label>
+            <input
+              type="date"
+              value={form.billingTo}
+              onChange={e => setForm(f => ({ ...f, billingTo: e.target.value }))}
+              className={field(false)}
+            />
           </div>
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Due Date</label>
-            <input value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} className={field(false)}/>
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+              className={field(false)}
+            />
           </div>
         </div>
 
@@ -132,20 +165,20 @@ export default function NewBillPage() {
           {errs.breakdown && <p className="text-xs text-red-500 mb-2">{errs.breakdown}</p>}
           <div className="space-y-3">
             {CHARGE_CONFIG.map(({ key, label, grad, icon: Icon, hint }) => (
-              <div key={key} className="flex items-center gap-3">
+              <div key={key} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center flex-shrink-0 shadow-md`}>
                   <Icon size={16} className="text-white"/>
                 </div>
-                <span className="text-sm text-slate-600 dark:text-slate-300 w-36 flex-shrink-0">{label}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-300 sm:w-36">{label}</span>
                 <input
                   type="number" min="0"
                   value={form.breakdown[key]}
                   onChange={e => setForm(f => ({ ...f, breakdown: { ...f.breakdown, [key]: e.target.value } }))}
                   placeholder="0.00"
-                  className="flex-1 min-w-0 px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
+                  className="w-full sm:flex-1 min-w-0 px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
                 />
                 {billingRates?.[key]?.rate && (
-                  <span className="text-xs text-slate-400 whitespace-nowrap">@₱{billingRates[key].rate}/{hint}</span>
+                  <span className="text-xs text-slate-400 sm:whitespace-nowrap">@₱{billingRates[key].rate}/{hint}</span>
                 )}
               </div>
             ))}
@@ -175,7 +208,7 @@ export default function NewBillPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button onClick={() => navigate('/admin/billing')}
             className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
             Cancel
