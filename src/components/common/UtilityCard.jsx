@@ -45,46 +45,55 @@ const descMap = {
   water: 'Calculated to allocate water costs proportionally to all tenants.',
 }
 
-export default function UtilityCard({ type, usage, unit, estimatedCost, trend, lastUpdated }) {
-  const Icon = iconMap[type]
-  const colors = colorMap[type]
-  const isPositive = trend > 0
+export default function UtilityCard({
+  type,
+  usage = 0,
+  unit = '',
+  estimatedCost = 0,
+  trend = 0,
+  lastUpdated = 'Updated just now',
+}) {
+  const Icon = iconMap[type] || Zap
+  const colors = colorMap[type] || colorMap.electricity
+  const safeUsage = Number(usage || 0)
+  const safeEstimatedCost = Number(estimatedCost || 0)
+  const safeTrend = Number(trend || 0)
+  const isPositive = safeTrend >= 0
   const TrendIcon = isPositive ? TrendingUp : TrendingDown
 
   return (
     <div className={`glass rounded-2xl p-5 card-hover shadow-lg ${colors.glow} ring-1 ${colors.ring} animate-in`}>
-      {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg`}>
           <Icon className="w-5 h-5 text-white" strokeWidth={2} />
         </div>
         <span className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg ${colors.badge}`}>
           <TrendIcon className="w-3 h-3" />
-          {Math.abs(trend)}%
+          {Math.abs(safeTrend)}%
         </span>
       </div>
 
-      {/* Label */}
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{labelMap[type]}</p>
+      <p className="text-xs font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">
+        {labelMap[type]}
+      </p>
 
-      {/* Usage value */}
       <div className="flex items-baseline gap-1.5 mb-0.5">
         <span className="text-2xl font-display font-700 text-slate-800 dark:text-white">
-          {usage.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+          {safeUsage.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
         </span>
         <span className="text-sm text-slate-400 font-mono">{unit}</span>
       </div>
 
-      {/* Cost */}
       <p className={`text-base font-semibold ${colors.text} mb-3`}>
-        ₱{estimatedCost.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+        ₱{safeEstimatedCost.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
         <span className="text-xs font-normal text-slate-400 ml-1">est. cost</span>
       </p>
 
-      {/* Divider */}
       <div className="border-t border-slate-200/60 dark:border-slate-700/50 pt-3">
         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{lastUpdated}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{descMap[type]}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+          {descMap[type]}
+        </p>
       </div>
     </div>
   )

@@ -3,45 +3,48 @@ import { useNavigate } from 'react-router-dom'
 import { Zap, Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
-const DEMO = [
-  { role: 'Super Admin',    email: 'superadmin@enye.com', password: 'super123',  desc: 'All permissions + meter management' },
-  { role: 'Admin',            email: 'admin@enye.com',    password: 'admin123',  desc: 'Full dashboard access'      },
-  { role: 'Finance',          email: 'finance@example.com',password: 'password',  desc: 'Finance analytics access'   },
-  { role: 'Tenant',           email: 'tenant@enye.com',   password: 'tenant123', desc: 'Tenant portal access'       },
-  { role: 'Facility Manager', email: 'facility@enye.com', password: '123456',    desc: 'Facility operations access' },
-]
+
 
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const [email,    setEmail]    = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPw,   setShowPw]   = useState(false)
-  const [error,    setError]    = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault()
-    if (!email || !password) { setError('Please enter your email and password.'); return }
+
+    if (!email || !password) {
+      setError('Please enter your email and password.')
+      return
+    }
+
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      const user = login(email.trim(), password)
-      if (!user || user.error) {
-        setError(user?.message || 'Invalid email or password. Please try again.')
-        setLoading(false)
-        return
-      }
-      navigate(
-        (user.role === 'super_admin' || user.role === 'admin') ? '/'
+
+    const user = await login(email.trim(), password)
+
+    if (!user || user.error) {
+      setError(user?.message || 'Invalid email or password. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    navigate(
+      (user.role === 'super_admin' || user.role === 'admin') ? '/'
         : user.role === 'facility_manager' ? '/facility/dashboard'
-        : user.role === 'finance' ? '/finance/dashboard'
-        : '/tenant/dashboard',
-        { replace: true }
-      )
-    }, 500)
+          : user.role === 'finance' ? '/finance/dashboard'
+            : '/tenant/dashboard',
+      { replace: true }
+    )
+
+    setLoading(false)
   }
+
 
   const fillDemo = (d) => { setEmail(d.email); setPassword(d.password); setError('') }
 
@@ -116,38 +119,15 @@ export default function LoginPage() {
             >
               {loading ? (
                 <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
               ) : <LogIn className="w-4 h-4" />}
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
 
-          {/* Demo accounts */}
-          <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">Demo Accounts</p>
-            <div className="space-y-2">
-              {DEMO.map(d => (
-                <div
-                  key={d.role}
-                  className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50"
-                >
-                  <div>
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{d.role}</p>
-                    <p className="text-[10px] text-slate-400 font-mono">{d.email}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => fillDemo(d)}
-                    className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                  >
-                    Use
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          
         </div>
 
         <p className="flex justify-center align-middle text-center text-xs text-slate-400 dark:text-slate-600 mt-6">

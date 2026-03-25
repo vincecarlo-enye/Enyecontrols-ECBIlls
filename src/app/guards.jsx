@@ -1,100 +1,93 @@
-/**
- * guards.jsx
- * Role-based route guard components + redirect helpers.
- */
-
 import { Navigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
+import { DashboardSkeleton } from "@/components/skeletons"
+
+function getHomeByRole(user) {
+  if (!user) return "/login"
+
+  switch (user.role) {
+    case "super_admin":
+    case "admin":
+      return "/admin"
+    case "facility_manager":
+      return "/facility/dashboard"
+    case "finance":
+      return "/finance/dashboard"
+    default:
+      return "/tenant/dashboard"
+  }
+}
+
+function GuardLoading() {
+  return <DashboardSkeleton />
+}
 
 export function RequireAdmin({ children }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
-  // Both admin and super_admin can access admin routes
-  if (user.role !== "admin" && user.role !== "super_admin")
-    return <Navigate to="/tenant/dashboard" replace />
+  if (user.role !== "admin" && user.role !== "super_admin") {
+    return <Navigate to={getHomeByRole(user)} replace />
+  }
 
   return children
 }
 
 export function RequireSuperAdmin({ children }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== "super_admin") return <Navigate to="/admin" replace />
+  if (user.role !== "super_admin") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
 }
 
 export function RequireTenant({ children }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== "tenant") return <Navigate to="/tenant/dashboard" replace />
+  if (user.role !== "tenant") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
 }
 
 export function RequireFacility({ children }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== "facility_manager")
-    return <Navigate to="/facility/dashboard" replace />
+  if (user.role !== "facility_manager") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
 }
 
 export function RequireFinance({ children }) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== "finance")
-    return <Navigate to="/finance/dashboard" replace />
+  if (user.role !== "finance") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
 }
 
-/**
- * Root redirect ( / )
- */
 export function RootRedirect() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
 
-  switch (user.role) {
-    case "super_admin":
-      return <Navigate to="/admin" replace />
-    case "admin":
-      return <Navigate to="/admin" replace />
-    case "facility_manager":
-      return <Navigate to="/facility/dashboard" replace />
-    case "finance":
-      return <Navigate to="/finance/dashboard" replace />
-    default:
-      return <Navigate to="/tenant/dashboard" replace />
-  }
+  return <Navigate to={getHomeByRole(user)} replace />
 }
 
-/**
- * Prevent logged-in users from seeing login page
- */
 export function AuthRedirect() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
+  if (loading) return <GuardLoading />
   if (!user) return null
 
-  switch (user.role) {
-    case "super_admin":
-      return <Navigate to="/admin" replace />
-    case "admin":
-      return <Navigate to="/admin" replace />
-    case "facility_manager":
-      return <Navigate to="/facility/dashboard" replace />
-    case "finance":
-      return <Navigate to="/finance/dashboard" replace />
-    default:
-      return <Navigate to="/tenant/dashboard" replace />
-  }
+  return <Navigate to={getHomeByRole(user)} replace />
 }

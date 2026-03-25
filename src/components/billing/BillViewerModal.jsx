@@ -1,48 +1,342 @@
-import { useRef } from "react"
-import html2pdf from "html2pdf.js"
+import { useRef } from 'react'
+import html2pdf from 'html2pdf.js'
 import Modal from '@/components/ui/Modal'
-import { Printer, Download, Building2, Zap, Droplets, Flame, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import {
+  Printer,
+  Download,
+  FileText,
+  Building2,
+  Zap,
+  Droplets,
+  Flame,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from 'lucide-react'
 
-const ICONS = { Electricity: Zap, Water: Droplets, 'Thermal Energy': Flame }
-
-const STATUS_CFG = {
-  paid:    { label:'PAID',    badge:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', Icon:CheckCircle2 },
-  unpaid:  { label:'UNPAID',  badge:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 Icon:XCircle },
-  pending: { label:'PENDING', badge:'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         Icon:Clock },
+const ICONS = {
+  Electricity: Zap,
+  Water: Droplets,
+  'Thermal Energy': Flame,
 }
 
-function buildDetail(bill) {
-  const elec = bill.breakdown?.electricity ?? 0
-  const water = bill.breakdown?.water ?? 0
-  const therm = bill.breakdown?.thermal ?? 0
-  const sub = elec + water + therm
-  const tax = Math.round(sub * 0.12)
+const STATUS_CFG = {
+  paid: {
+    label: 'PAID',
+    badge:
+      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    Icon: CheckCircle2,
+  },
+  unpaid: {
+    label: 'UNPAID',
+    badge:
+      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    Icon: XCircle,
+  },
+  pending: {
+    label: 'PENDING',
+    badge:
+      'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    Icon: Clock,
+  },
+  published: {
+    label: 'PUBLISHED',
+    badge:
+      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    Icon: Clock,
+  },
+  payment_submitted: {
+    label: 'PENDING REVIEW',
+    badge:
+      'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    Icon: Clock,
+  },
+  overdue: {
+    label: 'OVERDUE',
+    badge:
+      'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+    Icon: XCircle,
+  },
+  draft: {
+    label: 'DRAFT',
+    badge:
+      'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    Icon: Clock,
+  },
+}
+
+function peso(value) {
+  return Number(value || 0).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function formatLongDate(value) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function formatShortPeriodDate(value) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function mapStatus(status) {
+  if (status === 'published') return 'pending'
+  if (status === 'payment_submitted') return 'pending'
+  return status || 'unpaid'
+}
+
+function getUtilityLabel(type) {
+  const t = String(type || '').toLowerCase()
+
+  if (t.includes('electric')) return 'Electricity'
+  if (t.includes('water')) return 'Water'
+  if (t.includes('thermal')) return 'Thermal Energy'
+
+  return type || 'Utility'
+}
+
+function inferChargesFromBreakdown(breakdown = {}) {
+  const electric = Number(
+    breakdown.electric ??
+      breakdown.electricity ??
+      0
+  )
+  const water = Number(breakdown.water || 0)
+  const thermal = Number(breakdown.thermal || 0)
+
+  return [
+    {
+      id: 'electric',
+      particular: 'Electricity',
+      prev: '—',
+      curr: '—',
+      used: electric > 0 ? `${(electric / 10.99).toFixed(1)} kWh` : '—',
+      rate: electric > 0 ? '₱10.99/kWh' : '—',
+      amount: electric,
+    },
+    {
+      id: 'water',
+      particular: 'Water',
+      prev: '—',
+      curr: '—',
+      used: water > 0 ? `${(water / 30).toFixed(1)} m³` : '—',
+      rate: water > 0 ? '₱30.00/m³' : '—',
+      amount: water,
+    },
+    {
+      id: 'thermal',
+      particular: 'Thermal Energy',
+      prev: '—',
+      curr: '—',
+      used: thermal > 0 ? `${(thermal / 11).toFixed(1)} kBTU/h` : '—',
+      rate: thermal > 0 ? '₱11.00/kBTU' : '—',
+      amount: thermal,
+    },
+  ].filter((row) => Number(row.amount) > 0)
+}
+
+function buildChargesFromItems(items = []) {
+  return items.map((item, index) => {
+    const rateType =
+      item?.rate?.type ||
+      item?.meter?.type ||
+      item?.type ||
+      item?.name ||
+      'utility'
+
+    const label = getUtilityLabel(rateType)
+
+    const previousReading =
+      item?.previous_reading ??
+      item?.prev_reading ??
+      item?.start_reading ??
+      item?.previous ??
+      '—'
+
+    const currentReading =
+      item?.current_reading ??
+      item?.curr_reading ??
+      item?.end_reading ??
+      item?.current ??
+      '—'
+
+    const consumption = Number(
+      item?.consumption ??
+        item?.usage ??
+        item?.quantity ??
+        0
+    )
+
+    const unit =
+      item?.rate?.unit_measure ||
+      item?.unit ||
+      item?.meter?.unit ||
+      ''
+
+    const pricePerUnit = Number(
+      item?.rate?.price_per_unit ??
+        item?.rate_value ??
+        item?.rate_amount ??
+        item?.unit_price ??
+        0
+    )
+
+    const amount = Number(
+      item?.amount ??
+        item?.total ??
+        item?.charge_amount ??
+        0
+    )
+
+    return {
+      id: item?.id || index,
+      particular: label,
+      prev: previousReading,
+      curr: currentReading,
+      used: unit
+        ? `${consumption.toLocaleString()} ${unit}`
+        : `${consumption.toLocaleString()}`,
+      rate: pricePerUnit
+        ? `₱${pricePerUnit.toFixed(2)}/${unit || 'unit'}`
+        : '—',
+      amount,
+    }
+  })
+}
+
+function normalizeBill(bill) {
+  if (!bill) return null
+
+  const tenantName =
+    typeof bill.tenant === 'string'
+      ? bill.tenant
+      : bill.tenant?.name || bill.tenant_name || 'Unknown Tenant'
+
+  const unitName =
+    typeof bill.unit === 'string'
+      ? bill.unit
+      : bill.unit?.unit_number || bill.unit?.name || bill.unit_name || '—'
+
+  const items = Array.isArray(bill.items) ? bill.items : []
+  const fallbackBreakdown = bill.breakdown || {}
+
+  const charges =
+    items.length > 0
+      ? buildChargesFromItems(items)
+      : inferChargesFromBreakdown(fallbackBreakdown)
+
+  const computedSubtotal = charges.reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0
+  )
+
+  const subtotal = Number(
+    bill.subtotal ??
+      bill.sub_total ??
+      computedSubtotal
+  )
+
+  const tax = Number(
+    bill.tax ??
+      bill.vat ??
+      bill.tax_amount ??
+      0
+  )
+
+  const previousBalance = Number(
+    bill.previous_balance ??
+      bill.balance_forward ??
+      0
+  )
+
+  const paymentsReceived = Number(
+    bill.payments_received ??
+      bill.amount_paid ??
+      0
+  )
+
+  const grandTotal = Number(
+    bill.grand_total ??
+      bill.total_amount ??
+      bill.amount ??
+      (subtotal + tax + previousBalance - paymentsReceived)
+  )
+
+  const billDateRaw =
+    bill.billDate ||
+    bill.created_at ||
+    bill.billing_start ||
+    null
+
+  const dueDateRaw =
+    bill.dueDate ||
+    bill.due_date ||
+    null
+
+  const billingStart =
+    bill.billing_start ||
+    bill.period_start ||
+    null
+
+  const billingEnd =
+    bill.billing_end ||
+    bill.period_end ||
+    null
+
+  const billingPeriod =
+    billingStart && billingEnd
+      ? `${formatShortPeriodDate(billingStart)} - ${formatShortPeriodDate(billingEnd)}`
+      : billingEnd
+        ? formatShortPeriodDate(billingEnd)
+        : '—'
+
   return {
     invoiceNo: bill.id,
-    tenantName: bill.tenant,
-    unit: bill.unit,
-    billDate: (bill.dueDate || '').replace('March 15', 'March 6') || 'March 6, 2026',
-    dueDate: bill.dueDate || '—',
-    billingPeriod: bill.billingPeriod || '—',
-    status: bill.status || 'unpaid',
-    charges: [
-      { particular:'Electricity',    used:`${(elec/10.99).toFixed(1)} kWh`,    prev:'342,210', curr:String(342210+Math.round(elec/10.99)),   rate:'₱10.99/kWh',  amount:elec  },
-      { particular:'Water',          used:`${(water/30).toFixed(1)} m³`,       prev:'8,420',   curr:String(8420+Math.round(water/30)),        rate:'₱30.00/m³',   amount:water },
-      { particular:'Thermal Energy', used:`${(therm/11).toFixed(1)} kBTU/h`,   prev:'12,340',  curr:String(12340+Math.round(therm/11)),       rate:'₱11.00/kBTU', amount:therm },
-    ],
-    subtotal: sub, tax, grandTotal: sub + tax,
+    tenantName,
+    unit: unitName,
+    billDate: formatLongDate(billDateRaw),
+    dueDate: formatLongDate(dueDateRaw),
+    billingPeriod,
+    status: mapStatus(bill.status),
+    charges,
+    subtotal,
+    tax,
+    previousBalance,
+    paymentsReceived,
+    grandTotal,
   }
 }
 
 function BillContent({ bill }) {
   const pdfRef = useRef(null)
-  const d = buildDetail(bill)
+  const d = normalizeBill(bill)
   const st = STATUS_CFG[d.status] || STATUS_CFG.unpaid
 
   const handlePrint = () => {
     const w = window.open('', '_blank', 'width=860,height=1000')
+    if (!w) return
+
     w.document.write(`<!DOCTYPE html><html><head>
-      <title>SOA_${d.tenantName}</title>
+      <title>SOA_${String(d.tenantName).replace(/\s+/g, '_')}</title>
       <style>
         *{box-sizing:border-box;margin:0;padding:0}
         body{font-family:system-ui,sans-serif;font-size:13px;color:#1e293b;padding:28px;line-height:1.5}
@@ -64,167 +358,380 @@ function BillContent({ bill }) {
         @media print{-webkit-print-color-adjust:exact;print-color-adjust:exact}
       </style>
     </head><body>
-      <div class="hdr"><div><h1>SmartBuild Tower</h1><p>Official Statement of Account</p></div><div style="text-align:right"><p style="font-weight:700;font-size:14px">${d.invoiceNo}</p><p style="opacity:.75;font-size:11px">Bill Date: ${d.billDate}</p></div></div>
-      <div class="grid2">
-        <div class="section"><p class="lbl">Account Information</p><div class="kv"><span class="k">Tenant</span><span class="v">${d.tenantName}</span></div><div class="kv"><span class="k">Unit</span><span class="v">${d.unit}</span></div><div class="kv"><span class="k">Invoice No.</span><span class="v">${d.invoiceNo}</span></div></div>
-        <div class="section"><p class="lbl">Bill Details</p><div class="kv"><span class="k">Bill Date</span><span class="v">${d.billDate}</span></div><div class="kv"><span class="k">Due Date</span><span class="v">${d.dueDate}</span></div><div class="kv"><span class="k">Period</span><span class="v">${d.billingPeriod}</span></div></div>
+      <div class="hdr">
+        <div><h1>Enyecontrols</h1><p>Official Statement of Account</p></div>
+        <div style="text-align:right">
+          <p style="font-weight:700;font-size:14px">${d.invoiceNo}</p>
+          <p style="opacity:.75;font-size:11px">Bill Date: ${d.billDate}</p>
+        </div>
       </div>
+
+      <div class="grid2">
+        <div class="section">
+          <p class="lbl">Account Information</p>
+          <div class="kv"><span class="k">Tenant</span><span class="v">${d.tenantName}</span></div>
+          <div class="kv"><span class="k">Unit</span><span class="v">${d.unit}</span></div>
+          <div class="kv"><span class="k">Invoice No.</span><span class="v">${d.invoiceNo}</span></div>
+        </div>
+        <div class="section">
+          <p class="lbl">Bill Details</p>
+          <div class="kv"><span class="k">Bill Date</span><span class="v">${d.billDate}</span></div>
+          <div class="kv"><span class="k">Due Date</span><span class="v">${d.dueDate}</span></div>
+          <div class="kv"><span class="k">Period</span><span class="v">${d.billingPeriod}</span></div>
+        </div>
+      </div>
+
       <p class="lbl">Utility Charges</p>
-      <table><thead><tr><th>Description</th><th>Prev Reading</th><th>Curr Reading</th><th>Consumption</th><th>Rate</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>${d.charges.map(c=>`<tr><td><strong>${c.particular}</strong></td><td>${c.prev}</td><td>${c.curr}</td><td>${c.used}</td><td>${c.rate}</td><td class="ar">₱${c.amount.toLocaleString('en-PH',{minimumFractionDigits:2})}</td></tr>`).join('')}</tbody></table>
-      <div class="sum"><p class="lbl">Summary</p><div class="sr"><span>Subtotal</span><span>₱${d.subtotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div><div class="sr"><span>VAT (12%)</span><span>₱${d.tax.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div><div class="sr"><span>Previous Balance</span><span>₱0.00</span></div></div>
-      <div class="tot"><div><p style="font-size:10px;opacity:.75;text-transform:uppercase;letter-spacing:.1em">Total Amount Due</p><p style="font-size:11px;opacity:.7;margin-top:3px">Due by ${d.dueDate}</p></div><span style="font-size:22px;font-weight:800">₱${d.grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>
-      <div class="foot"><p>Pay at any authorized payment center or via bank transfer to SmartBuild Tower Management (BDO #1234-5678-90).</p><p><strong>billing@smartbuild.ph</strong> · +63 2 8888 0000</p></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Prev Reading</th>
+            <th>Curr Reading</th>
+            <th>Consumption</th>
+            <th>Rate</th>
+            <th style="text-align:right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            d.charges.length === 0
+              ? `<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">No utility charges available.</td></tr>`
+              : d.charges
+                  .map(
+                    (c) => `
+            <tr>
+              <td><strong>${c.particular}</strong></td>
+              <td>${c.prev}</td>
+              <td>${c.curr}</td>
+              <td>${c.used}</td>
+              <td>${c.rate}</td>
+              <td class="ar">₱${peso(c.amount)}</td>
+            </tr>
+          `
+                  )
+                  .join('')
+          }
+        </tbody>
+      </table>
+
+      <div class="sum">
+        <p class="lbl">Summary</p>
+        <div class="sr"><span>Subtotal</span><span>₱${peso(d.subtotal)}</span></div>
+        <div class="sr"><span>VAT (12%)</span><span>₱${peso(d.tax)}</span></div>
+        <div class="sr"><span>Previous Balance</span><span>₱${peso(d.previousBalance)}</span></div>
+        <div class="sr"><span>Payments Received</span><span>₱${peso(d.paymentsReceived)}</span></div>
+      </div>
+
+      <div class="tot">
+        <div>
+          <p style="font-size:10px;opacity:.75;text-transform:uppercase;letter-spacing:.1em">Total Amount Due</p>
+          <p style="font-size:11px;opacity:.7;margin-top:3px">Due by ${d.dueDate}</p>
+        </div>
+        <span style="font-size:22px;font-weight:800">₱${peso(d.grandTotal)}</span>
+      </div>
+
+      <div class="foot">
+        <p>Pay at any authorized payment center or via bank transfer to Enyecontrols Management (BDO #1234-5678-90).</p>
+        <p><strong>billing@enye.ph</strong> · +63 2 8888 0000</p>
+      </div>
     </body></html>`)
     w.document.close()
     w.focus()
-    setTimeout(() => { w.print(); w.close() }, 600)
+
+    setTimeout(() => {
+      w.print()
+      w.close()
+    }, 600)
   }
 
-  const handleDownload = () => {
+  const handleDownloadCSV = () => {
     const rows = [
-      ['Enyecontrols — Statement of Account'], [],
-      ['Invoice No.', d.invoiceNo], ['Tenant', d.tenantName], ['Unit', d.unit],
-      ['Bill Date', d.billDate], ['Due Date', d.dueDate], ['Period', d.billingPeriod], ['Status', d.status.toUpperCase()], [],
-      ['UTILITY CHARGES'], ['Description','Prev','Curr','Consumption','Rate','Amount'],
-      ...d.charges.map(c=>[c.particular,c.prev,c.curr,c.used,c.rate,`₱${c.amount.toLocaleString()}`]),
-      [], ['Subtotal','','','','',`₱${d.subtotal.toLocaleString()}`],
-      ['VAT 12%','','','','',`₱${d.tax.toLocaleString()}`],
-      ['TOTAL AMOUNT DUE','','','','',`₱${d.grandTotal.toLocaleString()}`],
+      ['Enyecontrols — Statement of Account'],
+      [],
+      ['Invoice No.', d.invoiceNo],
+      ['Tenant', d.tenantName],
+      ['Unit', d.unit],
+      ['Bill Date', d.billDate],
+      ['Due Date', d.dueDate],
+      ['Period', d.billingPeriod],
+      ['Status', d.status.toUpperCase()],
+      [],
+      ['UTILITY CHARGES'],
+      ['Description', 'Prev', 'Curr', 'Consumption', 'Rate', 'Amount'],
+      ...d.charges.map((c) => [
+        c.particular,
+        c.prev,
+        c.curr,
+        c.used,
+        c.rate,
+        `₱${peso(c.amount)}`,
+      ]),
+      [],
+      ['Subtotal', '', '', '', '', `₱${peso(d.subtotal)}`],
+      ['VAT 12%', '', '', '', '', `₱${peso(d.tax)}`],
+      ['Previous Balance', '', '', '', '', `₱${peso(d.previousBalance)}`],
+      ['Payments Received', '', '', '', '', `₱${peso(d.paymentsReceived)}`],
+      ['TOTAL AMOUNT DUE', '', '', '', '', `₱${peso(d.grandTotal)}`],
     ]
-    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
-    const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}))
-    Object.assign(document.createElement('a'),{href:url,download:`SOA_${d.tenantName.replace(/\s+/g,'_')}.csv`}).click()
+
+    const csv = rows
+      .map((r) =>
+        r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
+      )
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `SOA_${String(d.tenantName).replace(/\s+/g, '_')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
 
+  const handleDownloadPDF = () => {
+    if (!pdfRef.current) return
+
+    const opt = {
+      margin: 0.4,
+      filename: `SOA_${String(d.tenantName).replace(/\s+/g, '_')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+    }
+
+    html2pdf().set(opt).from(pdfRef.current).save()
+  }
+
   return (
-    <div ref={pdfRef} className="space-y-4">
-      {/* Banner */}
+    <div className="space-y-4">
       <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <Building2 className="w-5 h-5 text-white/80 flex-shrink-0" />
             <div>
               <p className="font-semibold text-white text-sm">Enyecontrols</p>
-              <p className="text-xs text-white/70">Official Statement of Account</p>
+              <p className="text-xs text-white/70">
+                Official Statement of Account
+              </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${st.badge}`}>
-              <st.Icon className="w-3 h-3" />{st.label}
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${st.badge}`}
+            >
+              <st.Icon className="w-3 h-3" />
+              {st.label}
             </span>
-            <button onClick={handlePrint} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors">
-              <Printer className="w-3.5 h-3.5" />Print
+
+            <button
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print
             </button>
-            <button onClick={handleDownload} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors">
-              <Download className="w-3.5 h-3.5" />Download
+
+            <button
+              onClick={handleDownloadCSV}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+
+            <button
+              onClick={handleDownloadPDF}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              PDF
             </button>
           </div>
         </div>
       </div>
 
-      {/* Info grid — stacks on mobile */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">Account Information</p>
-          <div className="space-y-2">
-            {[['Tenant', d.tenantName],['Unit', d.unit],['Invoice No.', d.invoiceNo]].map(([k,v])=>(
-              <div key={k} className="flex justify-between gap-2">
-                <span className="text-xs text-slate-400 flex-shrink-0">{k}</span>
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 text-right break-all">{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">Bill Details</p>
-          <div className="space-y-2">
-            {[['Bill Date', d.billDate],['Due Date', d.dueDate],['Period', d.billingPeriod]].map(([k,v])=>(
-              <div key={k} className="flex justify-between gap-2">
-                <span className="text-xs text-slate-400 flex-shrink-0">{k}</span>
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 text-right">{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Charges — horizontal scroll */}
-      <div>
-        <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-2">Utility Charges</p>
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-xs" style={{minWidth:'500px'}}>
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
-                {['Description','Prev','Current','Consumption','Rate','Amount'].map(h=>(
-                  <th key={h} className="text-left font-mono uppercase text-slate-400 px-3 py-2.5 last:text-right whitespace-nowrap" style={{fontSize:'9px',letterSpacing:'.07em'}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {d.charges.map(c=>{
-                const CIcon = ICONS[c.particular]
-                return (
-                  <tr key={c.particular} className="border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        {CIcon && <CIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0"/>}
-                        <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{c.particular}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">{c.prev}</td>
-                    <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">{c.curr}</td>
-                    <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{c.used}</td>
-                    <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{c.rate}</td>
-                    <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">₱{c.amount.toLocaleString('en-PH',{minimumFractionDigits:2})}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4">
-        <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">Summary</p>
-        <div className="space-y-2">
-          {[['Subtotal',d.subtotal],['VAT (12%)',d.tax],['Previous Balance',0],['Payments Received',0]].map(([l,v])=>(
-            <div key={l} className="flex justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">{l}</span>
-              <span className="font-mono text-slate-700 dark:text-slate-300">₱{Number(v).toLocaleString('en-PH',{minimumFractionDigits:2})}</span>
+      <div ref={pdfRef} className="space-y-4 bg-white dark:bg-slate-900 rounded-xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">
+              Account Information
+            </p>
+            <div className="space-y-2">
+              {[
+                ['Tenant', d.tenantName],
+                ['Unit', d.unit],
+                ['Invoice No.', d.invoiceNo],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-2">
+                  <span className="text-xs text-slate-400 flex-shrink-0">{k}</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200 text-right break-all">
+                    {v}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Total */}
-      <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">
+              Bill Details
+            </p>
+            <div className="space-y-2">
+              {[
+                ['Bill Date', d.billDate],
+                ['Due Date', d.dueDate],
+                ['Period', d.billingPeriod],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-2">
+                  <span className="text-xs text-slate-400 flex-shrink-0">{k}</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200 text-right">
+                    {v}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div>
-          <p className="text-[10px] font-mono uppercase tracking-widest text-white/70">Total Amount Due</p>
-          <p className="text-xs text-white/70 mt-0.5">Due by {d.dueDate}</p>
-        </div>
-        <p className="text-white font-bold text-xl sm:text-2xl whitespace-nowrap">₱{d.grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}</p>
-      </div>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-2">
+            Utility Charges
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-xs" style={{ minWidth: '500px' }}>
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                  {['Description', 'Prev', 'Current', 'Consumption', 'Rate', 'Amount'].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left font-mono uppercase text-slate-400 px-3 py-2.5 last:text-right whitespace-nowrap"
+                      style={{ fontSize: '9px', letterSpacing: '.07em' }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-      {/* Footer note */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-xs text-slate-400 leading-relaxed">
-        <p className="font-semibold text-slate-600 dark:text-slate-300 mb-1">Payment Instructions</p>
-        <p>Pay at any authorized payment center or via bank transfer to Enyecontrols Management (BDO #1234-5678-90). Inquiries: <span className="text-slate-500">billing@enye.ph</span> · +63 2 8888 0000</p>
+              <tbody>
+                {d.charges.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-3 py-6 text-center text-slate-400 text-xs"
+                    >
+                      No utility charges available.
+                    </td>
+                  </tr>
+                ) : (
+                  d.charges.map((c) => {
+                    const CIcon = ICONS[c.particular]
+                    return (
+                      <tr
+                        key={c.id || c.particular}
+                        className="border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/40"
+                      >
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2">
+                            {CIcon && (
+                              <CIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            )}
+                            <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                              {c.particular}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">
+                          {c.prev}
+                        </td>
+                        <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">
+                          {c.curr}
+                        </td>
+                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          {c.used}
+                        </td>
+                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          {c.rate}
+                        </td>
+                        <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                          ₱{peso(c.amount)}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">
+            Summary
+          </p>
+          <div className="space-y-2">
+            {[
+              ['Subtotal', d.subtotal],
+              ['VAT (12%)', d.tax],
+              ['Previous Balance', d.previousBalance],
+              ['Payments Received', d.paymentsReceived],
+            ].map(([l, v]) => (
+              <div key={l} className="flex justify-between text-xs">
+                <span className="text-slate-500 dark:text-slate-400">{l}</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300">
+                  ₱{peso(v)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-widest text-white/70">
+              Total Amount Due
+            </p>
+            <p className="text-xs text-white/70 mt-0.5">Due by {d.dueDate}</p>
+          </div>
+          <p className="text-white font-bold text-xl sm:text-2xl whitespace-nowrap">
+            ₱{peso(d.grandTotal)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-xs text-slate-400 leading-relaxed">
+          <p className="font-semibold text-slate-600 dark:text-slate-300 mb-1">
+            Payment Instructions
+          </p>
+          <p>
+            Pay at any authorized payment center or via bank transfer to
+            Enyecontrols Management (BDO #1234-5678-90). Inquiries:{' '}
+            <span className="text-slate-500">billing@enye.ph</span> · +63 2 8888
+            0000
+          </p>
+        </div>
       </div>
     </div>
   )
 }
 
-// Keep lastBill in a ref so content doesn't disappear mid-close-animation
 export default function BillViewerModal({ bill, isOpen, onClose }) {
   const lastRef = useRef(null)
-  if (bill) lastRef.current = bill
+
+  if (bill) {
+    lastRef.current = bill
+  }
+
   const shown = bill ?? lastRef.current
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
       title="Statement of Account"
       subtitle={shown ? `Invoice ${shown.id}` : ''}
     >

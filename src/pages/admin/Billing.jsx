@@ -14,30 +14,33 @@ import {
   ShieldCheck, Search, Eye, CheckCircle2, XCircle, Clock,
   Save, X, Zap, Droplets, Flame, Settings2, LayoutList,
 } from 'lucide-react'
-import { usePageLoader }       from '@/hooks/usePageLoader'
-import { BillingSkeleton }     from '@/components/skeletons'
-import BillsTable              from '@/components/billing/BillsTable'
-import RateConfigCard          from '@/components/common/RateConfigCard'
-import utilitiesData           from '@/data/mock/utilities.json'
-import { useBills }            from '@/components/billing/hooks/useBills'
-import { useModalState }       from '@/hooks/useModalState'
-import { exportAllBillsCSV }   from '@/services/billingService'
-import PaymentReviewModal      from '@/components/billing/PaymentReviewModal'
-import EmptyState              from '@/components/ui/EmptyState'
-import BillStatusBadge         from '@/components/billing/BillStatusBadge'
+import { usePageLoader } from '@/hooks/usePageLoader'
+import { BillingSkeleton } from '@/components/skeletons'
+import BillsTable from '@/components/billing/BillsTable'
+import RateConfigCard from '@/components/common/RateConfigCard'
+import utilitiesData from '@/data/mock/utilities.json'
+import { useModalState } from '@/hooks/useModalState'
+import { exportAllBillsCSV } from '@/services/billingService'
+import PaymentReviewModal from '@/components/billing/PaymentReviewModal'
+import EmptyState from '@/components/ui/EmptyState'
+import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useNavigate } from 'react-router-dom'
+import { useAdminBills } from '../../hooks/adminHooks/useAdminBills'
+import { useAdminRates } from '../../hooks/adminHooks/useAdminRates'
 
 // rateConfig from context now
 
 // ─── Oversight status filter tabs ────────────────────────────────────────────
 const OVERSIGHT_TABS = [
-  { key: 'all',               label: 'All Bills'      },
-  { key: 'draft',             label: 'Draft'          },
-  { key: 'published',         label: 'Published'      },
+  { key: 'all', label: 'All Bills' },
+  { key: 'draft', label: 'Draft' },
+  { key: 'published', label: 'Published' },
   { key: 'payment_submitted', label: 'Pending Review' },
-  { key: 'paid',              label: 'Paid'           },
-  { key: 'overdue',           label: 'Overdue'        },
+  { key: 'paid', label: 'Paid' },
+  { key: 'overdue', label: 'Overdue' },
 ]
+
+
 
 // ─── Export all bills dropdown ────────────────────────────────────────────────
 function ExportAllDropdown({ bills, onExported }) {
@@ -45,9 +48,9 @@ function ExportAllDropdown({ bills, onExported }) {
   const ref = useRef(null)
   const close = () => setTimeout(() => setOpen(false), 150)
   const opts = [
-    { label: 'CSV',   icon: FileText,        fn: () => { exportAllBillsCSV(bills); onExported?.('CSV')   } },
+    { label: 'CSV', icon: FileText, fn: () => { exportAllBillsCSV(bills); onExported?.('CSV') } },
     { label: 'Excel', icon: FileSpreadsheet, fn: () => { exportAllBillsCSV(bills); onExported?.('Excel') } },
-    { label: 'PDF',   icon: FileText,        fn: () => { exportAllBillsCSV(bills); onExported?.('PDF')   } },
+    { label: 'PDF', icon: FileText, fn: () => { exportAllBillsCSV(bills); onExported?.('PDF') } },
   ]
   return (
     <div className="relative" ref={ref} onBlur={close}>
@@ -82,24 +85,55 @@ const DEFAULT_FORM = {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function AdminBilling() {
-  const loading = usePageLoader(700)
+  const pageLoading = usePageLoader(300)
   const navigate = useNavigate()
   const detailModal = useModalState()
   const {
-    bills, addToast,
-    paidBills, publishedBills, submittedBills, draftBills, overdueBills, totalRevenue,
-    approvePayment, rejectPayment, createBill,
-  } = useBills()
+    bills,
+    loading,
+    error,
+    addToast,
+    paidBills,
+    publishedBills,
+    submittedBills,
+    draftBills,
+    overdueBills,
+    totalRevenue,
+    approvePayment,
+    rejectPayment,
+    createBill,
+    loadBillDetail,
+  } = useAdminBills()
 
-  const [activeTab,   setActiveTab]   = useState('manage')
+  const {
+    rates,
+    loading: ratesLoading,
+    saveRates,
+    saveAllRates,
+  } = useAdminRates()
+
+  const formatLongDate = (date) => {
+    if (!date) return '—'
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+
+
+  const [activeTab, setActiveTab] = useState('manage')
   const [previewBill, setPreviewBill] = useState(null)
   const reviewModal = useModalState()
 
   // Oversight tab state
-  const [search,       setSearch]       = useState('')
+  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  if (loading) return <BillingSkeleton />
+  if (pageLoading || loading || ratesLoading) return <BillingSkeleton />
+
+
 
   const oversightFiltered = bills.filter(b => {
     const q = search.toLowerCase()
@@ -138,13 +172,12 @@ export default function AdminBilling() {
       {/* ── Tab switcher ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-1.5 shadow-sm w-fit">
         {[
-          { key: 'manage',    label: 'Manage',    Icon: Settings2   },
+          { key: 'manage', label: 'Manage', Icon: Settings2 },
           { key: 'oversight', label: 'Oversight', Icon: ShieldCheck },
         ].map(({ key, label, Icon }) => (
           <button key={key} onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeTab === key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeTab === key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}>
             <Icon className="w-4 h-4" />
             {label}
             {key === 'oversight' && submittedBills.length > 0 && (
@@ -160,10 +193,10 @@ export default function AdminBilling() {
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[
-              { label: 'Total Bills', value: bills.length,                       color: 'text-slate-800 dark:text-white',         sub: 'March 2026' },
-              { label: 'Collected',   value: `₱${totalRevenue.toLocaleString()}`, color: 'text-emerald-600 dark:text-emerald-400', sub: `${paidBills.length} paid` },
-              { label: 'Published',   value: publishedBills.length,              color: 'text-blue-600 dark:text-blue-400',        sub: 'Awaiting payment' },
-              { label: 'Pending',     value: submittedBills.length,              color: 'text-amber-600 dark:text-amber-400',      sub: 'Awaiting review' },
+              { label: 'Total Bills', value: bills.length, color: 'text-slate-800 dark:text-white', sub: 'March 2026' },
+              { label: 'Collected', value: `₱${totalRevenue.toLocaleString()}`, color: 'text-emerald-600 dark:text-emerald-400', sub: `${paidBills.length} paid` },
+              { label: 'Published', value: publishedBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Awaiting payment' },
+              { label: 'Pending', value: submittedBills.length, color: 'text-amber-600 dark:text-amber-400', sub: 'Awaiting review' },
             ].map(c => (
               <div key={c.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-3 sm:p-4 shadow-sm">
                 <p className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">{c.label}</p>
@@ -174,10 +207,31 @@ export default function AdminBilling() {
           </div>
 
           {/* Bills table (view/delete/export per row) */}
-          <BillsTable onView={setPreviewBill} />
+          <BillsTable
+            bills={bills}
+            onView={async (bill) => {
+              const fullBill = await loadBillDetail(bill.id)
+              return fullBill
+            }}
+            onDelete={(bill) => {
+              addToast?.(`Delete function for bill #${bill?.id} is not connected yet`)
+            }}
+          />
 
           {/* Rate configuration */}
-          <RateConfigCard />
+          <RateConfigCard
+            rates={rates}
+            onSaveRate={async (type, newRate) => {
+              const result = await saveRate(type, newRate)
+              addToast?.(result?.message || 'Rate updated')
+              return result
+            }}
+            onSaveAllRates={async (nextRates) => {
+              const result = await saveAllRates(nextRates)
+              addToast?.(result?.message || 'Rates updated')
+              return result
+            }}
+          />
 
         </>
       )}
@@ -188,11 +242,11 @@ export default function AdminBilling() {
           {/* Stats — 5-col grid with overdue */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: 'Total Bills', value: bills.length,           color: 'text-slate-800 dark:text-white',        sub: 'All time' },
-              { label: 'Draft',       value: draftBills.length,      color: 'text-slate-500 dark:text-slate-400',     sub: 'Unpublished' },
-              { label: 'Pending',     value: submittedBills.length,  color: 'text-amber-600 dark:text-amber-400',     sub: 'Needs action' },
-              { label: 'Paid',        value: paidBills.length,       color: 'text-emerald-600 dark:text-emerald-400', sub: `₱${(totalRevenue/1000).toFixed(0)}k collected` },
-              { label: 'Published',   value: publishedBills.length,  color: 'text-blue-600 dark:text-blue-400',       sub: 'Awaiting payment' },
+              { label: 'Total Bills', value: bills.length, color: 'text-slate-800 dark:text-white', sub: 'All time' },
+              { label: 'Draft', value: draftBills.length, color: 'text-slate-500 dark:text-slate-400', sub: 'Unpublished' },
+              { label: 'Pending', value: submittedBills.length, color: 'text-amber-600 dark:text-amber-400', sub: 'Needs action' },
+              { label: 'Paid', value: paidBills.length, color: 'text-emerald-600 dark:text-emerald-400', sub: `₱${(totalRevenue / 1000).toFixed(0)}k collected` },
+              { label: 'Published', value: publishedBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Awaiting payment' },
             ].map(c => (
               <div key={c.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{c.label}</p>
@@ -242,7 +296,7 @@ export default function AdminBilling() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                    {['Invoice','Tenant','Unit','Month','Amount','Due Date','Receipt Ref','Status','Actions'].map(h => (
+                    {['Invoice', 'Tenant', 'Unit', 'Month', 'Amount', 'Due Date', 'Receipt Ref', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -257,7 +311,7 @@ export default function AdminBilling() {
                       <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{bill.unit}</td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.month}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">₱{bill.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{bill.dueDate}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{formatLongDate(bill.due_date)}</td>
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
                         {bill.receipt?.referenceNumber || <span className="text-slate-300 dark:text-slate-600">—</span>}
                       </td>
@@ -296,7 +350,7 @@ export default function AdminBilling() {
       )}
 
       {/* ── Shared modals ──────────────────────────────────────────────────── */}
-      
+
 
       <PaymentReviewModal
         bill={reviewModal.selectedItem}

@@ -1,38 +1,27 @@
-/**
- * BillsTable.jsx
- * Refactored billing table.
- * Changes:
- *  - Uses useBills() hook instead of direct useApp()
- *  - Uses useModalState() hook for modal management
- *  - Export button replaced with a dropdown (CSV / Excel stub / PDF stub)
- *  - React.memo applied to avoid unnecessary re-renders
- *  - EmptyState component used for empty list
- */
-
 import { useState, useRef, memo } from 'react'
 import { Eye, Trash2, Download, ChevronDown, FileText, FileSpreadsheet } from 'lucide-react'
-import BillViewerModal   from './BillViewerModal'
-import BillStatusBadge   from './BillStatusBadge'
-import ConfirmModal      from '@/components/ui/ConfirmModal'
-import EmptyState        from '@/components/ui/EmptyState'
-import { useBills }      from './hooks/useBills'
+import BillViewerModal from './BillViewerModal'
+import BillStatusBadge from './BillStatusBadge'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import EmptyState from '@/components/ui/EmptyState'
 import { useModalState } from '@/hooks/useModalState'
 import { exportBillCSV } from '@/services/billingService'
 
 const STATUS_FILTER_TABS = [
-  { k: 'all',               l: 'All' },
-  { k: 'draft',             l: 'Draft' },
-  { k: 'published',         l: 'Published' },
+  { k: 'all', l: 'All' },
+  { k: 'draft', l: 'Draft' },
+  { k: 'published', l: 'Published' },
   { k: 'payment_submitted', l: 'Submitted' },
-  { k: 'paid',              l: 'Paid' },
+  { k: 'paid', l: 'Paid' },
 ]
 
-// ─── Export Dropdown ─────────────────────────────────────────────────────────
 function ExportDropdown({ bill }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
-  // Close on outside click
+
+
+
   const handleBlur = () => setTimeout(() => setOpen(false), 150)
 
   const options = [
@@ -44,14 +33,42 @@ function ExportDropdown({ bill }) {
     {
       label: 'Excel',
       icon: FileSpreadsheet,
-      onClick: () => { exportBillCSV(bill); setOpen(false) }, // stub – swap for xlsx export
+      onClick: () => { exportBillCSV(bill); setOpen(false) },
     },
     {
       label: 'PDF',
       icon: FileText,
-      onClick: () => { exportBillCSV(bill); setOpen(false) }, // stub – swap for pdf export
+      onClick: () => { exportBillCSV(bill); setOpen(false) },
     },
   ]
+
+  function getTenantName(bill) {
+    if (typeof bill?.tenant === 'string') return bill.tenant
+    return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
+  }
+
+  function getTenantInitial(bill) {
+    const name = getTenantName(bill)
+    return String(name).charAt(0).toUpperCase() || '?'
+  }
+
+  function getUnitLabel(bill) {
+    if (typeof bill?.unit === 'string') return bill.unit
+    return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
+  }
+
+  function getDueDateValue(bill) {
+    return bill?.dueDate || bill?.due_date || null
+  }
+
+  function getBillingPeriodLabel(bill) {
+    return bill?.billingPeriod || bill?.billing_period || '—'
+  }
+
+  function getMonthLabel(bill) {
+    return bill?.month || bill?.billing_month || '—'
+  }
+
 
   return (
     <div className="relative" ref={ref} onBlur={handleBlur}>
@@ -82,23 +99,61 @@ function ExportDropdown({ bill }) {
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-function BillsTable({ onView }) {
-  const { bills, removeBill } = useBills()
-  const viewer  = useModalState()
-  const [filter,    setFilter]    = useState('all')
-  const [deleteId,  setDeleteId]  = useState(null)
+function BillsTable({ bills = [], onView, onDelete }) {
+  const viewer = useModalState()
+  const [filter, setFilter] = useState('all')
+  const [deleteId, setDeleteId] = useState(null)
 
   const filtered = filter === 'all' ? bills : bills.filter((b) => b.status === filter)
 
-  const handleView = (bill) => {
-    viewer.open(bill)
+  const handleView = async (bill) => {
+    const fullBill = await onView?.(bill)
+    if (fullBill) viewer.open(fullBill)
   }
+
+
+  const formatLongDate = (date) => {
+    if (!date) return '—'
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  const selectedDeleteBill = bills.find((b) => String(b.id) === String(deleteId))
+
+  const getTenantName = (bill) => {
+    if (typeof bill?.tenant === 'string') return bill.tenant
+    return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
+  }
+
+  const getTenantInitial = (bill) => {
+    const name = getTenantName(bill)
+    return String(name).charAt(0).toUpperCase() || '?'
+  }
+
+  const getUnitLabel = (bill) => {
+    if (typeof bill?.unit === 'string') return bill.unit
+    return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
+  }
+
+  const getDueDateValue = (bill) => {
+    return bill?.dueDate || bill?.due_date || null
+  }
+
+  const getBillingPeriodLabel = (bill) => {
+    return bill?.billingPeriod || bill?.billing_period || '—'
+  }
+
+  const getMonthLabel = (bill) => {
+    return bill?.month || bill?.billing_month || '—'
+  }
+
 
   return (
     <>
       <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-200 dark:border-slate-700/60">
           <div>
             <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Latest Bills &amp; Transactions</h2>
@@ -109,11 +164,10 @@ function BillsTable({ onView }) {
               <button
                 key={k}
                 onClick={() => setFilter(k)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
-                  filter === k
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${filter === k
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
               >
                 {l}
               </button>
@@ -121,7 +175,6 @@ function BillsTable({ onView }) {
           </div>
         </div>
 
-        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth: '580px' }}>
             <thead>
@@ -144,61 +197,80 @@ function BillsTable({ onView }) {
                   </td>
                 </tr>
               ) : (
-                filtered.map((bill) => {
-                  return (
-                    <tr
-                      key={bill.id}
-                      className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      <td className="px-4 sm:px-5 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {bill.tenant.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-slate-800 dark:text-white text-sm truncate" style={{ maxWidth: '140px' }}>
-                              {bill.tenant}
-                            </p>
-                            <p className="text-xs text-slate-400 font-mono">{bill.unit}</p>
-                          </div>
+                filtered.map((bill) => (
+                  <tr
+                    key={bill.id}
+                    className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                  >
+                    <td className="px-4 sm:px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {getTenantInitial(bill)}
                         </div>
-                      </td>
-                      <td className="px-4 sm:px-5 py-3.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">{bill.month}</td>
-                      <td className="px-4 sm:px-5 py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.billingPeriod}</td>
-                      <td className="px-4 sm:px-5 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">₱{bill.amount.toLocaleString()}</td>
-                      <td className="px-4 sm:px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.dueDate}</td>
-                      <td className="px-4 sm:px-5 py-3.5">
-                        <BillStatusBadge status={bill.status} />
-                      </td>
-                      <td className="px-4 sm:px-5 py-3.5">
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={() => handleView(bill)}
-                            className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            title="View"
+                        <div className="min-w-0">
+                          <p
+                            className="font-medium text-slate-800 dark:text-white text-sm truncate"
+                            style={{ maxWidth: '140px' }}
                           >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <ExportDropdown bill={bill} />
-                          <button
-                            onClick={() => setDeleteId(bill.id)}
-                            className="p-2 rounded-lg text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            {getTenantName(bill)}
+                          </p>
+                          <p className="text-xs text-slate-400 font-mono">
+                            {getUnitLabel(bill)}
+                          </p>
                         </div>
-                      </td>
-                    </tr>
-                  )
-                })
+                      </div>
+                    </td>
+
+                    <td className="px-4 sm:px-5 py-3.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                      {getMonthLabel(bill)}
+                    </td>
+
+                    <td className="px-4 sm:px-5 py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      {getBillingPeriodLabel(bill)}
+                    </td>
+
+                    <td className="px-4 sm:px-5 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">
+                      ₱{Number(bill.amount || bill.total_amount || 0).toLocaleString()}
+                    </td>
+
+                    <td className="px-4 sm:px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      {formatLongDate(getDueDateValue(bill))}
+                    </td>
+
+                    <td className="px-4 sm:px-5 py-3.5">
+                      <BillStatusBadge status={bill.status} />
+                    </td>
+
+                    <td className="px-4 sm:px-5 py-3.5">
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => handleView(bill)}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          title="View"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <ExportDropdown bill={bill} />
+
+                        <button
+                          onClick={() => setDeleteId(bill.id)}
+                          className="p-2 rounded-lg text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
+
           </table>
         </div>
       </div>
 
-      {/* Modals */}
       <BillViewerModal
         bill={viewer.selectedItem}
         isOpen={viewer.isOpen}
@@ -210,7 +282,10 @@ function BillsTable({ onView }) {
         title="Delete Bill?"
         message="This bill will be permanently removed and cannot be recovered."
         confirmLabel="Delete Bill"
-        onConfirm={() => { removeBill(deleteId); setDeleteId(null) }}
+        onConfirm={() => {
+          onDelete?.(selectedDeleteBill)
+          setDeleteId(null)
+        }}
         onCancel={() => setDeleteId(null)}
       />
     </>
