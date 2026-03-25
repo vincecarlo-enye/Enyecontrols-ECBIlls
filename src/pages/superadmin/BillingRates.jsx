@@ -16,6 +16,95 @@ const TYPE_CONFIG = {
   thermal:     { label: 'Thermal',      icon: Flame,    color: 'text-rose-500',  bg: 'bg-rose-50 dark:bg-rose-900/20',   border: 'border-rose-200 dark:border-rose-700/50',   gradient: 'from-rose-400 to-pink-500',    bar: 'bg-rose-400',  defaultUnit: 'per kBTU/h' },
 }
 
+const handleVatSave = (newRate) => {
+  const old = vatRate
+  updateVatRate(newRate)
+
+  setLog(prev => [{
+    id: Date.now(),
+    type: 'vat',
+    oldRate: old * 100,
+    newRate: newRate * 100,
+    changedBy: user?.name || 'Super Admin',
+    changedAt: new Date().toLocaleString('en-PH'),
+  }, ...prev.slice(0, 9)])
+}
+
+function VatEditCard({ vatRate, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState((vatRate * 100).toFixed(2))
+
+  const handleSave = () => {
+    const parsed = parseFloat(val)
+    if (!isNaN(parsed) && parsed >= 0) {
+      onSave(parsed / 100) // convert % to decimal
+      setEditing(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setVal((vatRate * 100).toFixed(2))
+    setEditing(false)
+  }
+
+  return (
+    <div className="glass rounded-2xl p-5 shadow-lg border border-violet-200 dark:border-violet-700/50 bg-violet-50 dark:bg-violet-900/20 animate-in">
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-md">
+          <span className="text-white font-bold text-sm">VAT</span>
+        </div>
+
+        {!editing ? (
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-blue-400 transition-all"
+          >
+            Edit VAT
+          </button>
+        ) : (
+          <div className="flex gap-1">
+            <button onClick={handleSave} className="p-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={handleCancel} className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <p className="text-xs font-mono uppercase tracking-widest text-slate-400 mb-1">
+        VAT Rate
+      </p>
+
+      {editing ? (
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="text-xl font-bold bg-transparent border-b-2 border-blue-500 text-slate-800 dark:text-white outline-none w-24"
+          />
+          <span className="text-slate-500 font-semibold">%</span>
+        </div>
+      ) : (
+        <div className="flex items-baseline gap-1 mb-3">
+          <span className="text-2xl font-bold text-slate-800 dark:text-white">
+            {parseFloat(val).toFixed(2)}
+          </span>
+          <span className="text-xs font-mono text-slate-400">%</span>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-400">
+        Applied to vatable charges in all billing calculations.
+      </p>
+    </div>
+  )
+}
+
 function RateEditCard({ type, rate, unit, completeness, onSave }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(rate.toFixed(2))
@@ -112,7 +201,7 @@ function RateEditCard({ type, rate, unit, completeness, onSave }) {
 
 export default function BillingRates() {
   const loading = usePageLoader(600)
-  const { billingRates, updateBillingRate, addToast } = useApp()
+  const { billingRates, updateBillingRate, vatRate, updateVatRate, addToast } = useApp()
   const { user } = useAuth()
   const { isSuperAdmin } = usePermissions()
   const [log, setLog] = useState([])
@@ -164,6 +253,10 @@ export default function BillingRates() {
           />
         ))}
       </div>
+      {/* VAT Configuration */}
+<div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+  <VatEditCard vatRate={vatRate || 0.12} onSave={handleVatSave} />
+</div>
 
       {/* Change log */}
       {log.length > 0 && (
@@ -174,11 +267,13 @@ export default function BillingRates() {
           </div>
           <div className="space-y-2">
             {log.map(entry => {
-              const cfg = TYPE_CONFIG[entry.type]
+              const cfg = TYPE_CONFIG[entry.type] || { color: 'text-violet-500' }
               return (
                 <div key={entry.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-sm">
                   <div className="flex items-center gap-2">
-                    <span className={`font-semibold capitalize ${cfg.color}`}>{entry.type}</span>
+                    <span className={`font-semibold capitalize ${cfg.color}`}>
+  {entry.type === 'vat' ? 'VAT' : entry.type}
+</span>
                     <span className="text-slate-400">₱{entry.oldRate.toFixed(2)} → <span className="text-emerald-600 font-semibold">₱{entry.newRate.toFixed(2)}</span></span>
                   </div>
                   <div className="text-xs text-slate-400">{entry.changedBy} · {entry.changedAt}</div>
