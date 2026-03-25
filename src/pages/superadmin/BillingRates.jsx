@@ -16,19 +16,8 @@ const TYPE_CONFIG = {
   thermal:     { label: 'Thermal',      icon: Flame,    color: 'text-rose-500',  bg: 'bg-rose-50 dark:bg-rose-900/20',   border: 'border-rose-200 dark:border-rose-700/50',   gradient: 'from-rose-400 to-pink-500',    bar: 'bg-rose-400',  defaultUnit: 'per kBTU/h' },
 }
 
-const handleVatSave = (newRate) => {
-  const old = vatRate
-  updateVatRate(newRate)
 
-  setLog(prev => [{
-    id: Date.now(),
-    type: 'vat',
-    oldRate: old * 100,
-    newRate: newRate * 100,
-    changedBy: user?.name || 'Super Admin',
-    changedAt: new Date().toLocaleString('en-PH'),
-  }, ...prev.slice(0, 9)])
-}
+
 
 function VatEditCard({ vatRate, onSave }) {
   const [editing, setEditing] = useState(false)
@@ -41,6 +30,7 @@ function VatEditCard({ vatRate, onSave }) {
       setEditing(false)
     }
   }
+  
 
   const handleCancel = () => {
     setVal((vatRate * 100).toFixed(2))
@@ -224,6 +214,19 @@ export default function BillingRates() {
       changedAt: new Date().toLocaleString('en-PH'),
     }, ...prev.slice(0, 9)])
   }
+  const handleVatSave = (newRate) => {
+  const old = vatRate
+  updateVatRate(newRate)
+
+  setLog(prev => [{
+    id: Date.now(),
+    type: 'vat',
+    oldRate: old * 100,
+    newRate: newRate * 100,
+    changedBy: user?.name || 'Super Admin',
+    changedAt: new Date().toLocaleString('en-PH'),
+  }, ...prev.slice(0, 9)])
+}
 
   return (
     <div className="space-y-6">
@@ -272,9 +275,20 @@ export default function BillingRates() {
                 <div key={entry.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-sm">
                   <div className="flex items-center gap-2">
                     <span className={`font-semibold capitalize ${cfg.color}`}>
-  {entry.type === 'vat' ? 'VAT' : entry.type}
-</span>
-                    <span className="text-slate-400">₱{entry.oldRate.toFixed(2)} → <span className="text-emerald-600 font-semibold">₱{entry.newRate.toFixed(2)}</span></span>
+                      {entry.type === 'vat' ? 'VAT' : entry.type}
+                    </span>
+                                        <span className="text-slate-400">
+                      {entry.type === 'vat'
+                        ? `${entry.oldRate.toFixed(2)}% → `
+                        : `₱${entry.oldRate.toFixed(2)} → `
+                      }
+                      <span className="text-emerald-600 font-semibold">
+                        {entry.type === 'vat'
+                          ? `${entry.newRate.toFixed(2)}%`
+                          : `₱${entry.newRate.toFixed(2)}`
+                        }
+                      </span>
+                    </span>
                   </div>
                   <div className="text-xs text-slate-400">{entry.changedBy} · {entry.changedAt}</div>
                 </div>
