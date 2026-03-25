@@ -49,6 +49,13 @@ export function AppProvider({ children }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
   }, [])
 
+  // ── VAT Rate (Super Admin managed) ────────────────
+  const [vatRate, setVatRate] = useState(0.12) // default 12%
+  const updateVatRate = useCallback((newRate) => {
+    setVatRate(newRate)
+    addToast(`VAT rate updated to ${(newRate*100).toFixed(2)}%`)
+  }, [addToast])
+
   const removeToast = useCallback((id) => setToasts(prev => prev.filter(t => t.id !== id)), [])
 
   // ── Billing Rates CRUD (Super Admin only — enforced in UI + here) ────────
@@ -159,17 +166,18 @@ export function AppProvider({ children }) {
 
   return (
     <AppContext.Provider value={{
-      bills, tenants, units, payments, meters,
-      billingRates, updateBillingRate, updateAllRates,
-      updateBillStatus, deleteBill, addBill, updateBill,
-      submitPaymentReceipt, approvePayment, rejectPayment,
-      addTenant, updateTenant, deleteTenant,
-      addUnit, updateUnit, deleteUnit,
-      addMeter, updateMeter, deleteMeter,
-      toasts, addToast, removeToast,
-    }}>
-      {children}
-    </AppContext.Provider>
+  bills, tenants, units, payments, meters,
+  billingRates, updateBillingRate, updateAllRates,
+  vatRate, updateVatRate,  // <-- add these
+  updateBillStatus, deleteBill, addBill, updateBill,
+  submitPaymentReceipt, approvePayment, rejectPayment,
+  addTenant, updateTenant, deleteTenant,
+  addUnit, updateUnit, deleteUnit,
+  addMeter, updateMeter, deleteMeter,
+  toasts, addToast, removeToast,
+}}>
+  {children}
+</AppContext.Provider>
   )
 }
 
