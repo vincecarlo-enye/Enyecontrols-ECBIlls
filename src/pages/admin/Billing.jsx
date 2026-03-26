@@ -12,12 +12,14 @@ import { useState, useRef } from 'react'
 import {
   Receipt, Plus, Download, ChevronDown, FileText, FileSpreadsheet,
   ShieldCheck, Search, Eye, CheckCircle2, XCircle, Clock,
-  Save, X, Zap, Droplets, Flame, Settings2, LayoutList,
+  Save, X, Zap, Droplets, Flame, Settings2, LayoutList, History, AlertCircle,
 } from 'lucide-react'
 import { usePageLoader }       from '@/hooks/usePageLoader'
+import { usePagination }       from '@/hooks/usePagination'
 import { BillingSkeleton }     from '@/components/skeletons'
 import BillsTable              from '@/components/billing/BillsTable'
 import RateConfigCard          from '@/components/common/RateConfigCard'
+import Pagination              from '@/components/ui/Pagination'
 import utilitiesData           from '@/data/mock/utilities.json'
 import { useBills }            from '@/components/billing/hooks/useBills'
 import { useModalState }       from '@/hooks/useModalState'
@@ -39,35 +41,120 @@ const OVERSIGHT_TABS = [
   { key: 'overdue',           label: 'Overdue'        },
 ]
 
+const MONTHS_LIST = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December'
+]
+
+// ─── Export Range Modal ───────────────────────────────────────────────────────
+function ExportRangeModal({ isOpen, onClose, onExport }) {
+  const currentYear = new Date().getFullYear()
+  const [fromMonth, setFromMonth] = useState(0)
+  const [toMonth,   setToMonth]   = useState(new Date().getMonth())
+  const [fromYear,  setFromYear]  = useState(currentYear)
+  const [toYear,    setToYear]    = useState(currentYear)
+  const [error,     setError]     = useState('')
+
+  if (!isOpen) return null
+
+  const years = []
+  for (let y = currentYear - 3; y <= currentYear; y++) years.push(y)
+
+  const validate = () => {
+    const from = new Date(fromYear, fromMonth, 1)
+    const to   = new Date(toYear,   toMonth,   1)
+    if (from > to) { setError('Start month must be before or equal to end month.'); return false }
+    setError('')
+    return true
+  }
+
+  const handleExport = (format) => {
+    if (!validate()) return
+    onExport({ fromMonth, toMonth, fromYear, toYear, format })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/50 overflow-hidden animate-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 dark:border-slate-700/50">
+          <div>
+            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Export Bills</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Select a month range to export</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-400 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {[
+            { label: 'From', month: fromMonth, year: fromYear, setMonth: setFromMonth, setYear: setFromYear },
+            { label: 'To',   month: toMonth,   year: toYear,   setMonth: setToMonth,   setYear: setToYear   },
+          ].map(({ label, month, year, setMonth, setYear }) => (
+            <div key={label}>
+              <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-2">{label}</label>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={month} onChange={e => setMonth(Number(e.target.value))}
+                  className="px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all">
+                  {MONTHS_LIST.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                </select>
+                <select value={year} onChange={e => setYear(Number(e.target.value))}
+                  className="px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all">
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {[{ label: 'CSV', icon: FileText }, { label: 'Excel', icon: FileSpreadsheet }, { label: 'PDF', icon: FileText }].map(({ label, icon: Icon }) => (
+              <button key={label} onClick={() => handleExport(label)}
+                className="flex flex-col items-center gap-1.5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-all">
+                <Icon className="w-4 h-4" />
+                <span className="text-xs font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Export all bills dropdown ────────────────────────────────────────────────
 function ExportAllDropdown({ bills, onExported }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const close = () => setTimeout(() => setOpen(false), 150)
-  const opts = [
-    { label: 'CSV',   icon: FileText,        fn: () => { exportAllBillsCSV(bills); onExported?.('CSV')   } },
-    { label: 'Excel', icon: FileSpreadsheet, fn: () => { exportAllBillsCSV(bills); onExported?.('Excel') } },
-    { label: 'PDF',   icon: FileText,        fn: () => { exportAllBillsCSV(bills); onExported?.('PDF')   } },
-  ]
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+
+  const handleRangeExport = ({ fromMonth, toMonth, fromYear, toYear }) => {
+    const from = new Date(fromYear, fromMonth, 1)
+    const to   = new Date(toYear, toMonth + 1, 0)
+    const ranged = bills.filter(b => {
+      const d = new Date(b.dueDate)
+      return !isNaN(d) && d >= from && d <= to
+    })
+    exportAllBillsCSV(ranged, `Bills_${MONTHS_LIST[fromMonth]}_${fromYear}_to_${MONTHS_LIST[toMonth]}_${toYear}`)
+    onExported?.('CSV')
+  }
+
   return (
-    <div className="relative" ref={ref} onBlur={close}>
-      <button onClick={() => setOpen(o => !o)}
+    <>
+      <button
+        onClick={() => setExportModalOpen(true)}
         className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
         <Download className="w-4 h-4 flex-shrink-0" />
         <span className="hidden sm:inline">Export</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden">
-          {opts.map(({ label, icon: Icon, fn }) => (
-            <button key={label} onClick={() => { fn(); setOpen(false) }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors">
-              <Icon className="w-3.5 h-3.5 text-slate-400" />{label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      <ExportRangeModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        onExport={handleRangeExport}
+      />
+    </>
   )
 }
 
@@ -85,6 +172,7 @@ export default function AdminBilling() {
   const loading = usePageLoader(700)
   const navigate = useNavigate()
   const detailModal = useModalState()
+
   const {
     bills, addToast,
     paidBills, publishedBills, submittedBills, draftBills, overdueBills, totalRevenue,
@@ -95,17 +183,28 @@ export default function AdminBilling() {
   const [previewBill, setPreviewBill] = useState(null)
   const reviewModal = useModalState()
 
-  // Oversight tab state
   const [search,       setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  if (loading) return <BillingSkeleton />
-
+  // ✅ SAFE: compute first
   const oversightFiltered = bills.filter(b => {
     const q = search.toLowerCase()
     return (!q || b.tenant.toLowerCase().includes(q) || b.unit.toLowerCase().includes(q) || b.id.toLowerCase().includes(q))
       && (statusFilter === 'all' || b.status === statusFilter)
   })
+
+  // ✅ SAFE: hook ALWAYS runs
+  const {
+    page: oversightPage,
+    rowsPerPage: oversightRows,
+    setPage: setOversightPage,
+    setRowsPerPage: setOversightRows,
+    paginated: oversightPaginated,
+    total: oversightTotal,
+  } = usePagination(oversightFiltered, 10)
+
+  // ✅ NOW it's safe to early return
+  if (loading) return <BillingSkeleton />
 
   return (
     <div className="space-y-5 sm:space-y-6 animate-in">
@@ -123,6 +222,13 @@ export default function AdminBilling() {
         </div>
         {activeTab === 'manage' && (
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => navigate('/admin/billing/history')}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+            >
+              <History className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Billing History</span>
+            </button>
             <ExportAllDropdown bills={bills} onExported={fmt => addToast(`Bills exported as ${fmt}`)} />
             <button
               onClick={() => navigate('/admin/billing/new')}
@@ -237,8 +343,7 @@ export default function AdminBilling() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{oversightFiltered.length} records</p>
               <p className="text-xs text-slate-400 font-mono">Admin — Full Audit View</p>
-            </div>
-            <div className="overflow-x-auto">
+            </div>            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
@@ -250,7 +355,7 @@ export default function AdminBilling() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {oversightFiltered.length === 0 ? (
                     <tr><td colSpan={9}><EmptyState title="No bills found" message="Try adjusting your search or status filter." /></td></tr>
-                  ) : oversightFiltered.map(bill => (
+                  ) : oversightPaginated.map(bill => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{bill.tenant}</td>
@@ -291,6 +396,15 @@ export default function AdminBilling() {
                 </tbody>
               </table>
             </div>
+            {oversightFiltered.length > 0 && (
+              <Pagination
+                total={oversightTotal}
+                page={oversightPage}
+                rowsPerPage={oversightRows}
+                onPage={setOversightPage}
+                onRowsPerPage={setOversightRows}
+              />
+            )}
           </div>
         </>
       )}
