@@ -13,8 +13,7 @@ const EMPTY = {
 }
 
 const field = (err) =>
-  `w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border ${
-    err ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'
+  `w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border ${err ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'
   } text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all`
 
 const RATE_META = {
@@ -116,9 +115,10 @@ export default function NewBillPage() {
     if (!validate() || submitting) return
 
     const payload = {
-      tenant_id: Number(form.tenantId),
-      billing_month: form.billingMonth,
+      tenantid: Number(form.tenantId),
+      billingmonth: form.billingMonth,
     }
+
 
     try {
       setSubmitting(true)

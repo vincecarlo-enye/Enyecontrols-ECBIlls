@@ -1,5 +1,12 @@
 import { useState, useRef, memo } from 'react'
-import { Eye, Trash2, Download, ChevronDown, FileText, FileSpreadsheet } from 'lucide-react'
+import {
+  Eye,
+  Trash2,
+  Download,
+  ChevronDown,
+  FileText,
+  FileSpreadsheet,
+} from 'lucide-react'
 import BillViewerModal from './BillViewerModal'
 import BillStatusBadge from './BillStatusBadge'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -15,12 +22,109 @@ const STATUS_FILTER_TABS = [
   { k: 'paid', l: 'Paid' },
 ]
 
+function formatLongDate(value) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function formatShortPeriodDate(value) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function getTenantName(bill) {
+  if (typeof bill?.tenant === 'string') return bill.tenant
+  return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
+}
+
+function getTenantInitial(bill) {
+  const name = getTenantName(bill)
+  return String(name).charAt(0).toUpperCase() || '?'
+}
+
+function getUnitLabel(bill) {
+  if (typeof bill?.unit === 'string') return bill.unit
+  return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
+}
+
+function getDueDateValue(bill) {
+  return bill?.dueDate || bill?.due_date || null
+}
+
+function getBillingPeriodLabel(bill) {
+  const billingStart =
+    bill?.billing_start ||
+    bill?.period_start ||
+    bill?.billingStart ||
+    null
+
+  const billingEnd =
+    bill?.billing_end ||
+    bill?.period_end ||
+    bill?.billingEnd ||
+    null
+
+  if (billingStart && billingEnd) {
+    return `${formatShortPeriodDate(billingStart)} - ${formatShortPeriodDate(billingEnd)}`
+  }
+
+  if (billingEnd) {
+    return formatShortPeriodDate(billingEnd)
+  }
+
+  return bill?.billingPeriod || bill?.billing_period || '—'
+}
+
+
+function getMonthLabel(bill) {
+  if (bill?.month) return bill.month
+  if (bill?.billing_month) return bill.billing_month
+
+  const raw =
+    bill?.billing_end ||
+    bill?.period_end ||
+    bill?.billing_start ||
+    bill?.period_start
+
+  if (!raw) return '—'
+
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
+
+function getAmountValue(bill) {
+  return Number(
+    bill?.grand_total ??
+    bill?.total_amount ??
+    bill?.amount ??
+    0
+  )
+}
+
 function ExportDropdown({ bill }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
-
-
-
 
   const handleBlur = () => setTimeout(() => setOpen(false), 150)
 
@@ -28,47 +132,28 @@ function ExportDropdown({ bill }) {
     {
       label: 'CSV',
       icon: FileText,
-      onClick: () => { exportBillCSV(bill); setOpen(false) },
+      onClick: () => {
+        exportBillCSV(bill)
+        setOpen(false)
+      },
     },
     {
       label: 'Excel',
       icon: FileSpreadsheet,
-      onClick: () => { exportBillCSV(bill); setOpen(false) },
+      onClick: () => {
+        exportBillCSV(bill)
+        setOpen(false)
+      },
     },
     {
       label: 'PDF',
       icon: FileText,
-      onClick: () => { exportBillCSV(bill); setOpen(false) },
+      onClick: () => {
+        exportBillCSV(bill)
+        setOpen(false)
+      },
     },
   ]
-
-  function getTenantName(bill) {
-    if (typeof bill?.tenant === 'string') return bill.tenant
-    return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
-  }
-
-  function getTenantInitial(bill) {
-    const name = getTenantName(bill)
-    return String(name).charAt(0).toUpperCase() || '?'
-  }
-
-  function getUnitLabel(bill) {
-    if (typeof bill?.unit === 'string') return bill.unit
-    return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
-  }
-
-  function getDueDateValue(bill) {
-    return bill?.dueDate || bill?.due_date || null
-  }
-
-  function getBillingPeriodLabel(bill) {
-    return bill?.billingPeriod || bill?.billing_period || '—'
-  }
-
-  function getMonthLabel(bill) {
-    return bill?.month || bill?.billing_month || '—'
-  }
-
 
   return (
     <div className="relative" ref={ref} onBlur={handleBlur}>
@@ -104,69 +189,35 @@ function BillsTable({ bills = [], onView, onDelete }) {
   const [filter, setFilter] = useState('all')
   const [deleteId, setDeleteId] = useState(null)
 
-  const filtered = filter === 'all' ? bills : bills.filter((b) => b.status === filter)
+  const filtered =
+    filter === 'all' ? bills : bills.filter((b) => b.status === filter)
 
   const handleView = async (bill) => {
     const fullBill = await onView?.(bill)
     if (fullBill) viewer.open(fullBill)
   }
 
-
-  const formatLongDate = (date) => {
-    if (!date) return '—'
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
   const selectedDeleteBill = bills.find((b) => String(b.id) === String(deleteId))
-
-  const getTenantName = (bill) => {
-    if (typeof bill?.tenant === 'string') return bill.tenant
-    return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
-  }
-
-  const getTenantInitial = (bill) => {
-    const name = getTenantName(bill)
-    return String(name).charAt(0).toUpperCase() || '?'
-  }
-
-  const getUnitLabel = (bill) => {
-    if (typeof bill?.unit === 'string') return bill.unit
-    return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
-  }
-
-  const getDueDateValue = (bill) => {
-    return bill?.dueDate || bill?.due_date || null
-  }
-
-  const getBillingPeriodLabel = (bill) => {
-    return bill?.billingPeriod || bill?.billing_period || '—'
-  }
-
-  const getMonthLabel = (bill) => {
-    return bill?.month || bill?.billing_month || '—'
-  }
-
 
   return (
     <>
       <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-200 dark:border-slate-700/60">
           <div>
-            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Latest Bills &amp; Transactions</h2>
+            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">
+              Latest Bills &amp; Transactions
+            </h2>
             <p className="text-xs text-slate-400 mt-0.5">{filtered.length} records</p>
           </div>
+
           <div className="flex items-center gap-1.5 flex-wrap">
             {STATUS_FILTER_TABS.map(({ k, l }) => (
               <button
                 key={k}
                 onClick={() => setFilter(k)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${filter === k
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
               >
                 {l}
@@ -180,12 +231,16 @@ function BillsTable({ bills = [], onView, onDelete }) {
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                 {['Tenant', 'Month', 'Billing Period', 'Amount', 'Due Date', 'Status', 'Actions'].map((col) => (
-                  <th key={col} className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 sm:px-5 py-3 whitespace-nowrap">
+                  <th
+                    key={col}
+                    className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 sm:px-5 py-3 whitespace-nowrap"
+                  >
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
+
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
@@ -207,6 +262,7 @@ function BillsTable({ bills = [], onView, onDelete }) {
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                           {getTenantInitial(bill)}
                         </div>
+
                         <div className="min-w-0">
                           <p
                             className="font-medium text-slate-800 dark:text-white text-sm truncate"
@@ -230,7 +286,10 @@ function BillsTable({ bills = [], onView, onDelete }) {
                     </td>
 
                     <td className="px-4 sm:px-5 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">
-                      ₱{Number(bill.amount || bill.total_amount || 0).toLocaleString()}
+                      ₱{getAmountValue(bill).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </td>
 
                     <td className="px-4 sm:px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -266,7 +325,6 @@ function BillsTable({ bills = [], onView, onDelete }) {
                 ))
               )}
             </tbody>
-
           </table>
         </div>
       </div>

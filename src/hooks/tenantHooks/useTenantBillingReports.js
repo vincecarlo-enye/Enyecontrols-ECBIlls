@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getTenantBillingReports, reopenTenantBillingReport, submitTenantBillingReport } from '../../services/tenantService/tenantBillingReportService'
-// import {
-//   getTenantBillingReports,
-//   submitTenantBillingReport,
-//   reopenTenantBillingReport,
-// } from '@/services/tenantBillingReportService'
+import {
+  getTenantBillingReports,
+  submitTenantBillingReport,
+  reopenTenantBillingReport,
+} from '@/services/tenantBillingReportService'
 
 function normalizeConcern(concern = {}) {
   return {

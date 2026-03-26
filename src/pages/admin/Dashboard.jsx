@@ -214,7 +214,7 @@ export default function Dashboard() {
       <div>
         <h2 className="section-title mb-3">Utility Consumption</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <UtilityCard type="electricity" {...utilityStats.electricity} />
+          <UtilityCard type="electric" {...utilityStats.electric} />
           <UtilityCard type="thermal" {...utilityStats.thermal} />
           <UtilityCard type="water" {...utilityStats.water} />
         </div>
@@ -222,10 +222,17 @@ export default function Dashboard() {
 
 
       <MemoCharts
-        electricityDaily={daily.electricity}
+        electricityDaily={daily.electric}
         waterDaily={daily.water}
         thermalDaily={daily.thermal}
-        trends={trends}
+        trends={{
+          electricity: trends.electric,
+          water: trends.water,
+          thermal: trends.thermal,
+          electricityBadge: trends.electricBadge,
+          waterBadge: trends.waterBadge,
+          thermalBadge: trends.thermalBadge,
+        }}
       />
 
 

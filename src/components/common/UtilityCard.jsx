@@ -1,13 +1,22 @@
 import { TrendingUp, TrendingDown, Zap, Flame, Droplets } from 'lucide-react'
 
+const normalizeType = (type) => {
+  const t = String(type || '').toLowerCase()
+  if (t === 'electricity') return 'electric'
+  if (t === 'electric') return 'electric'
+  if (t === 'water') return 'water'
+  if (t === 'thermal') return 'thermal'
+  return 'electric'
+}
+
 const iconMap = {
-  electricity: Zap,
+  electric: Zap,
   thermal: Flame,
   water: Droplets,
 }
 
 const colorMap = {
-  electricity: {
+  electric: {
     gradient: 'from-amber-400 to-orange-500',
     bg: 'bg-amber-50 dark:bg-amber-900/20',
     text: 'text-amber-600 dark:text-amber-400',
@@ -34,30 +43,48 @@ const colorMap = {
 }
 
 const labelMap = {
-  electricity: 'Electric Usage',
+  electric: 'Electric Usage',
   thermal: 'Thermal Energy',
   water: 'Water Usage',
 }
 
 const descMap = {
-  electricity: 'Consumed by building — allocated to tenants based on metered usage.',
+  electric: 'Consumed by building — allocated to tenants based on metered usage.',
   thermal: 'Used for centralized chillers, cooling towers & HVAC systems.',
   water: 'Calculated to allocate water costs proportionally to all tenants.',
+}
+
+const defaultUnitMap = {
+  electric: 'kWh',
+  thermal: 'kBTU/h',
+  water: 'm³',
+}
+
+function toSafeNumber(value) {
+  const n = Number(value ?? 0)
+  return Number.isFinite(n) ? n : 0
 }
 
 export default function UtilityCard({
   type,
   usage = 0,
+  value,
   unit = '',
   estimatedCost = 0,
+  cost,
   trend = 0,
+  delta,
   lastUpdated = 'Updated just now',
+  period,
 }) {
-  const Icon = iconMap[type] || Zap
-  const colors = colorMap[type] || colorMap.electricity
-  const safeUsage = Number(usage || 0)
-  const safeEstimatedCost = Number(estimatedCost || 0)
-  const safeTrend = Number(trend || 0)
+  const normalizedType = normalizeType(type)
+  const Icon = iconMap[normalizedType] || Zap
+  const colors = colorMap[normalizedType] || colorMap.electric
+  const safeUsage = toSafeNumber(usage ?? value)
+  const safeEstimatedCost = toSafeNumber(estimatedCost ?? cost)
+  const safeTrend = toSafeNumber(trend ?? delta)
+  const safeUnit = unit || defaultUnitMap[normalizedType] || ''
+  const safeLastUpdated = lastUpdated || period || 'Updated just now'
   const isPositive = safeTrend >= 0
   const TrendIcon = isPositive ? TrendingUp : TrendingDown
 
@@ -67,32 +94,39 @@ export default function UtilityCard({
         <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg`}>
           <Icon className="w-5 h-5 text-white" strokeWidth={2} />
         </div>
+
         <span className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg ${colors.badge}`}>
           <TrendIcon className="w-3 h-3" />
-          {Math.abs(safeTrend)}%
+          {safeTrend > 0 ? '+' : ''}{Math.abs(safeTrend).toFixed(1)}%
         </span>
       </div>
 
       <p className="text-xs font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">
-        {labelMap[type]}
+        {labelMap[normalizedType]}
       </p>
 
       <div className="flex items-baseline gap-1.5 mb-0.5">
-        <span className="text-2xl font-display font-700 text-slate-800 dark:text-white">
-          {safeUsage.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+        <span className="text-2xl font-display font-bold text-slate-800 dark:text-white">
+          {safeUsage.toLocaleString('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
         </span>
-        <span className="text-sm text-slate-400 font-mono">{unit}</span>
+        <span className="text-sm text-slate-400 font-mono">{safeUnit}</span>
       </div>
 
       <p className={`text-base font-semibold ${colors.text} mb-3`}>
-        ₱{safeEstimatedCost.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+        ₱{safeEstimatedCost.toLocaleString('en-PH', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
         <span className="text-xs font-normal text-slate-400 ml-1">est. cost</span>
       </p>
 
       <div className="border-t border-slate-200/60 dark:border-slate-700/50 pt-3">
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{lastUpdated}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{safeLastUpdated}</p>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-          {descMap[type]}
+          {descMap[normalizedType]}
         </p>
       </div>
     </div>
