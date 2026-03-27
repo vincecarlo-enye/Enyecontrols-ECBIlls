@@ -39,6 +39,20 @@ function mapBackendToUI(item) {
   }
 }
 
+function isActiveAnnouncement(announcement) {
+  const status = String(announcement?.status || '').toLowerCase()
+  if (status && status !== 'published') return false
+
+  const now = Date.now()
+  const startsAt = announcement?.starts_at ? new Date(announcement.starts_at).getTime() : null
+  const endsAt = announcement?.ends_at ? new Date(announcement.ends_at).getTime() : null
+
+  if (startsAt && !Number.isNaN(startsAt) && now < startsAt) return false
+  if (endsAt && !Number.isNaN(endsAt) && now > endsAt) return false
+
+  return true
+}
+
 function mapUIToBackend(formData) {
   const audience_type = formData.isSystemWide
     ? 'all'
@@ -146,6 +160,7 @@ export function useAdminAnnouncements() {
   const getAnnouncementsForRole = useCallback(
     (role) => {
       return announcements.filter((ann) => {
+        if (!isActiveAnnouncement(ann)) return false
         if (ann.isSystemWide) return true
         return ann.targetRoles.includes(role)
       })

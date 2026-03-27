@@ -25,15 +25,16 @@ export default function ReceiptUploadModal({ bill, isOpen, onClose, onSubmit }) 
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const receiptData = {
+      proofImageFile: receiptFile,
       receiptImage: previewUrl,
       paymentDate: form.paymentDate,
       referenceNumber: form.referenceNumber,
       note: form.note,
       submittedBy: 'tenant',
     }
-    onSubmit(bill.id, receiptData)
+    await onSubmit(bill.id, receiptData)
     setStep(2)
   }
 
@@ -106,7 +107,7 @@ export default function ReceiptUploadModal({ bill, isOpen, onClose, onSubmit }) 
                       <span className="text-xs">PDF uploaded: {receiptFile?.name}</span>
                     </div>
                   )}
-                  <input type="file" accept="image/*,application/pdf" className="hidden" onChange={handleFileChange} />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                 </label>
                 {receiptFile && (
                   <p className="text-[10px] text-slate-400 mt-1 truncate">{receiptFile.name}</p>

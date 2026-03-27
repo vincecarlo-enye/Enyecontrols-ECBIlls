@@ -3,23 +3,172 @@ import {
   getTenantBillingReports,
   submitTenantBillingReport,
   reopenTenantBillingReport,
-} from '@/services/tenantBillingReportService'
+} from '@/services/tenantService/tenantBillingReportService'
+
+function formatTimelineDate(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
+
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+function buildTimeline(concern = {}, tenant = null) {
+  if (Array.isArray(concern?.timeline) && concern.timeline.length > 0) {
+    return concern.timeline
+  }
+
+  const createdAt = concern?.createdAt ?? concern?.created_at ?? ''
+  const updatedAt = concern?.updatedAt ?? concern?.updated_at ?? ''
+  const adminNotes = concern?.adminNotes ?? concern?.admin_notes ?? ''
+  const financeNotes = concern?.financeNotes ?? concern?.finance_notes ?? ''
+  const tenantName =
+    concern?.tenantName ??
+    concern?.tenant_name ??
+    tenant?.name ??
+    tenant?.full_name ??
+    'Tenant'
+
+  const timeline = []
+
+  if (createdAt) {
+    timeline.push({
+      id: `${concern?.id ?? 'concern'}-submitted`,
+      action: 'Ticket submitted',
+      by: tenantName,
+      role: 'tenant',
+      date: formatTimelineDate(createdAt),
+      note: concern?.message ?? '',
+    })
+  }
+
+  if (adminNotes) {
+    timeline.push({
+      id: `${concern?.id ?? 'concern'}-admin`,
+      action: 'Admin update added',
+      by: 'Admin',
+      role: 'admin',
+      date: formatTimelineDate(updatedAt || createdAt),
+      note: adminNotes,
+    })
+  }
+
+  if (financeNotes) {
+    timeline.push({
+      id: `${concern?.id ?? 'concern'}-finance`,
+      action: 'Finance update added',
+      by: 'Finance',
+      role: 'finance',
+      date: formatTimelineDate(updatedAt || createdAt),
+      note: financeNotes,
+    })
+  }
+
+  if (
+    concern?.status &&
+    !['pending'].includes(String(concern.status).toLowerCase())
+  ) {
+    timeline.push({
+      id: `${concern?.id ?? 'concern'}-status`,
+      action: `Status changed to ${String(concern.status).replace(/_/g, ' ')}`,
+      by: 'System',
+      role: concern?.assignedTo ? 'finance' : 'admin',
+      date: formatTimelineDate(updatedAt || createdAt),
+      note: '',
+    })
+  }
+
+  return timeline
+}
 
 function normalizeConcern(concern = {}) {
+  const tenant =
+    concern?.tenant ??
+    concern?.user ??
+    concern?.bill?.tenant ??
+    concern?.bill?.user ??
+    null
+
+  const tenantUnit =
+    concern?.unit ??
+    concern?.bill?.unit ??
+    tenant?.unit?.unit_number ??
+    tenant?.unit?.name ??
+    tenant?.unit ??
+    ''
+
   return {
     id: concern?.id,
     billId: concern?.billId ?? concern?.bill_id ?? concern?.bill?.id ?? null,
     tenantId: concern?.tenantId ?? concern?.tenant_id ?? null,
     unitId: concern?.unitId ?? concern?.unit_id ?? null,
-    unit: concern?.unit ?? concern?.bill?.unit ?? '',
+    unit: tenantUnit,
+    tenantName:
+      concern?.tenantName ??
+      concern?.tenant_name ??
+      tenant?.name ??
+      tenant?.full_name ??
+      '',
+    email:
+      concern?.email ??
+      concern?.tenantEmail ??
+      concern?.tenant_email ??
+      tenant?.email ??
+      '',
+    company:
+      concern?.company ??
+      concern?.company_name ??
+      tenant?.company ??
+      tenant?.company_name ??
+      '',
     subject: concern?.subject ?? '',
     category: concern?.category ?? 'general',
     message: concern?.message ?? '',
     priority: concern?.priority ?? 'medium',
     status: concern?.status ?? 'pending',
     adminNotes: concern?.adminNotes ?? concern?.admin_notes ?? '',
+    financeNotes: concern?.financeNotes ?? concern?.finance_notes ?? '',
     createdAt: concern?.createdAt ?? concern?.created_at ?? '',
     updatedAt: concern?.updatedAt ?? concern?.updated_at ?? '',
+    dateSubmitted:
+      concern?.dateSubmitted ??
+      concern?.date_submitted ??
+      concern?.createdAt ??
+      concern?.created_at ??
+      '',
+    dateUpdated:
+      concern?.dateUpdated ??
+      concern?.date_updated ??
+      concern?.updatedAt ??
+      concern?.updated_at ??
+      '',
+    assignedTo:
+      concern?.assignedTo ??
+      concern?.assigned_to ??
+      concern?.assignee?.role ??
+      concern?.assignee?.name ??
+      null,
+    timeline: buildTimeline(concern, tenant),
+    tenant: tenant
+      ? {
+          id: tenant?.id ?? null,
+          name: tenant?.name ?? tenant?.full_name ?? '',
+          email: tenant?.email ?? '',
+          company: tenant?.company ?? tenant?.company_name ?? '',
+          unit:
+            tenant?.unit?.unit_number ??
+            tenant?.unit?.name ??
+            tenant?.unit ??
+            tenantUnit,
+        }
+      : null,
     bill: concern?.bill
       ? {
           id: concern.bill.id,
@@ -32,7 +181,7 @@ function normalizeConcern(concern = {}) {
   }
 }
 
-export function useTenantBillingReports() {
+export default function useTenantBillingReports() {
   const [concerns, setConcerns] = useState([])
   const [counts, setCounts] = useState({
     total: 0,

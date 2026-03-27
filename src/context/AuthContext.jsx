@@ -1,13 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { can, canModifyUser, ROLES } from '@/permissions'
+import { can, canModifyUser } from '@/permissions'
 import INITIAL_MOCK_USERS from '@/data/users.json'
 import api from '../lib/api'
-
 
 const AuthContext = createContext()
 
 function getInitials(name = '') {
-  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
 export function AuthProvider({ children }) {
@@ -43,30 +42,35 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (token) {
       localStorage.setItem('auth_token', token)
+      api.defaults.headers.common.Authorization = `Bearer ${token}`
     } else {
       localStorage.removeItem('auth_token')
+      delete api.defaults.headers.common.Authorization
     }
   }, [token])
 
   useEffect(() => {
     const restoreAuth = async () => {
       const savedToken = localStorage.getItem('auth_token')
-      const savedUser = localStorage.getItem('sb_auth_user')
 
-      if (!savedToken || !savedUser) {
+      if (!savedToken) {
         setLoading(false)
         return
       }
 
       try {
         setToken(savedToken)
-        setUser(JSON.parse(savedUser))
+        api.defaults.headers.common.Authorization = `Bearer ${savedToken}`
+
+        const response = await api.get('/api/user')
+        setUser(response.data)
       } catch {
         setUser(null)
         setToken(null)
         localStorage.removeItem('sb_auth_user')
         localStorage.removeItem('auth_token')
         localStorage.removeItem('omni_token')
+        delete api.defaults.headers.common.Authorization
       } finally {
         setLoading(false)
       }
@@ -75,7 +79,16 @@ export function AuthProvider({ children }) {
     restoreAuth()
   }, [])
 
+  const refreshCurrentUser = useCallback(async () => {
+    const response = await api.get('/api/user')
+    setUser(response.data)
+    return response.data
+  }, [])
 
+  const updateCurrentUser = useCallback((nextUser) => {
+    setUser(nextUser)
+    return nextUser
+  }, [])
 
   const persistUsers = useCallback((list) => {
     localStorage.setItem('sb_users_list', JSON.stringify(list))
@@ -87,41 +100,41 @@ export function AuthProvider({ children }) {
       const response = await api.post('/api/login', { email, password })
       const data = response.data
 
-      if (!data?.user || !data?.token) {
-        return {
-          error: true,
-          message: 'Invalid login response.',
-        }
+      if (!data?.token) {
+        return { error: true, message: 'Invalid login response.' }
       }
 
       localStorage.setItem('auth_token', data.token)
       setToken(data.token)
-      setUser(data.user)
+      api.defaults.headers.common.Authorization = `Bearer ${data.token}`
 
-      if (data.omni_token) {
-        localStorage.setItem('omni_token', data.omni_token)
-      }
+      
+      const meResponse = await api.get('/api/user')
+      const me = meResponse.data
 
-      return data.user
+      setUser(me)
+
+      return me
     } catch (error) {
       return {
         error: true,
         message:
           error?.response?.data?.message ||
-          'Invalid email or password. Please try again.',
+          'Invalid email or password.',
       }
     }
   }
 
-
   const logout = async () => {
     try {
-      await api.post('/admin/api/logout')
+      await api.post('/api/logout')
     } catch {
+      //
     }
 
     setUser(null)
     setToken(null)
+    delete api.defaults.headers.common.Authorization
     localStorage.removeItem('sb_auth_user')
     localStorage.removeItem('auth_token')
     localStorage.removeItem('omni_token')
@@ -129,41 +142,51 @@ export function AuthProvider({ children }) {
 
   const addUser = useCallback((actorRole, userData) => {
     if (!can(actorRole, 'users:create')) return { error: 'Unauthorized: Only Super Admin can create users.' }
-    if (users.find(u => u.email.toLowerCase() === userData.email.toLowerCase())) return { error: 'A user with this email already exists.' }
-    const newUser = { ...userData, id: Date.now(), initials: getInitials(userData.name), status: 'active', password: userData.password || 'change123' }
+    if (users.find((u) => u.email.toLowerCase() === userData.email.toLowerCase())) return { error: 'A user with this email already exists.' }
+    const newUser = {
+      ...userData,
+      id: Date.now(),
+      initials: getInitials(userData.name),
+      status: 'active',
+      password: userData.password || 'change123',
+    }
     persistUsers([...users, newUser])
     return { success: true, user: newUser }
   }, [users, persistUsers])
 
   const editUser = useCallback((actorRole, userId, data) => {
-    const target = users.find(u => u.id === userId)
+    const target = users.find((u) => u.id === userId)
     if (!target) return { error: 'User not found.' }
     if (!canModifyUser(actorRole, target.role)) return { error: 'Unauthorized: Cannot modify a Super Admin account.' }
-    const updated = users.map(u => {
+
+    const updated = users.map((u) => {
       if (u.id !== userId) return u
       const merged = { ...u, ...data }
       if (data.name) merged.initials = getInitials(data.name)
       return merged
     })
+
     persistUsers(updated)
+
     if (user && user.id === userId) {
-      const { password: _pw, ...safe } = updated.find(u => u.id === userId)
+      const { password: _pw, ...safe } = updated.find((u) => u.id === userId)
       setUser(safe)
       localStorage.setItem('sb_auth_user', JSON.stringify(safe))
     }
+
     return { success: true }
   }, [users, user, persistUsers])
 
   const deleteUser = useCallback((actorRole, userId) => {
-    const target = users.find(u => u.id === userId)
+    const target = users.find((u) => u.id === userId)
     if (!target) return { error: 'User not found.' }
     if (!canModifyUser(actorRole, target.role)) return { error: 'Unauthorized: Cannot delete a Super Admin account.' }
-    persistUsers(users.filter(u => u.id !== userId))
+    persistUsers(users.filter((u) => u.id !== userId))
     return { success: true }
   }, [users, persistUsers])
 
   const suspendUser = useCallback((actorRole, userId) => {
-    const target = users.find(u => u.id === userId)
+    const target = users.find((u) => u.id === userId)
     if (!target) return { error: 'User not found.' }
     if (!can(actorRole, 'users:suspend')) return { error: 'Unauthorized.' }
     if (!canModifyUser(actorRole, target.role)) return { error: 'Cannot suspend a Super Admin account.' }
@@ -173,8 +196,8 @@ export function AuthProvider({ children }) {
 
   const resetPassword = useCallback((actorRole, userId, newPassword) => {
     if (!can(actorRole, 'users:reset-password')) return { error: 'Unauthorized.' }
-    if (!users.find(u => u.id === userId)) return { error: 'User not found.' }
-    persistUsers(users.map(u => u.id === userId ? { ...u, password: newPassword } : u))
+    if (!users.find((u) => u.id === userId)) return { error: 'User not found.' }
+    persistUsers(users.map((u) => (u.id === userId ? { ...u, password: newPassword } : u)))
     return { success: true }
   }, [users, persistUsers])
 
@@ -186,13 +209,15 @@ export function AuthProvider({ children }) {
         token,
         loading,
         isAuthenticated: !!user && !!token,
+        refreshCurrentUser,
+        updateCurrentUser,
         login,
         logout,
         addUser,
         editUser,
         deleteUser,
         suspendUser,
-        resetPassword
+        resetPassword,
       }}
     >
       {children}

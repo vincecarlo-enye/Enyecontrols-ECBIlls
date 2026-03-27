@@ -139,6 +139,116 @@ export const PAGE_CONTEXTS = {
       'How to enable two-factor authentication?',
     ],
   },
+  '/super-admin': {
+    page: 'Dashboard',
+    role: 'Super Admin',
+    description: 'System-wide overview and control center.',
+    suggestions: [
+      'Show system highlights',
+      'What needs attention today?',
+      'Summarize platform activity',
+      'Open meter management',
+    ],
+  },
+  '/super-admin/billing': {
+    page: 'Billing',
+    role: 'Super Admin',
+    description: 'Manage and track all tenant bills.',
+    suggestions: [
+      'How do I publish a bill?',
+      'What bills are unpaid?',
+      'Explain billing statuses',
+      'How to download a bill PDF?',
+    ],
+  },
+  '/super-admin/tenants': {
+    page: 'Tenants',
+    role: 'Super Admin',
+    description: 'Manage tenant records and assignments.',
+    suggestions: [
+      'How to add a new tenant?',
+      'How do I assign a unit?',
+      'What info is stored per tenant?',
+      'How to remove a tenant?',
+    ],
+  },
+  '/super-admin/units': {
+    page: 'Units',
+    role: 'Super Admin',
+    description: 'Manage building units and assignments.',
+    suggestions: [
+      'How to add a unit?',
+      'Show occupied units',
+      'How do unit statuses work?',
+      'Can I update a unit?',
+    ],
+  },
+  '/super-admin/usage-reports': {
+    page: 'Usage Reports',
+    role: 'Super Admin',
+    description: 'View utility consumption analytics.',
+    suggestions: [
+      'How to export a report?',
+      'Compare utility trends',
+      'Which utility is highest?',
+      'Show last 7 days usage',
+    ],
+  },
+  '/super-admin/tenant-reports': {
+    page: 'Tenant Reports',
+    role: 'Super Admin',
+    description: 'Review tenant billing disputes and reports.',
+    suggestions: [
+      'Open pending tenant reports',
+      'How do I assign a concern?',
+      'Show unresolved tickets',
+      'Explain concern statuses',
+    ],
+  },
+  '/super-admin/meters': {
+    page: 'Meter Management',
+    role: 'Super Admin',
+    description: 'Register and configure utility meters.',
+    suggestions: [
+      'How to add a new meter?',
+      'What meter types are available?',
+      'How do I assign a meter to a unit?',
+      'Explain the Other meter type',
+    ],
+  },
+  '/super-admin/billing-rates': {
+    page: 'Billing Rates',
+    role: 'Super Admin',
+    description: 'Configure utility billing rates.',
+    suggestions: [
+      'How are rates applied?',
+      'What is the electricity rate unit?',
+      'Can I set rates per unit?',
+      'When do rate changes take effect?',
+    ],
+  },
+  '/super-admin/users': {
+    page: 'User Management',
+    role: 'Super Admin',
+    description: 'Manage system users and roles.',
+    suggestions: [
+      'How to create a new user?',
+      'What roles are available?',
+      'How do I reset a password?',
+      'How to suspend a user?',
+    ],
+  },
+  '/super-admin/announcements': {
+    page: 'Announcements',
+    role: 'Super Admin',
+    description: 'Post and manage system-wide announcements.',
+    suggestions: [
+      'How to create an announcement?',
+      'Who can see announcements?',
+      'Can I schedule announcements?',
+      'How to delete old announcements?',
+    ],
+  },
 
 
   // ── Tenant ───────────────────────────────────────────────────────

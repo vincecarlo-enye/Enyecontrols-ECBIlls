@@ -115,8 +115,8 @@ export default function NewBillPage() {
     if (!validate() || submitting) return
 
     const payload = {
-      tenantid: Number(form.tenantId),
-      billingmonth: form.billingMonth,
+      tenant_id: Number(form.tenantId),
+      billing_month: form.billingMonth,
     }
 
 

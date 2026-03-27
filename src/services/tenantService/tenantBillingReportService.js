@@ -1,7 +1,7 @@
-import api from '@/services/api'
+import api from "../../lib/api"
 
 export async function getTenantBillingReports() {
-  const { data } = await api.get('/tenant/billing-reports')
+  const { data } = await api.get('/api/tenant/billing-reports')
   return data?.data ?? {
     concerns: [],
     counts: {
@@ -14,11 +14,11 @@ export async function getTenantBillingReports() {
 }
 
 export async function submitTenantBillingReport(payload) {
-  const { data } = await api.post('/tenant/billing-reports', payload)
+  const { data } = await api.post('/api/tenant/billing-reports', payload)
   return data?.data ?? null
 }
 
 export async function reopenTenantBillingReport(id, payload = {}) {
-  const { data } = await api.post(`/tenant/billing-reports/${id}/reopen`, payload)
+  const { data } = await api.post(`/api/tenant/billing-reports/${id}/reopen`, payload)
   return data?.data ?? null
 }

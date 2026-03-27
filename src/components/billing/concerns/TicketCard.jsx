@@ -46,7 +46,7 @@ export default function TicketCard({ concern, onView }) {
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
           <Calendar className="w-3 h-3" />
-          <span>{concern.dateSubmitted}</span>
+          <span>{concern.dateSubmitted || concern.createdAt}</span>
         </div>
       </div>
     </div>

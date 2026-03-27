@@ -5,7 +5,7 @@ import {
   submitTenantBillPayment,
 } from '@/services/tenantService/tenantBillingService'
 
-const TENANT_VISIBLE = ['published', 'payment_submitted', 'paid', 'overdue']
+const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
 
 function toNumber(value, fallback = 0) {
   const n = Number(value)
@@ -33,6 +33,32 @@ function normalizeBreakdown(items = []) {
   return totals
 }
 
+function formatDisplayDate(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatShortDate(value) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 function normalizeBill(raw = {}) {
   const billingMonth =
     raw?.billing_month ||
@@ -48,13 +74,20 @@ function normalizeBill(raw = {}) {
     raw?.billingEnd ||
     ''
 
+  const billingPeriod =
+    raw?.billing_start && raw?.billing_end
+      ? `${formatShortDate(raw.billing_start)} - ${formatShortDate(raw.billing_end)}`
+      : raw?.billing_end
+        ? formatShortDate(raw.billing_end)
+        : formatShortDate(dueDate)
+
   const statusRaw = String(raw?.status || '').toLowerCase()
 
   const statusMap = {
     unpaid: 'published',
-    pending: 'payment_submitted',
+    pending: 'submitted',
     published: 'published',
-    payment_submitted: 'payment_submitted',
+    payment_submitted: 'submitted',
     paid: 'paid',
     overdue: 'overdue',
   }
@@ -65,14 +98,30 @@ function normalizeBill(raw = {}) {
 
   return {
     id: raw?.id,
+
+    tenantId:
+      raw?.tenant_id ??
+      raw?.tenantId ??
+      raw?.tenant?.id ??
+      null,
+
+    unitId:
+      raw?.unit_id ??
+      raw?.unitId ??
+      raw?.unit?.id ??
+      null,
+
     unit:
       raw?.unit?.unit_number ||
       raw?.unit?.unitnumber ||
+      raw?.unit?.building_name ||
       raw?.unit_name ||
       raw?.unit ||
       'N/A',
+
     month: billingMonth,
-    dueDate,
+    dueDate: formatDisplayDate(dueDate),
+    billingPeriod,
     amount: toNumber(raw?.amount ?? raw?.total_amount ?? raw?.subtotal ?? 0),
     status: statusMap[statusRaw] || statusRaw || 'published',
     breakdown: {
@@ -97,6 +146,7 @@ export function useBills() {
 
       const res = await fetchTenantBills()
       const rows = Array.isArray(res?.data) ? res.data : []
+      console.log('fetchTenantBills response:', res)
 
       setBills(rows.map(normalizeBill).filter((bill) => TENANT_VISIBLE.includes(bill.status)))
     } catch (err) {
@@ -140,7 +190,7 @@ export function useBills() {
       .filter((b) => b.status === 'published' || b.status === 'overdue')
       .reduce((sum, b) => sum + toNumber(b.amount), 0)
 
-    const pendingCount = bills.filter((b) => b.status === 'payment_submitted').length
+    const pendingCount = bills.filter((b) => b.status === 'submitted').length
 
     return {
       totalPaid,

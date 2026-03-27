@@ -21,6 +21,16 @@ const pageTitles = {
   '/tenant/consumption-reports': 'Consumption Reports',
   '/tenant/make-report': 'Make Report',
   '/admin/meters': 'Meter Management',
+  '/super-admin': 'Dashboard',
+  '/super-admin/billing': 'Billing',
+  '/super-admin/tenants': 'Tenants',
+  '/super-admin/units': 'Units',
+  '/super-admin/usage-reports': 'Usage Reports',
+  '/super-admin/tenant-reports': 'Tenant Reports',
+  '/super-admin/meters': 'Meter Management',
+  '/super-admin/billing-rates': 'Billing Rates',
+  '/super-admin/users': 'User Management',
+  '/super-admin/announcements': 'Announcements',
 }
 
 const TENANT_UNITS_MAP = {

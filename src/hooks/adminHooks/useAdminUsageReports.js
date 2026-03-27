@@ -1,26 +1,39 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchAdminOmniPage, fetchAdminOmniPages, syncAdminOmniPage } from '../../services/adminService/adminUsageService'
+import {
+  fetchAdminOmniPage,
+  fetchAdminOmniPages,
+  syncAdminOmniPage,
+} from '../../services/adminService/adminUsageService'
 
-function inferType(item) {
-  const unit = String(item?.Unit || item?.unit || '').toLowerCase()
-  const watch = String(item?.WatchName || item?.watch_name || '').toLowerCase()
-
-  if (unit.includes('kwh') || watch.includes('electric')) return 'electricity'
-  if (unit.includes('m³') || unit.includes('m3') || watch.includes('water')) return 'water'
-  if (unit.includes('kbtu') || unit.includes('btu') || watch.includes('thermal')) return 'thermal'
-
-  return 'other'
+function normalizePages(response) {
+  if (Array.isArray(response?.data)) return response.data
+  if (Array.isArray(response?.data?.pages)) return response.data.pages
+  if (Array.isArray(response?.pages)) return response.pages
+  return []
 }
 
-function numericValue(item) {
-  const value = item?.Value ?? item?.value ?? 0
-  return Number(value) || 0
+function normalizeShowResponse(response) {
+  return {
+    currentData: Array.isArray(response?.data) ? response.data : [],
+    dailyHistory: response?.daily_history ?? {
+      electricity: [],
+      water: [],
+      thermal: [],
+    },
+    monthlyOverview: Array.isArray(response?.monthly_overview) ? response.monthly_overview : [],
+  }
 }
 
 export function useAdminUsageReports() {
   const [pages, setPages] = useState([])
   const [selectedPage, setSelectedPage] = useState('')
   const [pageData, setPageData] = useState([])
+  const [dailyHistory, setDailyHistory] = useState({
+    electricity: [],
+    water: [],
+    thermal: [],
+  })
+  const [monthlyOverview, setMonthlyOverview] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageLoading, setPageLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -30,18 +43,9 @@ export function useAdminUsageReports() {
     try {
       setLoading(true)
       setError('')
-      const res = await fetchAdminOmniPages()
 
-      let rawPages = []
-
-      if (Array.isArray(res?.data)) {
-        rawPages = res.data
-      } else if (Array.isArray(res?.data?.pages)) {
-        rawPages = res.data.pages
-      } else if (Array.isArray(res?.pages)) {
-        rawPages = res.pages
-      }
-
+      const response = await fetchAdminOmniPages()
+      const rawPages = normalizePages(response)
       setPages(rawPages)
 
       const firstPage =
@@ -65,128 +69,130 @@ export function useAdminUsageReports() {
   const loadPageData = useCallback(async (pageName) => {
     if (!pageName) {
       setPageData([])
+      setDailyHistory({ electricity: [], water: [], thermal: [] })
+      setMonthlyOverview([])
       return
     }
 
     try {
       setPageLoading(true)
       setError('')
-      const res = await fetchAdminOmniPage(pageName)
-      setPageData(Array.isArray(res?.data) ? res.data : [])
+
+      const response = await fetchAdminOmniPage(pageName)
+      const normalized = normalizeShowResponse(response)
+      setPageData(normalized.currentData)
+      setDailyHistory(normalized.dailyHistory)
+      setMonthlyOverview(normalized.monthlyOverview)
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load page usage data.')
       setPageData([])
+      setDailyHistory({ electricity: [], water: [], thermal: [] })
+      setMonthlyOverview([])
     } finally {
       setPageLoading(false)
     }
   }, [])
 
-  const syncPage = useCallback(async (pageName) => {
-    try {
-      setSyncing(true)
-      setError('')
-      const res = await syncAdminOmniPage(pageName)
-      await loadPageData(pageName)
-      return res
-    } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to sync usage page.')
-      throw err
-    } finally {
-      setSyncing(false)
-    }
-  }, [loadPageData])
+  const syncPage = useCallback(
+    async (pageName, options = {}) => {
+      const { silent = false } = options
+
+      try {
+        setSyncing(true)
+        if (!silent) {
+          setError('')
+        }
+
+        const response = await syncAdminOmniPage(pageName)
+        await loadPageData(pageName)
+        return response
+      } catch (err) {
+        setError(err?.response?.data?.message || 'Failed to sync usage page.')
+        throw err
+      } finally {
+        setSyncing(false)
+      }
+    },
+    [loadPageData]
+  )
 
   useEffect(() => {
     loadPages()
   }, [loadPages])
 
   useEffect(() => {
-    if (selectedPage) {
+    if (!selectedPage) return
+
+    syncPage(selectedPage, { silent: true }).catch(() => {
       loadPageData(selectedPage)
-    }
-  }, [selectedPage, loadPageData])
+    })
+  }, [selectedPage, loadPageData, syncPage])
 
-  const grouped = useMemo(() => {
-    const base = {
-      electricity: [],
-      water: [],
-      thermal: [],
-      other: [],
-    }
-
-    for (const item of pageData) {
-      const type = inferType(item)
-      base[type].push(item)
-    }
-
-    return base
-  }, [pageData])
-
-  const summaryCards = useMemo(() => {
-    return [
+  const summaryCards = useMemo(
+    () => [
       {
         key: 'electricity',
         label: 'Electricity',
-        count: grouped.electricity.length,
-        total: grouped.electricity.reduce((sum, item) => sum + numericValue(item), 0),
+        total: dailyHistory.electricity.reduce((sum, item) => sum + Number(item?.usage || 0), 0),
         unit: 'kWh',
       },
       {
         key: 'water',
         label: 'Water',
-        count: grouped.water.length,
-        total: grouped.water.reduce((sum, item) => sum + numericValue(item), 0),
-        unit: 'm³',
+        total: dailyHistory.water.reduce((sum, item) => sum + Number(item?.usage || 0), 0),
+        unit: 'm3',
       },
       {
         key: 'thermal',
         label: 'Thermal',
-        count: grouped.thermal.length,
-        total: grouped.thermal.reduce((sum, item) => sum + numericValue(item), 0),
+        total: dailyHistory.thermal.reduce((sum, item) => sum + Number(item?.usage || 0), 0),
         unit: 'kBTU/h',
       },
-    ]
-  }, [grouped])
+    ],
+    [dailyHistory]
+  )
 
-  const chartData = useMemo(() => {
-    return [
+  const chartData = useMemo(
+    () => [
       {
         title: 'Electricity',
+        data: dailyHistory.electricity,
+        key: 'usage',
+        unit: 'kWh',
         color: '#f59e0b',
-        data: grouped.electricity.map((item, index) => ({
-          name: item?.WatchName || `Electric ${index + 1}`,
-          value: numericValue(item),
-        })),
+        grad: 'elecR',
       },
       {
         title: 'Water',
+        data: dailyHistory.water,
+        key: 'usage',
+        unit: 'm3',
         color: '#06b6d4',
-        data: grouped.water.map((item, index) => ({
-          name: item?.WatchName || `Water ${index + 1}`,
-          value: numericValue(item),
-        })),
+        grad: 'waterR',
       },
       {
         title: 'Thermal',
+        data: dailyHistory.thermal,
+        key: 'usage',
+        unit: 'kBTU/h',
         color: '#f43f5e',
-        data: grouped.thermal.map((item, index) => ({
-          name: item?.WatchName || `Thermal ${index + 1}`,
-          value: numericValue(item),
-        })),
+        grad: 'thermR',
       },
-    ]
-  }, [grouped])
+    ],
+    [dailyHistory]
+  )
 
   return {
     pages,
     selectedPage,
     setSelectedPage,
     pageData,
+    dailyHistory,
+    monthlyOverview,
     loading,
     pageLoading,
     syncing,
     error,
-    grouped,
     summaryCards,
     chartData,
     loadPages,

@@ -31,6 +31,7 @@ export default function AnnouncementPanel() {
 
   const role = user?.role
   const canCreate = can('announcements:create')
+  const isTenantView = role === 'tenant'
   const visibleAnnouncements = getAnnouncementsForRole(role)
   const systemWideCount = visibleAnnouncements.filter(
     (a) => a.isSystemWide || a.createdBy === 'super_admin'
@@ -112,6 +113,12 @@ export default function AnnouncementPanel() {
             )}
           </div>
         </div>
+
+        {isTenantView && (
+          <div className="mb-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+            You can view announcements here, but only management roles can create or edit them.
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">

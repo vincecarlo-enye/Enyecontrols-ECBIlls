@@ -2,7 +2,7 @@
  * pages/superadmin/UserManagement.jsx
  * Full user & role management — Super Admin only.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Users, Plus, Pencil, Trash2, Shield, Lock, RefreshCw, UserX, UserCheck, X, Eye, EyeOff, Search } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
@@ -10,6 +10,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useSuperAdminUsers } from '@/hooks/superAdminHooks/useSuperAdminUsers'
 
 const ROLE_OPTIONS = [
   { value: 'super_admin',      label: 'Super Admin',      color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
@@ -30,7 +31,13 @@ function UserFormModal({ open, onClose, onSave, initial }) {
   const [errors, setErrors] = useState({})
   const [showPw, setShowPw] = useState(false)
 
-  useState(() => { setForm(initial || EMPTY_FORM); setErrors({}) }, [open])
+  useEffect(() => {
+    if (!open) return
+    setForm(initial ? { ...initial, password: '' } : EMPTY_FORM)
+    setErrors({})
+    setShowPw(false)
+  }, [open, initial])
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const validate = () => {
@@ -43,7 +50,11 @@ function UserFormModal({ open, onClose, onSave, initial }) {
     return Object.keys(e).length === 0
   }
 
-  const handleSave = () => { if (!validate()) return; onSave(form); onClose() }
+  const handleSave = async () => {
+    if (!validate()) return
+    const result = await onSave(form)
+    if (result?.success) onClose()
+  }
   if (!open) return null
 
   return (
@@ -106,11 +117,16 @@ function ResetPasswordModal({ open, onClose, onSave, userName }) {
   const [err, setErr] = useState('')
   if (!open) return null
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!pw.trim()) return setErr('Password is required')
     if (pw !== confirm) return setErr('Passwords do not match')
     if (pw.length < 6) return setErr('Minimum 6 characters')
-    onSave(pw); onClose(); setPw(''); setConfirm(''); setErr('')
+    const result = await onSave(pw)
+    if (!result?.success) return
+    onClose()
+    setPw('')
+    setConfirm('')
+    setErr('')
   }
 
   return (
@@ -152,9 +168,20 @@ function ResetPasswordModal({ open, onClose, onSave, userName }) {
 
 export default function UserManagement() {
   const loading = usePageLoader(700)
-  const { user: currentUser, users, addUser, editUser, deleteUser, suspendUser, resetPassword } = useAuth()
+  const { user: currentUser } = useAuth()
   const { addToast } = useApp()
   const { isSuperAdmin } = usePermissions()
+  const {
+    users,
+    loading: usersLoading,
+    saving,
+    error,
+    createUser,
+    updateUser,
+    toggleUserStatus,
+    removeUser,
+    resetPassword,
+  } = useSuperAdminUsers()
 
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
@@ -164,7 +191,7 @@ export default function UserManagement() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [confirmSuspend, setConfirmSuspend] = useState(null)
 
-  if (loading) return <DashboardSkeleton />
+  if (loading || usersLoading) return <DashboardSkeleton />
   if (!isSuperAdmin) return (
     <div className="flex flex-col items-center justify-center py-24">
       <Lock className="w-12 h-12 text-slate-300 mb-4"/>
@@ -180,43 +207,60 @@ export default function UserManagement() {
     return matchSearch && matchRole
   })
 
-  const handleAdd = (data) => {
-    const res = addUser(currentUser.role, data)
-    if (res.error) addToast(res.error, 'error')
-    else addToast(`${data.name} added successfully`)
+  const handleAdd = async (data) => {
+    const res = await createUser(data)
+    if (!res.success) {
+      addToast(res.message || 'Failed to add user.', 'error')
+      return res
+    }
+    addToast(`${data.name} added successfully`, 'success')
+    return res
   }
 
   const handleEdit = (u) => { setEditingUser(u); setShowForm(true) }
-  const handleSaveEdit = (data) => {
-    const res = editUser(currentUser.role, editingUser.id, data)
-    if (res.error) addToast(res.error, 'error')
-    else addToast(`${data.name || editingUser.name} updated`)
+  const handleSaveEdit = async (data) => {
+    const payload = { ...data }
+    if (!payload.password) delete payload.password
+
+    const res = await updateUser(editingUser.id, payload)
+    if (!res.success) {
+      addToast(res.message || 'Failed to update user.', 'error')
+      return res
+    }
+    addToast(`${data.name || editingUser.name} updated`, 'success')
     setEditingUser(null)
+    return res
   }
 
-  const handleDelete = () => {
-    const res = deleteUser(currentUser.role, confirmDelete.id)
-    if (res.error) addToast(res.error, 'error')
-    else addToast(`${confirmDelete.name} removed`, 'info')
+  const handleDelete = async () => {
+    const res = await removeUser(confirmDelete.id)
+    if (!res.success) {
+      addToast(res.message || 'Failed to delete user.', 'error')
+      return
+    }
+    addToast(`${confirmDelete.name} removed`, 'info')
     setConfirmDelete(null)
   }
 
-  const handleSuspend = () => {
-    const res = suspendUser(currentUser.role, confirmSuspend.id)
-    if (res.error) addToast(res.error, 'error')
-    else addToast(`${confirmSuspend.name} ${confirmSuspend.status === 'suspended' ? 'reactivated' : 'suspended'}`)
+  const handleSuspend = async () => {
+    const res = await toggleUserStatus(confirmSuspend)
+    if (!res.success) {
+      addToast(res.message || 'Failed to update user status.', 'error')
+      return
+    }
+    addToast(`${confirmSuspend.name} ${confirmSuspend.status === 'suspended' ? 'reactivated' : 'suspended'}`, 'success')
     setConfirmSuspend(null)
   }
 
-  const handleResetPassword = (newPw) => {
-    const res = resetPassword(currentUser.role, resetTarget.id, newPw)
-    if (res.error) addToast(res.error, 'error')
-    else addToast(`Password reset for ${resetTarget.name}`)
-    setResetTarget(null)
+  const handleResetPassword = async (newPw) => {
+    const res = await resetPassword(resetTarget.id, newPw)
+    if (!res.success) {
+      addToast(res.message || 'Failed to reset password.', 'error')
+      return
+    }
+    addToast(`Password reset for ${resetTarget.name}`, 'success')
+    return res
   }
-
-  const canModify = (targetUser) => targetUser.id !== currentUser.id && (currentUser.role === 'super_admin' && targetUser.role !== 'super_admin' || targetUser.id === currentUser.id)
-  const canModifyStrict = (targetUser) => currentUser.role === 'super_admin' && (targetUser.role !== 'super_admin' || targetUser.id === currentUser.id)
 
   return (
     <div className="space-y-6">
@@ -235,6 +279,12 @@ export default function UserManagement() {
           <Plus className="w-4 h-4"/>Add User
         </button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -292,21 +342,21 @@ export default function UserManagement() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => handleEdit(u)} title="Edit user"
+                        <button onClick={() => handleEdit(u)} title="Edit user" disabled={saving}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                           <Pencil className="w-4 h-4"/>
                         </button>
-                        <button onClick={() => setResetTarget(u)} title="Reset password"
+                        <button onClick={() => setResetTarget(u)} title="Reset password" disabled={saving}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
                           <RefreshCw className="w-4 h-4"/>
                         </button>
                         {!isSelf && modifiable && (
                           <>
-                            <button onClick={() => setConfirmSuspend(u)} title={u.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+                            <button onClick={() => setConfirmSuspend(u)} title={u.status === 'suspended' ? 'Reactivate' : 'Suspend'} disabled={saving}
                               className={`p-1.5 rounded-lg transition-colors ${u.status === 'suspended' ? 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20' : 'text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20'}`}>
                               {u.status === 'suspended' ? <UserCheck className="w-4 h-4"/> : <UserX className="w-4 h-4"/>}
                             </button>
-                            <button onClick={() => setConfirmDelete(u)} title="Delete user"
+                            <button onClick={() => setConfirmDelete(u)} title="Delete user" disabled={saving}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                               <Trash2 className="w-4 h-4"/>
                             </button>

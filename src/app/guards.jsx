@@ -7,6 +7,7 @@ function getHomeByRole(user) {
 
   switch (user.role) {
     case "super_admin":
+      return "/super-admin"
     case "admin":
       return "/admin"
     case "facility_manager":
@@ -27,7 +28,7 @@ export function RequireAdmin({ children }) {
 
   if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== "admin" && user.role !== "super_admin") {
+  if (user.role !== "admin") {
     return <Navigate to={getHomeByRole(user)} replace />
   }
 

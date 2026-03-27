@@ -35,7 +35,8 @@ export default function LoginPage() {
     }
 
     navigate(
-      (user.role === 'super_admin' || user.role === 'admin') ? '/'
+      user.role === 'super_admin' ? '/super-admin'
+        : user.role === 'admin' ? '/admin'
         : user.role === 'facility_manager' ? '/facility/dashboard'
           : user.role === 'finance' ? '/finance/dashboard'
             : '/tenant/dashboard',

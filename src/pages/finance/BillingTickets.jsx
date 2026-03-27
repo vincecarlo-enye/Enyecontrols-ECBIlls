@@ -1,79 +1,189 @@
-/**
- * pages/finance/BillingTickets.jsx
- * Finance view — shows assigned billing concern tickets.
- * Finance can investigate, respond, resolve, or adjust bills.
- */
-
-import { useState } from 'react'
-import { Search, Ticket, Eye, Search as SearchIcon, CheckCircle2, DollarSign, Send, Filter } from 'lucide-react'
-import { useBillingConcerns } from '@/context/BillingConcernContext'
+import { useEffect, useMemo, useState } from 'react'
+import { Search, Ticket, Eye, Search as SearchIcon, CheckCircle2, DollarSign, Filter } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
+import api from '@/lib/api'
 
-const FINANCE_STATUSES = ['all', 'assigned', 'investigating', 'resolved', 'adjusted', 'closed']
+const FINANCE_STATUSES = ['all', 'assigned', 'investigating', 'resolved', 'closed', 'rejected']
+
+function formatDate(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function mapStatus(status) {
+  const raw = String(status || '').toLowerCase()
+  if (raw === 'in_progress') return 'investigating'
+  if (raw === 'pending') return 'assigned'
+  return raw || 'assigned'
+}
+
+function buildTimeline(row) {
+  const timeline = []
+  if (row?.created_at) {
+    timeline.push({
+      id: `created-${row.id}`,
+      role: 'tenant',
+      action: 'Concern submitted',
+      by: row?.tenant?.name || 'Tenant',
+      date: formatDate(row.created_at),
+      note: row?.description || '',
+    })
+  }
+
+  if (row?.assignedBy?.name) {
+    timeline.push({
+      id: `assigned-${row.id}`,
+      role: 'admin',
+      action: 'Assigned to Finance',
+      by: row.assignedBy.name,
+      date: formatDate(row.updated_at || row.created_at),
+      note: row?.admin_notes || '',
+    })
+  }
+
+  if (row?.admin_notes) {
+    timeline.push({
+      id: `note-${row.id}`,
+      role: 'finance',
+      action: 'Finance update',
+      by: row?.assignee?.name || 'Finance',
+      date: formatDate(row.updated_at || row.created_at),
+      note: row.admin_notes,
+    })
+  }
+
+  return timeline
+}
+
+function normalizeConcern(row = {}) {
+  return {
+    id: String(row?.id ?? ''),
+    billId: String(row?.bill_id ?? row?.bill?.id ?? ''),
+    tenantName: row?.tenant?.name || '',
+    company: row?.tenant?.name || '',
+    email: row?.tenant?.email || '',
+    unit: row?.tenant?.unit?.unit_number || row?.tenant?.unit?.name || '',
+    category: row?.category || row?.subject || 'General',
+    subject: row?.subject || '',
+    message: row?.description || '',
+    status: mapStatus(row?.status),
+    rawStatus: row?.status || 'pending',
+    assignedTo: row?.assignee?.name || 'finance',
+    adminNotes: row?.admin_notes || '',
+    financeNotes: row?.admin_notes || '',
+    dateSubmitted: formatDate(row?.created_at),
+    createdAt: row?.created_at || '',
+    updatedAt: row?.updated_at || '',
+    timeline: buildTimeline(row),
+    raw: row,
+  }
+}
 
 export default function FinanceBillingTickets() {
-  const loading = usePageLoader(600)
-  const { concerns, updateTicketStatus, respondToTenant } = useBillingConcerns()
+  const pageLoading = usePageLoader(600)
   const { addToast } = useApp()
-
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedConcern, setSelectedConcern] = useState(null)
+  const [concerns, setConcerns] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [acting, setActing] = useState(false)
+  const [error, setError] = useState('')
 
-  if (loading) return (
-    <div className="space-y-4 animate-pulse">
-      <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-64" />
-      {[1, 2, 3].map(i => <div key={i} className="h-14 bg-slate-200 dark:bg-slate-700 rounded-xl" />)}
-    </div>
-  )
+  const loadConcerns = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await api.get('/api/finance/billing-concerns')
+      setConcerns((Array.isArray(response?.data?.data) ? response.data.data : []).map(normalizeConcern))
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load finance billing tickets.')
+      setConcerns([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  // Finance only sees tickets assigned to them
-  const financeTickets = concerns.filter(c => c.assignedTo === 'finance' || ['investigating', 'resolved', 'adjusted', 'closed'].includes(c.status))
+  useEffect(() => {
+    loadConcerns()
+  }, [])
 
-  const filtered = financeTickets.filter((c) => {
+  const filtered = useMemo(() => concerns.filter((concern) => {
     const q = search.toLowerCase()
     const matchSearch = !q ||
-      c.id.toLowerCase().includes(q) ||
-      c.tenantName.toLowerCase().includes(q) ||
-      c.unit.toLowerCase().includes(q) ||
-      c.category.toLowerCase().includes(q) ||
-      c.billId.toLowerCase().includes(q)
-    const matchStatus = statusFilter === 'all' || c.status === statusFilter
+      concern.id.toLowerCase().includes(q) ||
+      concern.tenantName.toLowerCase().includes(q) ||
+      concern.unit.toLowerCase().includes(q) ||
+      concern.category.toLowerCase().includes(q) ||
+      concern.billId.toLowerCase().includes(q)
+    const matchStatus = statusFilter === 'all' || concern.status === statusFilter
     return matchSearch && matchStatus
-  })
+  }), [concerns, search, statusFilter])
 
-  const counts = {
-    total: financeTickets.length,
-    assigned: financeTickets.filter(c => c.status === 'assigned').length,
-    investigating: financeTickets.filter(c => c.status === 'investigating').length,
-    resolved: financeTickets.filter(c => ['resolved', 'adjusted', 'closed'].includes(c.status)).length,
+  const counts = useMemo(() => ({
+    total: concerns.length,
+    assigned: concerns.filter((concern) => concern.status === 'assigned').length,
+    investigating: concerns.filter((concern) => concern.status === 'investigating').length,
+    resolved: concerns.filter((concern) => ['resolved', 'closed'].includes(concern.status)).length,
+  }), [concerns])
+
+  const loadingState = pageLoading || loading
+  if (loadingState) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-64" />
+        {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-slate-200 dark:bg-slate-700 rounded-xl" />)}
+      </div>
+    )
   }
 
-  const handleAction = (id, action, note) => {
-    const actionMap = {
-      investigate: { status: 'investigating', msg: 'Investigation started.' },
-      resolve: { status: 'resolved', msg: 'Ticket marked as resolved.' },
-      adjust: { status: 'adjusted', msg: 'Bill adjustment recorded.' },
-      respond: null,
+  const handleAction = async (id, action, note) => {
+    const endpointMap = {
+      investigate: 'investigate',
+      respond: 'respond',
+      resolve: 'resolve',
+      adjust: 'adjust',
     }
-    if (action === 'respond') {
-      respondToTenant(id, note)
-      addToast('Response sent to tenant.', 'success')
-    } else if (actionMap[action]) {
-      updateTicketStatus(id, actionMap[action].status, note)
-      addToast(actionMap[action].msg, 'success')
+
+    const endpoint = endpointMap[action]
+    if (!endpoint) return
+
+    try {
+      setActing(true)
+      await api.post(`/api/finance/billing-concerns/${id}/${endpoint}`, { note })
+      await loadConcerns()
+      addToast({
+        investigate: 'Investigation started.',
+        respond: 'Response sent to tenant.',
+        resolve: 'Ticket resolved.',
+        adjust: 'Bill adjustment recorded.',
+      }[action], 'success')
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to update billing ticket.'
+      setError(message)
+      addToast(message, 'error')
+    } finally {
+      setActing(false)
     }
   }
 
-  const openDetail = (c) => { setSelectedConcern(c); setDetailOpen(true) }
+  const openDetail = (concern) => {
+    setSelectedConcern(concern)
+    setDetailOpen(true)
+  }
 
-  const quickAction = (c, status, msg) => {
-    updateTicketStatus(c.id, status, '')
-    addToast(msg, 'success')
+  const quickAction = async (concern, action) => {
+    await handleAction(concern.id, action, '')
   }
 
   return (
@@ -85,22 +195,26 @@ export default function FinanceBillingTickets() {
         <p className="text-sm text-slate-400 mt-0.5">Manage and resolve assigned billing concerns</p>
       </div>
 
-      {/* Summary */}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Assigned', value: counts.total,        cls: 'text-blue-600 dark:text-blue-400' },
-          { label: 'New',            value: counts.assigned,      cls: 'text-amber-600 dark:text-amber-400' },
-          { label: 'Investigating',  value: counts.investigating, cls: 'text-purple-600 dark:text-purple-400' },
-          { label: 'Resolved',       value: counts.resolved,      cls: 'text-emerald-600 dark:text-emerald-400' },
-        ].map((c) => (
-          <div key={c.label} className="glass rounded-2xl p-4 shadow-md">
-            <p className="text-xs text-slate-400 font-mono uppercase tracking-wide">{c.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${c.cls}`}>{c.value}</p>
+          { label: 'Total Assigned', value: counts.total, cls: 'text-blue-600 dark:text-blue-400' },
+          { label: 'New', value: counts.assigned, cls: 'text-amber-600 dark:text-amber-400' },
+          { label: 'Investigating', value: counts.investigating, cls: 'text-purple-600 dark:text-purple-400' },
+          { label: 'Resolved', value: counts.resolved, cls: 'text-emerald-600 dark:text-emerald-400' },
+        ].map((card) => (
+          <div key={card.label} className="glass rounded-2xl p-4 shadow-md">
+            <p className="text-xs text-slate-400 font-mono uppercase tracking-wide">{card.label}</p>
+            <p className={`text-2xl font-bold mt-1 ${card.cls}`}>{card.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Alert for new tickets */}
       {counts.assigned > 0 && (
         <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl px-5 py-3.5">
           <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
@@ -110,7 +224,6 @@ export default function FinanceBillingTickets() {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 dark:border-slate-700">
           <div>
@@ -122,7 +235,7 @@ export default function FinanceBillingTickets() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search…"
+                placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all w-40"
@@ -130,15 +243,13 @@ export default function FinanceBillingTickets() {
             </div>
             <div className="flex items-center gap-1 flex-wrap">
               <Filter className="w-3 h-3 text-slate-400" />
-              {FINANCE_STATUSES.map((f) => (
+              {FINANCE_STATUSES.map((status) => (
                 <button
-                  key={f}
-                  onClick={() => setStatusFilter(f)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium capitalize transition-all ${
-                    statusFilter === f ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium capitalize transition-all ${statusFilter === status ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                 >
-                  {f}
+                  {status}
                 </button>
               ))}
             </div>
@@ -158,52 +269,34 @@ export default function FinanceBillingTickets() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
-                    {financeTickets.length === 0 ? 'No tickets assigned yet.' : 'No matching tickets found.'}
+                    {concerns.length === 0 ? 'No tickets assigned yet.' : 'No matching tickets found.'}
                   </td>
                 </tr>
-              ) : filtered.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{c.id}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">{c.billId}</td>
-                  <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-white whitespace-nowrap">{c.tenantName}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 whitespace-nowrap">{c.unit}</td>
-                  <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-[160px] truncate">{c.category}</td>
-                  <td className="px-4 py-3.5 text-xs text-slate-400 whitespace-nowrap">{c.dateSubmitted}</td>
-                  <td className="px-4 py-3.5">
-                    <TicketStatusBadge status={c.status} />
-                  </td>
+              ) : filtered.map((concern) => (
+                <tr key={concern.id} className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{concern.id}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">{concern.billId}</td>
+                  <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-white whitespace-nowrap">{concern.tenantName}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 whitespace-nowrap">{concern.unit}</td>
+                  <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-[160px] truncate">{concern.category}</td>
+                  <td className="px-4 py-3.5 text-xs text-slate-400 whitespace-nowrap">{concern.dateSubmitted}</td>
+                  <td className="px-4 py-3.5"><TicketStatusBadge status={concern.status} /></td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openDetail(c)}
-                        className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                        title="View Details"
-                      >
+                      <button onClick={() => openDetail(concern)} className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="View Details">
                         <Eye className="w-4 h-4" />
                       </button>
-                      {c.status === 'assigned' && (
-                        <button
-                          onClick={() => quickAction(c, 'investigating', 'Investigation started.')}
-                          className="p-2 rounded-lg text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                          title="Start Investigating"
-                        >
+                      {concern.status === 'assigned' && (
+                        <button onClick={() => quickAction(concern, 'investigate')} disabled={acting} className="p-2 rounded-lg text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Start Investigating">
                           <SearchIcon className="w-4 h-4" />
                         </button>
                       )}
-                      {(c.status === 'assigned' || c.status === 'investigating') && (
+                      {(concern.status === 'assigned' || concern.status === 'investigating') && (
                         <>
-                          <button
-                            onClick={() => quickAction(c, 'resolved', 'Ticket resolved.')}
-                            className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-                            title="Resolve"
-                          >
+                          <button onClick={() => quickAction(concern, 'resolve')} disabled={acting} className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors" title="Resolve">
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => quickAction(c, 'adjusted', 'Bill adjusted.')}
-                            className="p-2 rounded-lg text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
-                            title="Adjust Bill"
-                          >
+                          <button onClick={() => quickAction(concern, 'adjust')} disabled={acting} className="p-2 rounded-lg text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors" title="Adjust Bill">
                             <DollarSign className="w-4 h-4" />
                           </button>
                         </>

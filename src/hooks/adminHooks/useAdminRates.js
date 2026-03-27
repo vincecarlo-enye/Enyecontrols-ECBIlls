@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { fetchAdminRates, updateAdminRate } from '../../services/adminService/adminRateService'
+import {
+  createAdminRate,
+  fetchAdminRates,
+  updateAdminRate,
+} from '../../services/adminService/adminRateService'
 
 const fallbackRates = {
   electricity: { id: null, rate: 0, unit: '/kWh', completeness: 0, raw: null },
@@ -61,31 +65,40 @@ export function useAdminRates() {
 
   const rates = useMemo(() => mapRatesToCardShape(rawRates), [rawRates])
 
-  const saveRate = useCallback(async (type, newRate) => {
+  const saveRate = useCallback(async (type, nextData) => {
     const target = rates[type]
-
-    if (!target?.id) {
-      return {
-        success: false,
-        message: `No existing ${type} rate found.`,
-      }
-    }
-
-    const raw = target.raw
+    const nextRate = Number(nextData?.rate || 0)
+    const nextUnit = String(nextData?.unit || '').replace(/^\//, '')
+    const rawType = type === 'electricity' ? 'electric' : type
 
     try {
       setSaving(true)
 
-      await updateAdminRate(target.id, {
-        name: raw.name,
-        type: raw.type,
-        price_per_unit: newRate,
-        unit_measure: raw.unit_measure,
-        effective_from: raw.effective_from,
-        effective_to: raw.effective_to,
-        is_active: raw.is_active,
-        description: raw.description,
-      })
+      if (target?.id) {
+        const raw = target.raw
+
+        await updateAdminRate(target.id, {
+          name: raw.name,
+          type: raw.type,
+          price_per_unit: nextRate,
+          unit_measure: nextUnit || raw.unit_measure,
+          effective_from: raw.effective_from,
+          effective_to: raw.effective_to,
+          is_active: raw.is_active,
+          description: raw.description,
+        })
+      } else {
+        await createAdminRate({
+          name: `${type.charAt(0).toUpperCase()}${type.slice(1)} Rate`,
+          type: rawType,
+          price_per_unit: nextRate,
+          unit_measure: nextUnit || fallbackRates[type].unit.replace(/^\//, ''),
+          effective_from: new Date().toISOString().slice(0, 10),
+          effective_to: null,
+          is_active: true,
+          description: `${type} billing rate`,
+        })
+      }
 
       await loadRates()
 
@@ -119,7 +132,7 @@ export function useAdminRates() {
           name: raw.name,
           type: raw.type,
           price_per_unit: Number(next.rate || 0),
-          unit_measure: raw.unit_measure,
+          unit_measure: String(next.unit || raw.unit_measure || '').replace(/^\//, '') || raw.unit_measure,
           effective_from: raw.effective_from,
           effective_to: raw.effective_to,
           is_active: raw.is_active,

@@ -20,18 +20,17 @@ const adminNavItems = [
 ]
 
 const superAdminNavItems = [
-  { path: '/admin',                label: 'Dashboard',        icon: LayoutDashboard },
-  { path: '/admin/billing',        label: 'Billing',          icon: Receipt         },
-  { path: '/admin/tenants',        label: 'Tenants',          icon: Users           },
-  { path: '/admin/units',          label: 'Units',            icon: Building2       },
-  { path: '/admin/usage-reports',  label: 'Usage Reports',    icon: BarChart3       },
-  { path: '/admin/tenant-reports', label: 'Tenant Reports',   icon: ClipboardList   },
-  { path: '/admin/settings',       label: 'Settings',         icon: Settings        },
+  { path: '/super-admin',                label: 'Dashboard',        icon: LayoutDashboard },
+  { path: '/super-admin/billing',        label: 'Billing',          icon: Receipt         },
+  { path: '/super-admin/tenants',        label: 'Tenants',          icon: Users           },
+  { path: '/super-admin/units',          label: 'Units',            icon: Building2       },
+  { path: '/super-admin/usage-reports',  label: 'Usage Reports',    icon: BarChart3       },
+  { path: '/super-admin/tenant-reports', label: 'Tenant Reports',   icon: ClipboardList   },
   // Super Admin exclusive
-  { path: '/admin/meters',         label: 'Meter Management', icon: Gauge,          superAdminOnly: true },
-  { path: '/admin/billing-rates',  label: 'Billing Rates',    icon: Zap,            superAdminOnly: true },
-  { path: '/admin/users',          label: 'User Management',  icon: UserCog,        superAdminOnly: true },
-  { path: '/admin/announcements',  label: 'Announcements',    icon: Megaphone,      superAdminOnly: true },
+  { path: '/super-admin/meters',         label: 'Meter Management', icon: Gauge,          superAdminOnly: true },
+  { path: '/super-admin/billing-rates',  label: 'Billing Rates',    icon: Zap,            superAdminOnly: true },
+  { path: '/super-admin/users',          label: 'User Management',  icon: UserCog,        superAdminOnly: true },
+  { path: '/super-admin/announcements',  label: 'Announcements',    icon: Megaphone,      superAdminOnly: true },
 ]
 
 const tenantNavItems = [
@@ -85,7 +84,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   const regularItems = navItems.filter(i => !i.superAdminOnly)
   const exclusiveItems = navItems.filter(i => i.superAdminOnly)
 
-  const END_PATHS = ['/admin', '/tenant/dashboard', '/finance/dashboard', '/facility/dashboard']
+  const END_PATHS = ['/admin', '/super-admin', '/tenant/dashboard', '/finance/dashboard', '/facility/dashboard']
 
   return (
     <>

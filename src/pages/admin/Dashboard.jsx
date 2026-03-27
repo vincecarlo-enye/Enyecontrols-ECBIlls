@@ -9,12 +9,10 @@ import DashboardCard from '@/components/ui/DashboardCard'
 import ChartCard from '@/components/ui/ChartCard'
 import { BarChart2, TrendingUp, Building2, Users, AlertTriangle } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { useApp } from '@/context/AppContext'
 import MeterOverviewPanel from '@/components/meters/MeterOverviewPanel'
 import { useAdminDashboard } from '@/hooks/adminHooks/useAdminDashboard'
 import { deleteAdminBill, fetchAdminBill } from '../../services/adminService/adminBillingService'
 import { useAdminUtilityDashboard } from '../../hooks/adminHooks/useAdminUtilityDashboard'
-
 
 const MemoCharts = memo(function Charts({
   electricityDaily,
@@ -29,7 +27,7 @@ const MemoCharts = memo(function Charts({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
           <ChartCard
             title="Electricity Daily Usage"
-            subtitle="kWh · last 7 days"
+            subtitle="kWh - last 7 days"
             accentHex="#f59e0b"
             badge={trends.electricityBadge.text}
             badgeCls={trends.electricityBadge.className}
@@ -46,7 +44,7 @@ const MemoCharts = memo(function Charts({
 
           <ChartCard
             title="Water Daily Usage"
-            subtitle="m³ · last 7 days"
+            subtitle="m3 - last 7 days"
             accentHex="#06b6d4"
             badge={trends.waterBadge.text}
             badgeCls={trends.waterBadge.className}
@@ -54,7 +52,7 @@ const MemoCharts = memo(function Charts({
             <DailyUsageChart
               data={waterDaily}
               dataKey="usage"
-              unit="m³"
+              unit="m3"
               color="#06b6d4"
               gradientId="waterGradA"
               trend={trends.water}
@@ -63,7 +61,7 @@ const MemoCharts = memo(function Charts({
 
           <ChartCard
             title="Thermal Energy Daily Usage"
-            subtitle="kBTU/h · last 7 days"
+            subtitle="kBTU/h - last 7 days"
             accentHex="#f43f5e"
             badge={trends.thermalBadge.text}
             badgeCls={trends.thermalBadge.className}
@@ -86,16 +84,15 @@ const MemoCharts = memo(function Charts({
 })
 
 export default function Dashboard() {
-  const pageLoading = usePageLoader(700)
+  const loading = usePageLoader(700)
   const { user } = useAuth()
-  const { addToast } = useApp()
 
   const {
-    loading,
+    loading: dashboardLoading,
     error,
     metrics,
-    refreshDashboard,
     bills,
+    refreshDashboard,
   } = useAdminDashboard()
 
   const {
@@ -103,17 +100,13 @@ export default function Dashboard() {
     daily,
     trends,
     loading: utilityLoading,
-    error: utilityError,
-    refreshUtilities,
   } = useAdminUtilityDashboard()
-
 
   const handleViewBill = async (bill) => {
     try {
-      const res = await fetchAdminBill(bill.id)
-      return res?.data || bill
-    } catch (err) {
-      addToast(err?.response?.data?.message || 'Failed to load bill details.', 'error')
+      const response = await fetchAdminBill(bill.id)
+      return response?.data || bill
+    } catch {
       return bill
     }
   }
@@ -121,21 +114,18 @@ export default function Dashboard() {
   const handleDeleteBill = async (bill) => {
     if (!bill?.id) return
 
-    try {
-      await deleteAdminBill(bill.id)
-      addToast('Bill deleted successfully.', 'info')
-      await refreshDashboard()
-    } catch (err) {
-      addToast(err?.response?.data?.message || 'Failed to delete bill.', 'error')
-    }
+    await deleteAdminBill(bill.id)
+    await refreshDashboard()
   }
 
-  if (pageLoading || loading || utilityLoading) return <DashboardSkeleton />
+  if (loading || dashboardLoading || utilityLoading) {
+    return <DashboardSkeleton />
+  }
 
   const kpi = [
     {
       title: 'Total Revenue',
-      value: `₱${metrics.totalRevenue.toLocaleString()}`,
+      value: `PHP ${metrics.totalRevenue.toLocaleString()}`,
       sub: 'Collected from paid bills',
       icon: TrendingUp,
       gradient: 'from-blue-500 to-blue-600',
@@ -150,7 +140,7 @@ export default function Dashboard() {
       glow: 'shadow-indigo-500/25',
     },
     {
-      title: 'Total Units',
+      title: 'Building Floors',
       value: metrics.totalUnits,
       sub: 'Units managed',
       icon: Building2,
@@ -160,7 +150,7 @@ export default function Dashboard() {
     {
       title: 'Unpaid Bills',
       value: metrics.unpaidBills,
-      sub: `${metrics.pendingConcerns} billing concerns open`,
+      sub: `${metrics.pendingConcerns} requires attention`,
       icon: BarChart2,
       gradient: 'from-rose-500 to-rose-600',
       glow: 'shadow-rose-500/25',
@@ -169,24 +159,6 @@ export default function Dashboard() {
 
   return (
     <div className="section-gap animate-in">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">
-            Admin Dashboard
-          </h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            Overview of revenue, tenants, units, and billing activity
-          </p>
-        </div>
-
-        <button
-          onClick={refreshDashboard}
-          className="px-4 py-2 text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all"
-        >
-          Refresh
-        </button>
-      </div>
-
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4" />
@@ -220,7 +192,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-
       <MemoCharts
         electricityDaily={daily.electric}
         waterDaily={daily.water}
@@ -234,7 +205,6 @@ export default function Dashboard() {
           thermalBadge: trends.thermalBadge,
         }}
       />
-
 
       <BillsTable
         bills={bills}

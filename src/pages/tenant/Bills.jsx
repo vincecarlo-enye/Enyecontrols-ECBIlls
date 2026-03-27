@@ -26,12 +26,12 @@ import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useBills } from '../../components/billing/hooks/useBills'
 
 // Tenant only sees published, payment_submitted, paid, overdue bills
-const TENANT_VISIBLE = ['published', 'payment_submitted', 'paid', 'overdue']
+const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
 
 const FILTER_OPTIONS = [
   { key: 'all', label: 'All' },
   { key: 'published', label: 'Unpaid' },
-  { key: 'payment_submitted', label: 'Pending' },
+  { key: 'submitted', label: 'Pending' },
   { key: 'paid', label: 'Paid' },
 ]
 
@@ -93,11 +93,10 @@ const BillsTableInner = memo(function BillsTableInner({
             <button
               key={key}
               onClick={() => setFilter(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filter === key
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === key
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+                }`}
             >
               {label}
             </button>
@@ -174,7 +173,7 @@ const BillsTableInner = memo(function BillsTableInner({
                         </button>
                       )}
 
-                      {bill.status === 'payment_submitted' && (
+                      {bill.status === 'submitted' && (
                         <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-xs font-medium">
                           <Clock className="w-3.5 h-3.5" /> Pending Review
                         </span>
@@ -239,16 +238,26 @@ export default function TenantBills() {
     .filter(b => ['published', 'overdue'].includes(b.status))
     .reduce((s, b) => s + Number(b.amount || 0), 0)
 
-  const pendingCount = unitFiltered.filter(b => b.status === 'payment_submitted').length
+  const pendingCount = unitFiltered.filter(b => b.status === 'submitted').length
   const unitLabel = selectedUnit === 'all' ? 'All Units' : `Unit ${selectedUnit}`
 
   const handleReceiptSubmit = async (billId, receiptData) => {
     try {
-      await submitPaymentReceipt(billId, receiptData)
+      const billAmount = Number(receiptModal?.selectedItem?.amount ?? 0)
+
+      const payload = {
+        ...receiptData,
+        amount: billAmount,
+      }
+
+      await submitPaymentReceipt(billId, payload)
       receiptModal.close()
       addToast('Payment receipt submitted successfully.', 'success')
     } catch (error) {
-      addToast(error?.response?.data?.message || 'Failed to submit payment receipt.', 'error')
+      addToast(
+        error?.response?.data?.message || 'Failed to submit payment receipt.',
+        'error'
+      )
     }
   }
 

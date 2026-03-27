@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react'
 
 import { AuthRedirect, RootRedirect } from './guards'
 import { adminRoutes } from './adminRoutes'
+import { superAdminRoutes } from './superAdminRoutes'
 import { tenantRoutes } from './tenantRoutes'
 import { facilityRoutes } from './facilityRoutes'
 import { financeRoutes } from './financeRoutes'
@@ -25,6 +26,7 @@ export default function AppRouter() {
         />
 
         {adminRoutes()}
+        {superAdminRoutes()}
         {tenantRoutes()}
         {facilityRoutes()}
         {financeRoutes()}
