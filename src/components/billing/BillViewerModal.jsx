@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import html2pdf from 'html2pdf.js'
+import { jsPDF } from 'jspdf'
 import Modal from '@/components/ui/Modal'
 import {
   Printer,
@@ -493,17 +493,207 @@ function BillContent({ bill }) {
   }
 
   const handleDownloadPDF = () => {
-    if (!pdfRef.current) return
+    const doc = new jsPDF({
+      unit: 'pt',
+      format: 'a4',
+      orientation: 'portrait',
+    })
 
-    const opt = {
-      margin: 0.4,
-      filename: `SOA_${String(d.tenantName).replace(/\s+/g, '_')}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 40
+    const contentWidth = pageWidth - margin * 2
+    let y = 40
+
+    const ensureSpace = (needed = 20) => {
+      if (y + needed > pageHeight - 40) {
+        doc.addPage()
+        y = 40
+      }
     }
 
-    html2pdf().set(opt).from(pdfRef.current).save()
+    const row = (label, value, bold = false) => {
+      ensureSpace(18)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(100, 116, 139)
+      doc.text(String(label), margin, y)
+
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      doc.setTextColor(30, 41, 59)
+      const valueLines = doc.splitTextToSize(String(value ?? '-'), 180)
+      doc.text(valueLines, pageWidth - margin, y, { align: 'right' })
+      y += Math.max(16, valueLines.length * 12)
+    }
+
+    doc.setFillColor(37, 99, 235)
+    doc.roundedRect(margin, y, contentWidth, 64, 12, 12, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text('Enyecontrols', margin + 18, y + 24)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text('Official Statement of Account', margin + 18, y + 40)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text(String(d.invoiceNo), pageWidth - margin - 18, y + 24, { align: 'right' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(`Bill Date: ${d.billDate}`, pageWidth - margin - 18, y + 40, { align: 'right' })
+    y += 84
+
+    doc.setDrawColor(226, 232, 240)
+    doc.setFillColor(248, 250, 252)
+    doc.roundedRect(margin, y, contentWidth / 2 - 8, 88, 10, 10, 'FD')
+    doc.roundedRect(margin + contentWidth / 2 + 8, y, contentWidth / 2 - 8, 88, 10, 10, 'FD')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(148, 163, 184)
+    doc.text('ACCOUNT INFORMATION', margin + 14, y + 16)
+    doc.text('BILL DETAILS', margin + contentWidth / 2 + 22, y + 16)
+
+    let leftY = y + 34
+    let rightY = y + 34
+    const smallRow = (x, yy, label, value) => {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(100, 116, 139)
+      doc.text(label, x, yy)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(30, 41, 59)
+      const lines = doc.splitTextToSize(String(value ?? '-'), 150)
+      doc.text(lines, x + 145, yy, { align: 'right' })
+      return yy + Math.max(16, lines.length * 11)
+    }
+
+    leftY = smallRow(margin + 14, leftY, 'Tenant', d.tenantName)
+    leftY = smallRow(margin + 14, leftY, 'Unit', d.unit)
+    leftY = smallRow(margin + 14, leftY, 'Invoice No.', d.invoiceNo)
+
+    rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Bill Date', d.billDate)
+    rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Due Date', d.dueDate)
+    rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Period', d.billingPeriod)
+    y += 108
+
+    ensureSpace(30)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(148, 163, 184)
+    doc.text('UTILITY CHARGES', margin, y)
+    y += 12
+
+    const columns = [
+      { key: 'particular', label: 'Description', width: 110, align: 'left' },
+      { key: 'prev', label: 'Prev', width: 65, align: 'left' },
+      { key: 'curr', label: 'Current', width: 65, align: 'left' },
+      { key: 'used', label: 'Consumption', width: 95, align: 'left' },
+      { key: 'rate', label: 'Rate', width: 85, align: 'left' },
+      { key: 'amount', label: 'Amount', width: 70, align: 'right' },
+    ]
+
+    doc.setFillColor(248, 250, 252)
+    doc.setDrawColor(226, 232, 240)
+    doc.rect(margin, y, contentWidth, 24, 'FD')
+    let x = margin + 8
+    columns.forEach((col) => {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(148, 163, 184)
+      doc.text(col.label, col.align === 'right' ? x + col.width - 8 : x, y + 15, {
+        align: col.align === 'right' ? 'right' : 'left',
+      })
+      x += col.width
+    })
+    y += 24
+
+    const rows = d.charges.length > 0
+      ? d.charges
+      : [{ particular: 'No utility charges available.', prev: '', curr: '', used: '', rate: '', amount: '' }]
+
+    rows.forEach((charge) => {
+      const values = {
+        particular: charge.particular,
+        prev: charge.prev,
+        curr: charge.curr,
+        used: charge.used,
+        rate: charge.rate,
+        amount: charge.amount === '' ? '' : `PHP ${peso(charge.amount)}`,
+      }
+
+      const lineCounts = columns.map((col) =>
+        doc.splitTextToSize(String(values[col.key] ?? ''), col.width - 10).length
+      )
+      const rowHeight = Math.max(24, Math.max(...lineCounts) * 12 + 8)
+      ensureSpace(rowHeight + 2)
+
+      doc.setDrawColor(241, 245, 249)
+      doc.rect(margin, y, contentWidth, rowHeight)
+
+      let cellX = margin + 8
+      columns.forEach((col) => {
+        doc.setFont('helvetica', col.key === 'amount' || col.key === 'particular' ? 'bold' : 'normal')
+        doc.setFontSize(8.5)
+        doc.setTextColor(51, 65, 85)
+        const lines = doc.splitTextToSize(String(values[col.key] ?? ''), col.width - 10)
+        doc.text(lines, col.align === 'right' ? cellX + col.width - 8 : cellX, y + 14, {
+          align: col.align === 'right' ? 'right' : 'left',
+        })
+        cellX += col.width
+      })
+
+      y += rowHeight
+    })
+
+    y += 14
+    ensureSpace(100)
+    doc.setFillColor(248, 250, 252)
+    doc.roundedRect(margin, y, contentWidth, 82, 10, 10, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(148, 163, 184)
+    doc.text('SUMMARY', margin + 14, y + 16)
+    y += 34
+
+    row('Subtotal', `PHP ${peso(d.subtotal)}`)
+    row('VAT (12%)', `PHP ${peso(d.tax)}`)
+    row('Previous Balance', `PHP ${peso(d.previousBalance)}`)
+    row('Payments Received', `PHP ${peso(d.paymentsReceived)}`)
+    y += 10
+
+    ensureSpace(54)
+    doc.setFillColor(37, 99, 235)
+    doc.roundedRect(margin, y, contentWidth, 54, 10, 10, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('TOTAL AMOUNT DUE', margin + 16, y + 18)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(`Due by ${d.dueDate}`, margin + 16, y + 34)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text(`PHP ${peso(d.grandTotal)}`, pageWidth - margin - 16, y + 30, { align: 'right' })
+    y += 72
+
+    ensureSpace(44)
+    doc.setDrawColor(226, 232, 240)
+    doc.roundedRect(margin, y, contentWidth, 44, 10, 10)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(71, 85, 105)
+    doc.text('Payment Instructions', margin + 14, y + 16)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(100, 116, 139)
+    const foot = doc.splitTextToSize(
+      'Pay at any authorized payment center or via bank transfer to Enyecontrols Management (BDO #1234-5678-90). Inquiries: billing@enye.ph | +63 2 8888 0000',
+      contentWidth - 28
+    )
+    doc.text(foot, margin + 14, y + 30)
+
+    doc.save(`SOA_${String(d.tenantName).replace(/\s+/g, '_')}.pdf`)
   }
 
   return (

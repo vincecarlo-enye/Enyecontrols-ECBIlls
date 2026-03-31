@@ -40,9 +40,6 @@ export function useAdminTenants() {
 
       if (created) {
         setTenants((prev) => [created, ...prev])
-        setTenantUsers((prev) =>
-          prev.filter((user) => String(user.id) !== String(created.user_id))
-        )
       } else {
         await loadTenants()
       }

@@ -37,15 +37,23 @@ export async function sendAIChat({ pathname, question, generateAudio = false, tt
     }
   }
 
-  const res = await api.post(endpoint, {
-    question,
-    pathname,
-    generate_audio: generateAudio,
-    tts_mode: ttsMode,
-    voice,
-  })
+  try {
+    const res = await api.post(endpoint, {
+      question,
+      pathname,
+      generate_audio: generateAudio,
+      tts_mode: ttsMode,
+      voice,
+    })
 
-  return res.data
+    return res.data
+  } catch (error) {
+    if (error?.response?.data) {
+      return error.response.data
+    }
+
+    throw error
+  }
 }
 
 export async function sendAdminAIChat(question, options = {}) {

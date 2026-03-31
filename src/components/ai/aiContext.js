@@ -336,6 +336,111 @@ export const PAGE_CONTEXTS = {
   },
 }
 
+const ECBILLS_SCOPE_KEYWORDS = [
+  'ec bills',
+  'ecbills',
+  'billing',
+  'bill',
+  'tenant',
+  'unit',
+  'meter',
+  'usage',
+  'consumption',
+  'payment',
+  'receipt',
+  'rate',
+  'announcement',
+  'notification',
+  'anomaly',
+  'maintenance',
+  'equipment',
+  'facility',
+  'finance',
+  'dashboard',
+  'report',
+  'reading',
+  'omni',
+  'thermal',
+  'electric',
+  'electricity',
+  'water',
+]
+
+const GENERAL_CODE_KEYWORDS = [
+  'flutter',
+  'react native',
+  'android app',
+  'ios app',
+  'swift',
+  'kotlin',
+  'laravel code',
+  'php code',
+  'python code',
+  'java code',
+  'c# code',
+  'html code',
+  'css code',
+  'javascript code',
+  'write code',
+  'generate code',
+  'create app',
+  'build app',
+  'code snippet',
+  'source code',
+  'project code',
+  'make me code',
+  'gawan mo ako ng code',
+  'gumawa ka ng code',
+  'write a program',
+  'create a program',
+  'generate a script',
+  'make a script',
+]
+
+const CREATION_REQUEST_KEYWORDS = [
+  'create',
+  'build',
+  'design',
+  'generate',
+  'make',
+  'develop',
+  'scaffold',
+  'prototype',
+  'wireframe',
+  'layout',
+  'ui design',
+  'ux design',
+  'login design',
+  'signup design',
+  'dashboard design',
+  'new page',
+  'new screen',
+  'new feature',
+  'new module',
+  'gawa',
+  'gumawa',
+  'gawan',
+  'idesign',
+  'i-design',
+]
+
+const SAFE_ASSIST_INTENTS = [
+  'explain',
+  'summarize',
+  'show',
+  'check',
+  'why',
+  'what',
+  'how',
+  'which',
+  'when',
+  'where',
+  'status',
+  'review',
+  'analyze',
+  'help',
+]
+
 export function getPageContext(pathname) {
   if (PAGE_CONTEXTS[pathname]) return PAGE_CONTEXTS[pathname]
 
@@ -359,4 +464,39 @@ export function getPageContext(pathname) {
       'How does this system work?',
     ],
   }
+}
+
+export function isEcbillsScopedQuestion(question = '', pageContext = {}) {
+  const text = String(question || '').toLowerCase().trim()
+  if (!text) return true
+
+  const mentionsEcbillsScope = ECBILLS_SCOPE_KEYWORDS.some((keyword) => text.includes(keyword))
+  const looksLikeGeneralCoding = GENERAL_CODE_KEYWORDS.some((keyword) => text.includes(keyword))
+  const looksLikeCreationRequest = CREATION_REQUEST_KEYWORDS.some((keyword) => text.includes(keyword))
+  const looksLikeSafeAssist = SAFE_ASSIST_INTENTS.some((keyword) => text.includes(keyword))
+  const isPageExplain =
+    text.includes('this page') ||
+    text.includes('explain this') ||
+    text.includes('what does this mean') ||
+    text.includes('how do i use this')
+
+  if (looksLikeGeneralCoding) {
+    return false
+  }
+
+  if (looksLikeCreationRequest) {
+    return false
+  }
+
+  if (mentionsEcbillsScope || isPageExplain) {
+    return true
+  }
+
+  return looksLikeSafeAssist && !looksLikeCreationRequest
+}
+
+export function getOutOfScopeReply(pageContext = {}) {
+  const pageName = pageContext?.page || 'ECBills'
+
+  return `I can only help with explaining, analyzing, and guiding existing ECBills features on this current page (${pageName}). I can't create new code, new UI designs, new pages, Flutter screens, or unrelated development requests here. Ask me to explain records, workflows, statuses, billing, payments, tenants, units, meters, usage, anomalies, notifications, or reports inside ECBills.`
 }

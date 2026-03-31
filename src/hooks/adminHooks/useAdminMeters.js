@@ -59,9 +59,41 @@ function mapUnits(rows = []) {
   return rows.map((unit) => ({
     id: unit.id,
     unit: unit.unit_number || unit.name || '',
-    tenant: unit?.tenants?.[0]?.name || '',
-    tenantId: unit?.tenants?.[0]?.id || null,
+    tenant: unit?.tenants?.find((tenant) => tenant?.status === 'active')?.name || unit?.tenants?.[0]?.name || '',
+    tenantId: unit?.tenants?.find((tenant) => tenant?.status === 'active')?.id || unit?.tenants?.[0]?.id || null,
+    status: unit.status || 'vacant',
+    tenantCount: Array.isArray(unit?.tenants) ? unit.tenants.length : 0,
   }))
+}
+
+function enrichMetersWithUnits(meters = [], units = []) {
+  const unitMap = new Map(units.map((unit) => [String(unit.id), unit]))
+
+  return meters.map((meter) => {
+    const assignedUnits = (meter.unitIds || [])
+      .map((id) => unitMap.get(String(id)))
+      .filter(Boolean)
+
+    const activeUnits = assignedUnits.filter((unit) => unit.status === 'occupied' || unit.tenant)
+    const tenantNames = [...new Set(
+      activeUnits
+        .map((unit) => unit.tenant)
+        .filter(Boolean)
+    )]
+    const occupiedUnitCount = activeUnits.length
+    const tenantCount = tenantNames.length
+
+    return {
+      ...meter,
+      assignedUnitDetails: assignedUnits,
+      tenant: tenantNames.join(', ') || meter.tenant || '',
+      tenantCount,
+      occupiedUnitCount,
+      occupancyLabel: assignedUnits.length > 0
+        ? `${assignedUnits.length} unit${assignedUnits.length !== 1 ? 's' : ''}`
+        : meter.unitsLabel || meter.unit || '',
+    }
+  })
 }
 
 function inferMeterType(watchName, unit, value) {
@@ -152,8 +184,11 @@ export function useAdminMeters() {
         fetchAdminUnits(),
       ])
 
-      setMeters(mapMeters(Array.isArray(metersRes?.data) ? metersRes.data : []))
-      setUnits(mapUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : []))
+      const normalizedUnits = mapUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : [])
+      const normalizedMeters = mapMeters(Array.isArray(metersRes?.data) ? metersRes.data : [])
+
+      setUnits(normalizedUnits)
+      setMeters(enrichMetersWithUnits(normalizedMeters, normalizedUnits))
       setMeta(metersRes?.meta || {
         ...DEFAULT_META,
         current_page: nextPage,

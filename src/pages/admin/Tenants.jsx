@@ -89,7 +89,7 @@ export default function Tenants() {
   const [errors, setErrors] = useState({})
   const [editingId, setEditingId] = useState(null)
   const [viewTenant, setViewTenant] = useState(null)
-  const [deletingId, setDeletingId] = useState(null)
+  const [deletingGroup, setDeletingGroup] = useState(null)
 
   const tenantUnitMap = useMemo(() => {
     return tenants.reduce((acc, tenant) => {
@@ -113,12 +113,62 @@ export default function Tenants() {
     }, {})
   }, [tenants])
 
+  const tenantGroups = useMemo(() => {
+    const map = new Map()
+
+    tenants.forEach((tenant) => {
+      const key = String(tenant.user_id || tenant.id || '')
+      if (!key) return
+
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          user_id: tenant.user_id || null,
+          primaryTenantId: tenant.id,
+          name: tenant.name || '',
+          email: tenant.email || '',
+          phone: tenant.phone || '',
+          contact_person: tenant.contact_person || '',
+          contact_person_phone: tenant.contact_person_phone || '',
+          status: tenant.status || 'active',
+          move_in_date: tenant.move_in_date || null,
+          move_out_date: tenant.move_out_date || null,
+          tenantIds: [],
+          units: [],
+        })
+      }
+
+      const group = map.get(key)
+      group.tenantIds.push(tenant.id)
+
+      if (!group.name && tenant.name) group.name = tenant.name
+      if (!group.email && tenant.email) group.email = tenant.email
+      if (!group.phone && tenant.phone) group.phone = tenant.phone
+      if (!group.contact_person && tenant.contact_person) group.contact_person = tenant.contact_person
+      if (!group.contact_person_phone && tenant.contact_person_phone) group.contact_person_phone = tenant.contact_person_phone
+
+      const relatedUnits = []
+      if (tenant.unit?.id || tenant.unit?.unit_number) relatedUnits.push(tenant.unit)
+      if (Array.isArray(tenant.units)) relatedUnits.push(...tenant.units)
+
+      relatedUnits.forEach((unit) => {
+        const unitKey = String(unit?.id || unit?.unit_number || '')
+        if (!unitKey) return
+        if (!group.units.some((existing) => String(existing?.id || existing?.unit_number || '') === unitKey)) {
+          group.units.push(unit)
+        }
+      })
+    })
+
+    return Array.from(map.values())
+  }, [tenants])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    if (!q) return tenants
+    if (!q) return tenantGroups
 
-    return tenants.filter((tenant) => {
-      const relatedUnits = tenantUnitMap[String(tenant.user_id || tenant.id || '')] || []
+    return tenantGroups.filter((tenant) => {
+      const relatedUnits = tenant.units || []
       const relatedUnitText = relatedUnits.map((unit) => unit?.unit_number).filter(Boolean).join(' ')
 
       return [
@@ -130,7 +180,7 @@ export default function Tenants() {
         tenant.status,
       ].some((value) => String(value || '').toLowerCase().includes(q))
     })
-  }, [tenants, search, tenantUnitMap])
+  }, [tenantGroups, search])
 
   const paginated = useMemo(() => {
     const start = (page - 1) * perPage
@@ -153,8 +203,8 @@ export default function Tenants() {
     }
   }, [filtered.length, page, perPage])
 
-  const activeCount = tenants.filter((tenant) => tenant.status === 'active').length
-  const multiUnitCount = Object.values(tenantUnitMap).filter((unitList) => unitList.length > 1).length
+  const activeCount = tenantGroups.filter((tenant) => tenant.status === 'active').length
+  const multiUnitCount = tenantGroups.filter((tenant) => (tenant.units || []).length > 1).length
   const currentEditUnits = drawerMode === 'edit' ? (tenantUnitMap[String(form.user_id || '')] || []).filter(Boolean) : []
   const occupiedByOtherUsers = useMemo(() => {
     const currentUserId = String(form.user_id || '')
@@ -244,6 +294,24 @@ export default function Tenants() {
         await addTenant(payload)
       } else {
         await editTenant(editingId, payload)
+        const siblingTenantIds = tenants
+          .filter((tenant) => String(tenant.user_id || '') === String(payload.user_id) && String(tenant.id) !== String(editingId))
+          .map((tenant) => tenant.id)
+
+        for (const siblingTenantId of siblingTenantIds) {
+          await editTenant(siblingTenantId, {
+            user_id: payload.user_id,
+            name: payload.name,
+            email: payload.email,
+            phone: payload.phone,
+            contact_person: payload.contact_person,
+            contact_person_phone: payload.contact_person_phone,
+            status: payload.status,
+            move_in_date: payload.move_in_date,
+            move_out_date: payload.move_out_date,
+          })
+        }
+
         const newExtraUnitIds = [...new Set((form.extra_unit_ids || []).filter(Boolean).map((id) => Number(id)))]
         for (const extraUnitId of newExtraUnitIds) {
           await addTenant({
@@ -268,10 +336,12 @@ export default function Tenants() {
   }
 
   const handleDelete = async () => {
-    if (!deletingId) return
+    if (!deletingGroup?.tenantIds?.length) return
     try {
-      await removeTenant(deletingId)
-      setDeletingId(null)
+      for (const tenantId of deletingGroup.tenantIds) {
+        await removeTenant(tenantId)
+      }
+      setDeletingGroup(null)
     } catch (err) {
       console.error(err)
     }
@@ -322,7 +392,7 @@ export default function Tenants() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-display font-700 text-xl text-slate-800 dark:text-white">Tenants</h2>
-          <p className="mt-1 text-sm text-slate-400">Manage tenant records, linked users, and assigned units.</p>
+          <p className="mt-1 text-sm text-slate-400">Manage tenant users, grouped unit assignments, and linked records.</p>
         </div>
 
         <button
@@ -335,7 +405,7 @@ export default function Tenants() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <StatCard label="Tenant Records" value={tenants.length} sub="All registered tenant entries" />
+        <StatCard label="Tenant Users" value={tenantGroups.length} sub="Unique tenant accounts in the system" />
         <StatCard label="Active" value={activeCount} sub="Currently active tenants" tone="emerald" />
         <StatCard label="Multi-Unit" value={multiUnitCount} sub="Tenant users linked to multiple units" tone="amber" />
       </div>
@@ -360,7 +430,7 @@ export default function Tenants() {
           />
         </div>
 
-        <p className="text-xs text-slate-400">Showing operational tenant records in a paged table view.</p>
+        <p className="text-xs text-slate-400">Showing one row per tenant user, with units grouped under the same account.</p>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/60 dark:bg-slate-900">
@@ -385,7 +455,7 @@ export default function Tenants() {
                 </tr>
               ) : (
                 paginated.map((tenant) => {
-                  const relatedUnits = tenantUnitMap[String(tenant.user_id || tenant.id || '')] || []
+                  const relatedUnits = tenant.units || []
                   return (
                     <tr key={tenant.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3.5 min-w-[240px]">
@@ -395,7 +465,7 @@ export default function Tenants() {
                           </div>
                           <div>
                             <p className="font-semibold text-slate-800 dark:text-white">{tenant.name}</p>
-                            <p className="text-xs text-slate-400">Linked User ID: {tenant.user_id || '-'}</p>
+                            <p className="text-xs text-slate-400">Tenant User ID: {tenant.user_id || '-'}</p>
                           </div>
                         </div>
                       </td>
@@ -442,10 +512,10 @@ export default function Tenants() {
                           <button onClick={() => setViewTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="View details">
                             <Eye className="h-4 w-4" />
                           </button>
-                          <button onClick={() => openEdit(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Edit tenant">
+                          <button onClick={() => openEdit({ ...tenant, id: tenant.primaryTenantId, unit_id: relatedUnits[0]?.id || '' })} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Edit tenant">
                             <Edit3 className="h-4 w-4" />
                           </button>
-                          <button onClick={() => setDeletingId(tenant.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20" title="Remove tenant">
+                          <button onClick={() => setDeletingGroup(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20" title="Remove tenant">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -672,7 +742,7 @@ export default function Tenants() {
         isOpen={!!viewTenant}
         onClose={() => setViewTenant(null)}
         title={viewTenant?.name}
-        subtitle={viewTenant ? `${(tenantUnitMap[String(viewTenant.user_id || viewTenant.id || '')] || []).length} assigned unit(s)` : ''}
+        subtitle={viewTenant ? `${(viewTenant.units || []).length} assigned unit(s)` : ''}
       >
         {viewTenant ? (
           <div className="space-y-5">
@@ -715,8 +785,8 @@ export default function Tenants() {
             <div>
               <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Assigned Units</p>
               <div className="grid gap-2">
-                {(tenantUnitMap[String(viewTenant.user_id || viewTenant.id || '')] || []).length > 0 ? (
-                  (tenantUnitMap[String(viewTenant.user_id || viewTenant.id || '')] || []).map((unit) => (
+                {(viewTenant.units || []).length > 0 ? (
+                  (viewTenant.units || []).map((unit) => (
                     <div key={unit?.id || unit?.unit_number} className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3 dark:border-slate-700 dark:bg-slate-800/40">
                       <p className="text-sm font-medium text-slate-800 dark:text-white">{unit?.unit_number || 'No unit number'}</p>
                       <p className="mt-1 text-xs text-slate-400">Floor {unit?.floor || '-'} - {unit?.building_name || '-'}</p>
@@ -732,12 +802,12 @@ export default function Tenants() {
       </Modal>
 
       <ConfirmModal
-        isOpen={!!deletingId}
-        title="Remove Tenant?"
-        message="This tenant record will be permanently removed. This cannot be undone."
-        confirmLabel="Remove Tenant"
+        isOpen={!!deletingGroup}
+        title="Remove Tenant User?"
+        message="This will remove the tenant user entry and all linked unit assignment records. This cannot be undone."
+        confirmLabel="Remove Tenant User"
         onConfirm={handleDelete}
-        onCancel={() => setDeletingId(null)}
+        onCancel={() => setDeletingGroup(null)}
       />
     </div>
   )

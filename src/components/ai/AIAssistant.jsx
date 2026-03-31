@@ -13,7 +13,7 @@ import {
   Waves,
   ChevronDown,
 } from 'lucide-react'
-import { getPageContext } from './aiContext'
+import { getOutOfScopeReply, getPageContext, isEcbillsScopedQuestion } from './aiContext'
 import { useVoiceInput } from './useVoiceInput'
 import WaveAnimation from './WaveAnimation'
 import { clearAIChatHistory, getAIChatHistory, sendAIChat } from '@/services/adminService/aiService'
@@ -45,6 +45,18 @@ function resolvePlayableAudioUrl(audioUrl = '') {
   } catch {
     return audioUrl
   }
+}
+
+function pickPreferredFemaleVoice(voices = []) {
+  if (!Array.isArray(voices) || voices.length === 0) return null
+
+  const femaleHints = ['female', 'aria', 'zira', 'samantha', 'victoria', 'jenny', 'ava', 'susan', 'zira']
+  const englishVoices = voices.filter((voice) => /^en[-_]/i.test(voice.lang || ''))
+  const ranked = [...englishVoices, ...voices]
+
+  return ranked.find((voice) =>
+    femaleHints.some((hint) => `${voice.name} ${voice.voiceURI}`.toLowerCase().includes(hint))
+  ) || ranked[0] || null
 }
 
 function renderMessageContent(content) {
@@ -364,8 +376,14 @@ export default function AIAssistant() {
     try {
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(normalizeText(text).replace(/\*\*/g, '').replace(/\n+/g, ' '))
+      const voices = window.speechSynthesis.getVoices?.() || []
+      const preferredVoice = pickPreferredFemaleVoice(voices)
+      if (preferredVoice) {
+        utterance.voice = preferredVoice
+        utterance.lang = preferredVoice.lang || 'en-US'
+      }
       utterance.rate = 1.02
-      utterance.pitch = 1
+      utterance.pitch = 1.08
       utterance.volume = 1
       utterance.onstart = () => setIsAISpeaking(true)
       utterance.onend = () => setIsAISpeaking(false)
@@ -491,6 +509,19 @@ export default function AIAssistant() {
     setIsTyping(true)
     stopAllAudio()
 
+    if (!isEcbillsScopedQuestion(content, pageContext)) {
+      const aiMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: getOutOfScopeReply(pageContext),
+        time: formatTime(),
+      }
+
+      setMessages((prev) => [...prev, aiMsg])
+      setIsTyping(false)
+      return
+    }
+
     try {
       const generateAudio = outputMode !== 'text'
       const ttsMode = outputMode === 'custom' ? 'clone' : 'edge'
@@ -523,12 +554,15 @@ export default function AIAssistant() {
 
       setMessages((prev) => [...prev, aiMsg])
       setIsTyping(false)
+
+      if (!generateAudio && autoReadAloud) {
+        speakWithBrowser(responseText)
+      }
+
       await animateAssistantReply(aiMsgId, responseText)
 
       if (generateAudio) {
         await playAssistantAudio(audioUrl, responseText)
-      } else if (autoReadAloud) {
-        speakWithBrowser(responseText)
       }
     } catch (error) {
       const aiMsg = {
@@ -545,7 +579,7 @@ export default function AIAssistant() {
       setIsTyping(false)
       setIsAnimatingReply(false)
     }
-  }, [animateAssistantReply, autoReadAloud, hasLoadedHistory, inputValue, isAnimatingReply, isTyping, location.pathname, outputMode, playAssistantAudio, speakWithBrowser, stopAllAudio])
+  }, [animateAssistantReply, autoReadAloud, hasLoadedHistory, inputValue, isAnimatingReply, isTyping, location.pathname, outputMode, pageContext, playAssistantAudio, speakWithBrowser, stopAllAudio])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

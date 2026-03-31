@@ -248,7 +248,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
                       className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
                     />
                     <span className="text-sm text-slate-700 dark:text-slate-200">
-                      {unit.unit} {unit.tenant ? `- ${unit.tenant}` : '(Vacant)'}
+                      {unit.unit} {unit.tenant ? `- ${unit.tenant}` : unit.status === 'occupied' ? '- Occupied' : '(Vacant)'}
                     </span>
                   </label>
                 )
@@ -323,13 +323,17 @@ function MeterCard({ meter, onEdit, onDelete }) {
         <div className="flex items-center justify-between">
           <span>Units</span>
           <span className="font-medium text-slate-700 dark:text-slate-300 text-right max-w-[150px]">
-            {meter.unitsLabel || meter.unit || '-'}
+            {meter.occupancyLabel || meter.unitsLabel || meter.unit || '-'}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span>Tenant</span>
+          <span>Occupied</span>
           <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[130px] text-right">
-            {meter.tenant || <span className="text-slate-400 italic">Vacant</span>}
+            {typeof meter.occupiedUnitCount === 'number'
+              ? `${meter.occupiedUnitCount}`
+              : meter.assignedUnitDetails?.some((unit) => unit.status === 'occupied')
+                ? '1'
+                : '0'}
           </span>
         </div>
       </div>
