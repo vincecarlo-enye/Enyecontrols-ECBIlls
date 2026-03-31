@@ -2,16 +2,19 @@ import { Building2 } from 'lucide-react'
 import { useUnitFilter } from '@/context/UnitFilterContext'
 import { useAuth } from '@/context/AuthContext'
 
-// Map tenant IDs to their units
-const TENANT_UNITS_MAP = {
-  'T-001': ['12F-A', '12F-B'],
-}
-
 export default function UnitFilterBar() {
   const { user } = useAuth()
   const { selectedUnit, setSelectedUnit } = useUnitFilter()
 
-  const tenantUnits = user?.tenantId ? TENANT_UNITS_MAP[user.tenantId] || [] : []
+  const tenantUnits = Array.from(
+    new Set(
+      (Array.isArray(user?.tenants) ? user.tenants : [user?.tenant])
+        .filter(Boolean)
+        .map((tenant) => tenant?.unit?.unit_number || tenant?.unit?.name || '')
+        .filter(Boolean)
+    )
+  )
+
   if (tenantUnits.length <= 1) return null
 
   return (

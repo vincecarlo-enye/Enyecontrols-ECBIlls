@@ -124,31 +124,53 @@ function normalizeBill(bill) {
   }
 }
 
+const DEFAULT_PER_PAGE = 10
+const DEFAULT_META = {
+  current_page: 1,
+  per_page: DEFAULT_PER_PAGE,
+  total: 0,
+  last_page: 1,
+  from: 0,
+  to: 0,
+}
+
 export function useAdminBills() {
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedBill, setSelectedBill] = useState(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
+  const [meta, setMeta] = useState(DEFAULT_META)
 
-  const loadBills = useCallback(async () => {
+  const loadBills = useCallback(async (nextPage = page, nextPerPage = perPage) => {
     setLoading(true)
     setError('')
 
     try {
-      const data = await fetchAdminBills()
+      const data = await fetchAdminBills({
+        page: nextPage,
+        per_page: nextPerPage,
+      })
       const list = Array.isArray(data?.data) ? data.data.map(normalizeBill) : []
       setBills(list)
+      setMeta(data?.meta || {
+        ...DEFAULT_META,
+        current_page: nextPage,
+        per_page: nextPerPage,
+      })
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load bills.')
       setBills([])
+      setMeta(DEFAULT_META)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, perPage])
 
   useEffect(() => {
-    loadBills()
-  }, [loadBills])
+    loadBills(page, perPage)
+  }, [loadBills, page, perPage])
 
   const loadBillDetail = useCallback(async (id) => {
     try {
@@ -168,7 +190,8 @@ export function useAdminBills() {
           tenantid,
           billingmonth,
         })
-        await loadBills()
+        setPage(1)
+        await loadBills(1, perPage)
 
         return {
           success: true,
@@ -183,9 +206,8 @@ export function useAdminBills() {
         }
       }
     },
-    [loadBills]
+    [loadBills, perPage]
   )
-
 
   const regenerateBill = useCallback(
     async ({ tenant_id, billing_month, billingstart, billingend, billingmonth, ...rest }) => {
@@ -199,7 +221,7 @@ export function useAdminBills() {
         }
 
         const data = await regenerateAdminBill(payload)
-        await loadBills()
+        await loadBills(page, perPage)
 
         return {
           success: true,
@@ -214,7 +236,7 @@ export function useAdminBills() {
         }
       }
     },
-    [loadBills]
+    [loadBills, page, perPage]
   )
 
   const paidBills = useMemo(
@@ -271,6 +293,11 @@ export function useAdminBills() {
     error,
     selectedBill,
     setSelectedBill,
+    meta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
     loadBills,
     loadBillDetail,
     createBill,

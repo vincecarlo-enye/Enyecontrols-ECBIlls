@@ -184,12 +184,27 @@ export default function FinanceDashboard() {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 8)
     .map((payment) => {
-      const topUtility = Object.entries(payment.breakdown).sort((a, b) => b[1] - a[1])[0]?.[0] || 'electricity'
+      const activeUtilities = Object.entries(payment.breakdown || {})
+        .filter(([, value]) => Number(value || 0) > 0)
+        .map(([key]) => key)
+
+      let utility = 'No Utility Data'
+
+      if (activeUtilities.length === 1) {
+        utility = activeUtilities[0] === 'water'
+          ? 'Water'
+          : activeUtilities[0] === 'thermal'
+            ? 'Thermal'
+            : 'Electricity'
+      } else if (activeUtilities.length > 1) {
+        utility = 'Mixed Utilities'
+      }
+
       return {
         id: payment.invoiceId,
         tenant: payment.tenant,
         unit: payment.unit,
-        utility: topUtility === 'water' ? 'Water' : topUtility === 'thermal' ? 'Thermal' : 'Electricity',
+        utility,
         amount: payment.amount,
         status: payment.status === 'verified' ? 'Paid' : payment.status === 'rejected' ? 'Rejected' : 'Pending',
         date: payment.date,
@@ -253,8 +268,10 @@ export default function FinanceDashboard() {
     Electricity: 'text-amber-600 dark:text-amber-400',
     Water: 'text-cyan-600 dark:text-cyan-400',
     Thermal: 'text-rose-600 dark:text-rose-400',
+    'Mixed Utilities': 'text-violet-600 dark:text-violet-400',
+    'No Utility Data': 'text-slate-500 dark:text-slate-400',
   }
-  const utilityIcon = { Electricity: Zap, Water: Droplets, Thermal: Flame }
+  const utilityIcon = { Electricity: Zap, Water: Droplets, Thermal: Flame, 'Mixed Utilities': Activity }
   const statusCls = {
     Paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -385,10 +402,10 @@ export default function FinanceDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {recentTransactions.map((row) => {
+              {recentTransactions.map((row, index) => {
                 const Icon = utilityIcon[row.utility]
                 return (
-                  <tr key={`${row.id}-${row.date}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr key={`${row.id}-${row.date}-${row.status}-${index}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{row.id}</td>
                     <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{row.tenant}</td>
                     <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{row.unit}</td>
@@ -415,4 +432,5 @@ export default function FinanceDashboard() {
     </div>
   )
 }
+
 

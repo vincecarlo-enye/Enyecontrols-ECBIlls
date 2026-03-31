@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Zap, Droplets, Flame, Wifi } from 'lucide-react'
 import {
   LineChart,
@@ -15,6 +15,8 @@ import {
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
 import { useTenantUsageMonitoring } from '@/hooks/tenantHooks/useTenantUsageMonitoring'
+import { useUnitFilter } from '@/context/UnitFilterContext'
+import UnitFilterBar from '@/components/common/UnitFilterBar'
 
 const ttStyle = {
   contentStyle: {
@@ -53,15 +55,25 @@ function buildHourlyFallback(summary = {}) {
 export default function Usage() {
   const pageLoading = usePageLoader(700)
   const [tab, setTab] = useState('hourly')
+  const { selectedUnit } = useUnitFilter()
 
   const {
+    unit,
+    units,
     summary,
     hourly,
     daily,
     monthly,
     loading,
     error,
+    refreshUsage,
   } = useTenantUsageMonitoring()
+
+  const tenantUnits = Array.isArray(units) ? units : []
+
+  useEffect(() => {
+    refreshUsage(selectedUnit)
+  }, [refreshUsage, selectedUnit])
 
   const isLoading = pageLoading || loading
 
@@ -80,6 +92,14 @@ export default function Usage() {
   }, [monthly])
 
   if (isLoading) return <FacilityPageSkeleton />
+
+  const unitLabel = selectedUnit === 'all'
+    ? tenantUnits.length > 1
+      ? 'All Assigned Units'
+      : unit?.unit_number
+        ? `Unit ${unit.unit_number}`
+        : 'Assigned Unit'
+    : `Unit ${selectedUnit}`
 
   const summaryCards = [
     {
@@ -119,7 +139,7 @@ export default function Usage() {
             Usage Monitoring
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            Utility consumption and meter readings for your unit
+            Utility consumption and meter readings for {unitLabel.toLowerCase()}
           </p>
         </div>
 
@@ -140,6 +160,8 @@ export default function Usage() {
           {error}
         </div>
       ) : null}
+
+      <UnitFilterBar />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {summaryCards.map((s, i) => {
@@ -197,7 +219,7 @@ export default function Usage() {
               Hourly Consumption
             </h2>
             <p className="text-xs text-slate-400 mb-4">
-              Hour-by-hour utility monitoring for your unit
+              Hour-by-hour utility monitoring for {unitLabel.toLowerCase()}
             </p>
 
             <ResponsiveContainer width="100%" height={240}>
@@ -279,7 +301,7 @@ export default function Usage() {
             Daily Totals
           </h2>
           <p className="text-xs text-slate-400 mb-4">
-            Utility consumption per day
+            Utility consumption per day for {unitLabel.toLowerCase()}
           </p>
 
           {safeDaily.length > 0 ? (
@@ -318,7 +340,7 @@ export default function Usage() {
             Monthly Totals
           </h2>
           <p className="text-xs text-slate-400 mb-4">
-            Utility consumption trend over recent months
+            Utility consumption trend over recent months for {unitLabel.toLowerCase()}
           </p>
 
           {safeMonthly.length > 0 ? (

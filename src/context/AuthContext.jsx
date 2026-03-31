@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
   })
 
   const [token, setToken] = useState(() => localStorage.getItem('auth_token'))
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !user && !!localStorage.getItem('auth_token'))
 
   useEffect(() => {
     if (user) {
@@ -52,10 +52,21 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const restoreAuth = async () => {
       const savedToken = localStorage.getItem('auth_token')
+      const savedUser = localStorage.getItem('sb_auth_user')
 
       if (!savedToken) {
         setLoading(false)
         return
+      }
+
+      if (savedUser) {
+        try {
+          const parsedUser = JSON.parse(savedUser)
+          setUser(parsedUser)
+          setLoading(false)
+        } catch {
+          //
+        }
       }
 
       try {
@@ -126,18 +137,31 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    try {
-      await api.post('/api/logout')
-    } catch {
-      //
-    }
+    const activeToken = token || localStorage.getItem('auth_token')
 
     setUser(null)
     setToken(null)
+    setLoading(false)
     delete api.defaults.headers.common.Authorization
     localStorage.removeItem('sb_auth_user')
     localStorage.removeItem('auth_token')
     localStorage.removeItem('omni_token')
+
+    if (!activeToken) return
+
+    try {
+      await api.post(
+        '/api/logout',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+          },
+        }
+      )
+    } catch {
+      //
+    }
   }
 
   const addUser = useCallback((actorRole, userData) => {

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Edit3, Check, X, Zap, Flame, Droplets, Lock } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useRateHistory } from '@/hooks/common/useRateHistory'
+import RateHistoryPanel from '@/components/common/RateHistoryPanel'
 
 const config = {
   electricity: { label: 'Electricity Rate', icon: Zap, color: 'text-amber-500', gradient: 'from-amber-400 to-orange-500', formula: 'Usage × Rate = Charge', barColor: 'bg-amber-400' },
@@ -101,6 +103,7 @@ function RateCard({ type, rate, unit, completeness, canEdit, onSave }) {
 
 export default function RateConfigCard({ rates: propRates, onSaveRate, onSaveAllRates }) {
   const { can } = usePermissions()
+  const { history, loading } = useRateHistory()
   const canEdit = can('rates:edit')
   const rates = propRates || fallbackRates
 
@@ -134,6 +137,10 @@ export default function RateConfigCard({ rates: propRates, onSaveRate, onSaveAll
         <RateCard type="electricity" rate={rates.electricity?.rate} unit={rates.electricity?.unit} completeness={rates.electricity?.completeness ?? 0} canEdit={canEdit} onSave={handleSave} />
         <RateCard type="water" rate={rates.water?.rate} unit={rates.water?.unit} completeness={rates.water?.completeness ?? 0} canEdit={canEdit} onSave={handleSave} />
         <RateCard type="thermal" rate={rates.thermal?.rate} unit={rates.thermal?.unit} completeness={rates.thermal?.completeness ?? 0} canEdit={canEdit} onSave={handleSave} />
+      </div>
+
+      <div className="mt-4">
+        <RateHistoryPanel history={history} loading={loading} compact />
       </div>
     </div>
   )

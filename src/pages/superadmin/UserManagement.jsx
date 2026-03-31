@@ -1,6 +1,6 @@
 /**
  * pages/superadmin/UserManagement.jsx
- * Full user & role management — Super Admin only.
+ * Full user & role management - Super Admin only.
  */
 import { useEffect, useState } from 'react'
 import { Users, Plus, Pencil, Trash2, Shield, Lock, RefreshCw, UserX, UserCheck, X, Eye, EyeOff, Search } from 'lucide-react'
@@ -10,18 +10,19 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import PaginationBar from '@/components/common/PaginationBar'
 import { useSuperAdminUsers } from '@/hooks/superAdminHooks/useSuperAdminUsers'
 
 const ROLE_OPTIONS = [
-  { value: 'super_admin',      label: 'Super Admin',      color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
-  { value: 'admin',            label: 'Admin',            color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
-  { value: 'finance',          label: 'Finance',          color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
+  { value: 'super_admin', label: 'Super Admin', color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
+  { value: 'admin', label: 'Admin', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
+  { value: 'finance', label: 'Finance', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
   { value: 'facility_manager', label: 'Facility Manager', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
-  { value: 'tenant',           label: 'Tenant',           color: 'bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-400' },
+  { value: 'tenant', label: 'Tenant', color: 'bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-400' },
 ]
 
 function getRoleBadge(role) {
-  return ROLE_OPTIONS.find(r => r.value === role) || ROLE_OPTIONS[4]
+  return ROLE_OPTIONS.find((r) => r.value === role) || ROLE_OPTIONS[4]
 }
 
 const EMPTY_FORM = { name: '', email: '', password: '', role: 'tenant', title: '' }
@@ -38,7 +39,7 @@ function UserFormModal({ open, onClose, onSave, initial }) {
     setShowPw(false)
   }, [open, initial])
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   const validate = () => {
     const e = {}
@@ -55,6 +56,7 @@ function UserFormModal({ open, onClose, onSave, initial }) {
     const result = await onSave(form)
     if (result?.success) onClose()
   }
+
   if (!open) return null
 
   return (
@@ -62,13 +64,13 @@ function UserFormModal({ open, onClose, onSave, initial }) {
       <div className="w-full max-w-md glass rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/50 overflow-hidden animate-in">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/60 dark:border-slate-700/50">
           <h2 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">{initial ? 'Edit User' : 'Add New User'}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-400 transition-colors"><X className="w-4 h-4"/></button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-400 transition-colors"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-6 space-y-4">
           {[{ k: 'name', label: 'Full Name', placeholder: 'e.g. John Doe' }, { k: 'email', label: 'Email Address', placeholder: 'user@enye.com' }, { k: 'title', label: 'Title / Position', placeholder: 'e.g. Finance Officer' }].map(({ k, label, placeholder }) => (
             <div key={k}>
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{label}</label>
-              <input type={k === 'email' ? 'email' : 'text'} value={form[k]} onChange={e => set(k, e.target.value)} placeholder={placeholder}
+              <input type={k === 'email' ? 'email' : 'text'} value={form[k]} onChange={(e) => set(k, e.target.value)} placeholder={placeholder}
                 className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none transition-all ${errors[k] ? 'border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-blue-400'}`} />
               {errors[k] && <p className="text-xs text-red-500 mt-1">{errors[k]}</p>}
             </div>
@@ -77,10 +79,10 @@ function UserFormModal({ open, onClose, onSave, initial }) {
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{initial ? 'Password (leave blank to keep)' : 'Password *'}</label>
             <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={form.password || ''} onChange={e => set('password', e.target.value)} placeholder="Enter password"
+              <input type={showPw ? 'text' : 'password'} value={form.password || ''} onChange={(e) => set('password', e.target.value)} placeholder="Enter password"
                 className={`w-full px-3 py-2 pr-10 text-sm rounded-xl border bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none transition-all ${errors.password ? 'border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-blue-400'}`} />
-              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                {showPw ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+              <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
             {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
@@ -89,7 +91,7 @@ function UserFormModal({ open, onClose, onSave, initial }) {
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Role</label>
             <div className="grid grid-cols-2 gap-2">
-              {ROLE_OPTIONS.map(r => (
+              {ROLE_OPTIONS.map((r) => (
                 <button key={r.value} onClick={() => set('role', r.value)}
                   className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${form.role === r.value ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:border-violet-300'}`}>
                   {r.label}
@@ -137,22 +139,22 @@ function ResetPasswordModal({ open, onClose, onSave, userName }) {
             <h2 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">Reset Password</h2>
             <p className="text-xs text-slate-400 mt-0.5">For: {userName}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-400 transition-colors"><X className="w-4 h-4"/></button>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-400 transition-colors"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">New Password</label>
             <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} placeholder="Minimum 6 characters"
+              <input type={showPw ? 'text' : 'password'} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Minimum 6 characters"
                 className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-blue-400 transition-all" />
-              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-                {showPw ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
+              <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Confirm Password</label>
-            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm new password"
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirm new password"
               className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-blue-400 transition-all" />
           </div>
           {err && <p className="text-xs text-red-500">{err}</p>}
@@ -176,6 +178,11 @@ export default function UserManagement() {
     loading: usersLoading,
     saving,
     error,
+    meta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
     createUser,
     updateUser,
     toggleUserStatus,
@@ -194,13 +201,13 @@ export default function UserManagement() {
   if (loading || usersLoading) return <DashboardSkeleton />
   if (!isSuperAdmin) return (
     <div className="flex flex-col items-center justify-center py-24">
-      <Lock className="w-12 h-12 text-slate-300 mb-4"/>
+      <Lock className="w-12 h-12 text-slate-300 mb-4" />
       <p className="text-lg font-semibold text-slate-500">Access Denied</p>
       <p className="text-sm text-slate-400 mt-1">User Management is only available to Super Admins.</p>
     </div>
   )
 
-  const filtered = (users || []).filter(u => {
+  const filtered = (users || []).filter((u) => {
     const q = search.toLowerCase()
     const matchSearch = !q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
     const matchRole = roleFilter === 'all' || u.role === roleFilter
@@ -269,14 +276,14 @@ export default function UserManagement() {
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">User Management</h2>
             <span className="flex justify-center items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white tracking-wider uppercase shadow">
-              <Shield className="w-2.5 h-2.5 mr-1"/>Super Admin
+              <Shield className="w-2.5 h-2.5 mr-1" />Super Admin
             </span>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Manage all system users, roles, and access</p>
         </div>
         <button onClick={() => { setEditingUser(null); setShowForm(true) }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all">
-          <Plus className="w-4 h-4"/>Add User
+          <Plus className="w-4 h-4" />Add User
         </button>
       </div>
 
@@ -286,15 +293,14 @@ export default function UserManagement() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-          <input type="text" placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"/>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all" />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {[{ value: 'all', label: 'All' }, ...ROLE_OPTIONS.map(r => ({ value: r.value, label: r.label }))].map(f => (
+          {[{ value: 'all', label: 'All' }, ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))].map((f) => (
             <button key={f.value} onClick={() => setRoleFilter(f.value)}
               className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${roleFilter === f.value ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'}`}>
               {f.label}
@@ -303,19 +309,18 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* Users table */}
       <div className="glass rounded-2xl shadow-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-200/60 dark:border-slate-700/50">
-                {['User', 'Email', 'Role', 'Status', 'Actions'].map(h => (
+                {['User', 'Email', 'Role', 'Status', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-slate-400">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {filtered.map(u => {
+              {filtered.map((u) => {
                 const badge = getRoleBadge(u.role)
                 const isSelf = u.id === currentUser.id
                 const isSA = u.role === 'super_admin'
@@ -327,7 +332,7 @@ export default function UserManagement() {
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{u.initials}</div>
                         <div>
                           <p className="text-sm font-medium text-slate-800 dark:text-white">{u.name} {isSelf && <span className="text-[10px] text-slate-400">(you)</span>}</p>
-                          <p className="text-xs text-slate-400">{u.title || '—'}</p>
+                          <p className="text-xs text-slate-400">{u.title || '-'}</p>
                         </div>
                       </div>
                     </td>
@@ -344,27 +349,27 @@ export default function UserManagement() {
                       <div className="flex items-center gap-1">
                         <button onClick={() => handleEdit(u)} title="Edit user" disabled={saving}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                          <Pencil className="w-4 h-4"/>
+                          <Pencil className="w-4 h-4" />
                         </button>
                         <button onClick={() => setResetTarget(u)} title="Reset password" disabled={saving}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
-                          <RefreshCw className="w-4 h-4"/>
+                          <RefreshCw className="w-4 h-4" />
                         </button>
                         {!isSelf && modifiable && (
                           <>
                             <button onClick={() => setConfirmSuspend(u)} title={u.status === 'suspended' ? 'Reactivate' : 'Suspend'} disabled={saving}
                               className={`p-1.5 rounded-lg transition-colors ${u.status === 'suspended' ? 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20' : 'text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20'}`}>
-                              {u.status === 'suspended' ? <UserCheck className="w-4 h-4"/> : <UserX className="w-4 h-4"/>}
+                              {u.status === 'suspended' ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
                             </button>
                             <button onClick={() => setConfirmDelete(u)} title="Delete user" disabled={saving}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                              <Trash2 className="w-4 h-4"/>
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </>
                         )}
                         {isSA && !isSelf && (
                           <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-violet-100 dark:bg-violet-900/20 text-violet-500 font-semibold flex items-center gap-0.5">
-                            <Lock className="w-2.5 h-2.5"/>Protected
+                            <Lock className="w-2.5 h-2.5" />Protected
                           </span>
                         )}
                       </div>
@@ -376,12 +381,27 @@ export default function UserManagement() {
           </table>
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-14 text-center">
-              <Users className="w-10 h-10 text-slate-300 mb-3"/>
+              <Users className="w-10 h-10 text-slate-300 mb-3" />
               <p className="font-semibold text-slate-500">No users found</p>
               <p className="text-sm text-slate-400 mt-1">Try adjusting your search or filters</p>
             </div>
           )}
         </div>
+
+        {filtered.length > 0 && (
+          <div className="border-t border-slate-200/60 px-4 py-4 dark:border-slate-700/50">
+            <PaginationBar
+              meta={meta}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              onPerPageChange={(value) => {
+                setPerPage(value)
+                setPage(1)
+              }}
+            />
+          </div>
+        )}
       </div>
 
       <UserFormModal open={showForm} onClose={() => { setShowForm(false); setEditingUser(null) }}

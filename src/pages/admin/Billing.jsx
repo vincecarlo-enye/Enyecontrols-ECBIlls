@@ -1,6 +1,6 @@
 /**
  * pages/admin/Billing.jsx
- * Admin Billing — single page replacing both Billing.jsx + BillingOversight.jsx.
+ * Admin Billing - single page replacing both Billing.jsx + BillingOversight.jsx.
  */
 
 import { useMemo, useRef, useState } from 'react'
@@ -19,11 +19,12 @@ import {
   Clock,
   Settings2,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { BillingSkeleton } from '@/components/skeletons'
 import BillsTable from '@/components/billing/BillsTable'
 import RateConfigCard from '@/components/common/RateConfigCard'
+import PaginationBar from '@/components/common/PaginationBar'
 import { useModalState } from '@/hooks/useModalState'
 import { exportAllBillsCSV } from '@/services/billingService'
 import PaymentReviewModal from '@/components/billing/PaymentReviewModal'
@@ -31,6 +32,7 @@ import EmptyState from '@/components/ui/EmptyState'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useAdminBills } from '../../hooks/adminHooks/useAdminBills'
 import { useAdminRates } from '../../hooks/adminHooks/useAdminRates'
+import { useAuth } from '@/context/AuthContext'
 
 const OVERSIGHT_TABS = [
   { key: 'all', label: 'All Bills' },
@@ -42,7 +44,7 @@ const OVERSIGHT_TABS = [
 ]
 
 function formatLongDate(value) {
-  if (!value) return '—'
+  if (!value) return '-'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -55,7 +57,7 @@ function formatLongDate(value) {
 }
 
 function formatShortPeriodDate(value) {
-  if (!value) return '—'
+  if (!value) return '-'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -69,12 +71,12 @@ function formatShortPeriodDate(value) {
 
 function getTenantName(bill) {
   if (typeof bill?.tenant === 'string') return bill.tenant
-  return bill?.tenant?.name || bill?.tenant_name || '—'
+  return bill?.tenant?.name || bill?.tenant_name || '-'
 }
 
 function getUnitName(bill) {
   if (typeof bill?.unit === 'string') return bill.unit
-  return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
+  return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '-'
 }
 
 function getBillingPeriod(bill) {
@@ -106,7 +108,7 @@ function getBillingPeriod(bill) {
     return bill.month
   }
 
-  return '—'
+  return '-'
 }
 
 function getBillAmount(bill) {
@@ -127,7 +129,7 @@ function getReceiptReference(bill) {
     bill?.receipt?.referenceNumber ||
     bill?.receipt?.reference_number ||
     bill?.reference_number ||
-    '—'
+    '-'
   )
 }
 
@@ -199,6 +201,8 @@ function ExportAllDropdown({ bills, onExported }) {
 export default function AdminBilling() {
   const pageLoading = usePageLoader(300)
   const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
   const reviewModal = useModalState()
 
   const {
@@ -206,6 +210,11 @@ export default function AdminBilling() {
     loading,
     error,
     addToast,
+    meta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
     paidBills = [],
     publishedBills = [],
     submittedBills = [],
@@ -220,13 +229,17 @@ export default function AdminBilling() {
   const {
     rates,
     loading: ratesLoading,
-    saveRates,
+    saveRate,
     saveAllRates,
   } = useAdminRates()
 
   const [activeTab, setActiveTab] = useState('manage')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const billingBasePath =
+    user?.role === 'super_admin' || location.pathname.startsWith('/super-admin')
+      ? '/super-admin/billing'
+      : '/admin/billing'
 
   const oversightFiltered = useMemo(() => {
     return bills.filter((bill) => {
@@ -286,7 +299,7 @@ export default function AdminBilling() {
             />
 
             <button
-              onClick={() => navigate('/admin/billing/new')}
+              onClick={() => navigate(`${billingBasePath}/new`)}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
               <Plus className="w-4 h-4 flex-shrink-0" />
@@ -327,13 +340,13 @@ export default function AdminBilling() {
             {[
               {
                 label: 'Total Bills',
-                value: bills.length,
+                value: meta?.total || bills.length,
                 color: 'text-slate-800 dark:text-white',
                 sub: 'Current records',
               },
               {
                 label: 'Collected',
-                value: `₱${Number(totalRevenue || 0).toLocaleString()}`,
+                value: `PHP ${Number(totalRevenue || 0).toLocaleString()}`,
                 color: 'text-emerald-600 dark:text-emerald-400',
                 sub: `${paidBills.length} paid`,
               },
@@ -378,10 +391,23 @@ export default function AdminBilling() {
             }}
           />
 
+          <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-4 shadow-sm dark:border-slate-700/50 dark:bg-slate-900">
+            <PaginationBar
+              meta={meta}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              onPerPageChange={(value) => {
+                setPerPage(value)
+                setPage(1)
+              }}
+            />
+          </div>
+
           <RateConfigCard
             rates={rates}
             onSaveRate={async (type, newRate) => {
-              const result = await saveRates(type, newRate)
+              const result = await saveRate(type, { rate: newRate, unit: rates?.[type]?.unit })
               addToast?.(result?.message || 'Rate updated')
               return result
             }}
@@ -400,7 +426,7 @@ export default function AdminBilling() {
             {[
               {
                 label: 'Total Bills',
-                value: bills.length,
+                value: meta?.total || bills.length,
                 color: 'text-slate-800 dark:text-white',
                 sub: 'All time',
               },
@@ -420,7 +446,7 @@ export default function AdminBilling() {
                 label: 'Paid',
                 value: paidBills.length,
                 color: 'text-emerald-600 dark:text-emerald-400',
-                sub: `₱${(Number(totalRevenue || 0) / 1000).toFixed(0)}k collected`,
+                sub: `PHP ${(Number(totalRevenue || 0) / 1000).toFixed(0)}k collected`,
               },
               {
                 label: 'Published',
@@ -488,9 +514,9 @@ export default function AdminBilling() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                {oversightFiltered.length} records
+                {oversightFiltered.length} records on this page
               </p>
-              <p className="text-xs text-slate-400 font-mono">Admin — Full Audit View</p>
+              <p className="text-xs text-slate-400 font-mono">Admin - Full Audit View</p>
             </div>
 
             <div className="overflow-x-auto">
@@ -551,7 +577,7 @@ export default function AdminBilling() {
                         </td>
 
                         <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                          ₱{getBillAmount(bill).toLocaleString('en-PH', {
+                          PHP {getBillAmount(bill).toLocaleString('en-PH', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
@@ -562,8 +588,8 @@ export default function AdminBilling() {
                         </td>
 
                         <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                          {getReceiptReference(bill) === '—' ? (
-                            <span className="text-slate-300 dark:text-slate-600">—</span>
+                          {getReceiptReference(bill) === '-' ? (
+                            <span className="text-slate-300 dark:text-slate-600">-</span>
                           ) : (
                             getReceiptReference(bill)
                           )}
@@ -602,7 +628,7 @@ export default function AdminBilling() {
                                 </button>
                               </>
                             ) : (
-                              <span className="text-[11px] text-slate-400 px-2">—</span>
+                              <span className="text-[11px] text-slate-400 px-2">-</span>
                             )}
                           </div>
                         </td>
@@ -612,6 +638,19 @@ export default function AdminBilling() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-4 shadow-sm dark:border-slate-700/50 dark:bg-slate-900">
+            <PaginationBar
+              meta={meta}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              onPerPageChange={(value) => {
+                setPerPage(value)
+                setPage(1)
+              }}
+            />
           </div>
         </>
       )}
@@ -626,3 +665,5 @@ export default function AdminBilling() {
     </div>
   )
 }
+
+

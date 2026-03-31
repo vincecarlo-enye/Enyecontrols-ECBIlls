@@ -1,7 +1,12 @@
 import api from '@/lib/api'
 
-export async function fetchAdminBills() {
-  const res = await api.get('/api/admin/bills')
+export async function fetchAdminBills(params = {}) {
+  const res = await api.get('/api/admin/bills', {
+    params: {
+      paginate: 1,
+      ...params,
+    },
+  })
   return res.data
 }
 
@@ -25,3 +30,4 @@ export async function deleteAdminBill(id) {
   const res = await api.delete(`/api/admin/bills/${id}`)
   return res.data
 }
+

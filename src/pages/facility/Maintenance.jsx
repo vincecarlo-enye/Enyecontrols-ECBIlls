@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { Wrench, Plus, X } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
-import maintenanceData from '@/data/maintenance.json'
-
-const INITIAL_TICKETS = maintenanceData.tickets
+import { useFacilityMaintenance } from '@/hooks/facilityHooks/useFacilityMaintenance'
+import { useApp } from '@/context/AppContext'
 
 const priorityBadge = {
   critical: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
@@ -20,30 +19,47 @@ const statusBadge = {
 }
 
 const EMPTY = { title: '', type: 'Plumbing', priority: 'medium', technician: '', status: 'open' }
-const TECHNICIANS = maintenanceData.technicians
 
 export default function Maintenance() {
-  const loading = usePageLoader(700)
-  const [tickets, setTickets] = useState(INITIAL_TICKETS)
+  const pageLoading = usePageLoader(700)
+  const { addToast } = useApp()
+  const { tickets, loading, saving, error, stats, createTicket, updateStatus } = useFacilityMaintenance()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const [formErrors, setFormErrors] = useState({})
 
-  if (loading) return <FacilityPageSkeleton />
+  const loadingState = pageLoading || loading
+  if (loadingState) return <FacilityPageSkeleton />
 
-  const handleCreate = () => {
-    if (!form.title.trim()) return
-    const newTicket = {
-      ...form,
-      id: `MNT-${String(Date.now()).slice(-3)}`,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+  const handleCreate = async () => {
+    if (!form.title.trim()) {
+      setFormErrors({ title: 'Issue title is required.' })
+      return
     }
-    setTickets(prev => [newTicket, ...prev])
+
+    const result = await createTicket({
+      title: form.title,
+      type: form.type,
+      priority: form.priority,
+      technician: form.technician === 'Unassigned' ? '' : form.technician,
+      status: form.status,
+    })
+
+    if (!result.success) {
+      setFormErrors({ title: result?.errors?.title?.[0] || '' })
+      addToast(result.message, 'error')
+      return
+    }
+
+    addToast(result.message, 'success')
     setForm(EMPTY)
+    setFormErrors({})
     setShowForm(false)
   }
 
-  const updateStatus = (id, status) => {
-    setTickets(prev => prev.map(t => t.id === id ? { ...t, status } : t))
+  const handleStatusChange = async (ticketId, status) => {
+    const result = await updateStatus(ticketId, status)
+    addToast(result.message, result.success ? 'success' : 'error')
   }
 
   const field = 'w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all'
@@ -64,13 +80,18 @@ export default function Maintenance() {
         </button>
       </div>
 
-      {/* Stats */}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Open', value: tickets.filter(t => t.status === 'open').length, color: 'text-blue-600' },
-          { label: 'In Progress', value: tickets.filter(t => t.status === 'in-progress').length, color: 'text-violet-600' },
-          { label: 'Resolved', value: tickets.filter(t => t.status === 'resolved').length, color: 'text-emerald-600' },
-        ].map(s => (
+          { label: 'Open', value: stats.open, color: 'text-blue-600' },
+          { label: 'In Progress', value: stats.inProgress, color: 'text-violet-600' },
+          { label: 'Resolved', value: stats.resolved, color: 'text-emerald-600' },
+        ].map((s) => (
           <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm text-center">
             <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wider mt-1">{s.label}</p>
@@ -78,7 +99,6 @@ export default function Maintenance() {
         ))}
       </div>
 
-      {/* New Ticket Form */}
       {showForm && (
         <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-700/50 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -90,37 +110,39 @@ export default function Maintenance() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Issue Title *</label>
-              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Describe the issue..." className={field} />
+              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Describe the issue..." className={field} />
+              {formErrors.title && <p className="text-xs text-red-500 mt-1">{formErrors.title}</p>}
             </div>
             <div>
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Type</label>
-              <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={field}>
-                {['Plumbing', 'Electrical', 'Thermal', 'HVAC', 'Structural', 'Other'].map(t => <option key={t}>{t}</option>)}
+              <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={field}>
+                {['Plumbing', 'Electrical', 'Thermal', 'HVAC', 'Structural', 'Other'].map((t) => <option key={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Priority</label>
-              <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className={field}>
-                {['low', 'medium', 'high', 'critical'].map(p => <option key={p}>{p}</option>)}
+              <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className={field}>
+                {['low', 'medium', 'high', 'critical'].map((p) => <option key={p}>{p}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Assign Technician</label>
-              <select value={form.technician} onChange={e => setForm(f => ({ ...f, technician: e.target.value }))} className={field}>
-                <option value="">— Select —</option>
-                {TECHNICIANS.map(t => <option key={t}>{t}</option>)}
-              </select>
+              <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Technician</label>
+              <input
+                value={form.technician}
+                onChange={(e) => setForm((f) => ({ ...f, technician: e.target.value }))}
+                placeholder="Enter technician name or leave blank"
+                className={field}
+              />
             </div>
             <div className="flex items-end">
-              <button onClick={handleCreate} className="w-full py-2.5 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all">
-                Create Ticket
+              <button onClick={handleCreate} disabled={saving} className="w-full py-2.5 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50">
+                {saving ? 'Creating...' : 'Create Ticket'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Tickets Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -136,20 +158,24 @@ export default function Maintenance() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {tickets.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+              {tickets.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">No maintenance tickets yet.</td>
+                </tr>
+              ) : tickets.map((t) => (
+                <tr key={t.ticket_id || t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-5 py-3.5 font-mono text-xs text-slate-400">{t.id}</td>
                   <td className="px-5 py-3.5 font-medium text-slate-700 dark:text-slate-200 max-w-[200px]">{t.title}</td>
                   <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">{t.type}</td>
                   <td className="px-5 py-3.5 text-center">
-                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${priorityBadge[t.priority]}`}>{t.priority}</span>
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${priorityBadge[t.priority] || priorityBadge.medium}`}>{t.priority}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{t.technician || '—'}</td>
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{t.technician || '-'} </td>
                   <td className="px-5 py-3.5 text-center">
                     <select
                       value={t.status}
-                      onChange={e => updateStatus(t.id, e.target.value)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border-0 outline-none cursor-pointer ${statusBadge[t.status]}`}
+                      onChange={(e) => handleStatusChange(t.ticket_id, e.target.value)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border-0 outline-none cursor-pointer ${statusBadge[t.status] || statusBadge.open}`}
                     >
                       <option value="open">Open</option>
                       <option value="in-progress">In Progress</option>

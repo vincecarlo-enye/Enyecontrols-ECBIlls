@@ -1,7 +1,12 @@
 import api from '@/lib/api'
 
-export async function fetchSuperAdminUsers() {
-  const res = await api.get('/api/super-admin/users')
+export async function fetchSuperAdminUsers(params = {}) {
+  const res = await api.get('/api/super-admin/users', {
+    params: {
+      paginate: 1,
+      ...params,
+    },
+  })
   return res.data
 }
 
@@ -29,3 +34,4 @@ export async function deleteSuperAdminUser(id) {
   const res = await api.delete(`/api/super-admin/users/${id}`)
   return res.data
 }
+

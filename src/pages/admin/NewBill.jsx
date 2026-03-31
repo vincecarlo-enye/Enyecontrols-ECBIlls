@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { NewBillSkeleton } from '@/components/skeletons'
 import api from '@/lib/api'
 import { ArrowLeft, CalendarRange, Building2, Info, Zap, Droplets, Flame } from 'lucide-react'
 import { generateAdminBill } from '../../services/adminService/adminBillingService'
+import { useAuth } from '@/context/AuthContext'
 
 const EMPTY = {
   tenantId: '',
@@ -37,9 +38,18 @@ const RATE_META = {
   },
 }
 
+function normalizeRateType(type) {
+  if (type === 'electric') return 'electricity'
+  if (type === 'water') return 'water'
+  if (type === 'thermal') return 'thermal'
+  return null
+}
+
 export default function NewBillPage() {
   const loading = usePageLoader(600)
   const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
   const { addToast } = useApp()
 
   const [form, setForm] = useState(EMPTY)
@@ -51,6 +61,10 @@ export default function NewBillPage() {
 
   const [rates, setRates] = useState([])
   const [loadingRates, setLoadingRates] = useState(true)
+  const billingBasePath =
+    user?.role === 'super_admin' || location.pathname.startsWith('/super-admin')
+      ? '/super-admin/billing'
+      : '/admin/billing'
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -60,11 +74,15 @@ export default function NewBillPage() {
 
         const [tenantRes, rateRes] = await Promise.all([
           api.get('/api/admin/tenants'),
-          api.get('/api/admin/rates'),
+          api.get('/api/rates'),
         ])
 
         const tenantRows = Array.isArray(tenantRes?.data?.data) ? tenantRes.data.data : []
-        const rateRows = Array.isArray(rateRes?.data?.data) ? rateRes.data.data : []
+        const rateRows = Array.isArray(rateRes?.data)
+          ? rateRes.data
+          : Array.isArray(rateRes?.data?.data)
+            ? rateRes.data.data
+            : []
 
         setTenants(tenantRows)
         setRates(rateRows)
@@ -87,9 +105,10 @@ export default function NewBillPage() {
     }
 
     for (const rate of rates) {
-      if (!rate?.is_active) continue
-      if (!grouped[rate.type]) {
-        grouped[rate.type] = rate
+      const key = normalizeRateType(rate?.type)
+      if (!key || !rate?.is_active) continue
+      if (!grouped[key]) {
+        grouped[key] = rate
       }
     }
 
@@ -127,7 +146,7 @@ export default function NewBillPage() {
       const res = await generateAdminBill(payload)
 
       addToast?.(res?.message || 'Bill generated successfully')
-      navigate('/admin/billing')
+      navigate(billingBasePath)
     } catch (error) {
       const validationErrors = error?.response?.data?.errors || {}
       const message = error?.response?.data?.message || 'Failed to generate bill.'
@@ -150,7 +169,7 @@ export default function NewBillPage() {
     <div className="space-y-6 animate-in max-w-3xl mx-auto">
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate('/admin/billing')}
+          onClick={() => navigate(billingBasePath)}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -170,7 +189,7 @@ export default function NewBillPage() {
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-blue-800 dark:text-blue-200">
-            The system will automatically compute billing dates, usage totals, active rates, bill items, subtotal, amount, and due date.
+            The system will automatically compute each tenant's occupied billing period, usage totals, active rates, previous balance, bill items, subtotal, total amount, and due date.
           </p>
         </div>
 
@@ -262,7 +281,7 @@ export default function NewBillPage() {
 
         <div className="flex gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
-            onClick={() => navigate('/admin/billing')}
+            onClick={() => navigate(billingBasePath)}
             disabled={submitting}
             className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-60"
           >

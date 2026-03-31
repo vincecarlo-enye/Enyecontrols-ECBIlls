@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
-import { DashboardSkeleton } from "@/components/skeletons"
+import AppLoadingScreen from "@/components/common/AppLoadingScreen"
 
 function getHomeByRole(user) {
   if (!user) return "/login"
@@ -20,7 +20,7 @@ function getHomeByRole(user) {
 }
 
 function GuardLoading() {
-  return <DashboardSkeleton />
+  return <AppLoadingScreen />
 }
 
 export function RequireAdmin({ children }) {

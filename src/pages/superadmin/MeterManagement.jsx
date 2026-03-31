@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Zap, Droplets, Flame, Plus, Pencil, Trash2, Search, X, CheckCircle,
   AlertCircle, Shield, Lock,
@@ -6,6 +6,7 @@ import {
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import PaginationBar from '@/components/common/PaginationBar'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAdminMeters } from '@/hooks/adminHooks/useAdminMeters'
 
@@ -33,7 +34,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
     meterName: '',
     pageName: '',
     watchName: '',
-    unit: '',
+    unitIds: [],
     status: 'active',
   }
   const [form, setForm] = useState(empty)
@@ -50,7 +51,11 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
           meterName: initial.meterName || '',
           pageName: initial.pageName || initial.meterName || '',
           watchName: initial.watchName || '',
-          unit: initial.unit || '',
+          unitIds: Array.isArray(initial.unitIds)
+            ? initial.unitIds.map((id) => String(id))
+            : initial.unitId
+              ? [String(initial.unitId)]
+              : [],
           status: initial.status || 'active',
         }
       : empty
@@ -100,7 +105,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
     if (!form.meterName.trim()) nextErrors.meterName = 'Meter name is required'
     if (!form.pageName) nextErrors.pageName = 'Page is required'
     if (!form.watchName) nextErrors.watchName = 'Watch is required'
-    if (!form.unit) nextErrors.unit = 'Unit is required'
+    if (!Array.isArray(form.unitIds) || form.unitIds.length === 0) nextErrors.unitIds = 'At least one unit is required'
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
@@ -108,11 +113,9 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
   const handleSave = async () => {
     if (!validate()) return
 
-    const unitObj = units.find((item) => item.unit === form.unit)
     const result = await onSave({
       ...form,
-      unitId: unitObj?.id || null,
-      tenantId: unitObj?.tenantId || null,
+      unitIds: form.unitIds.map((id) => Number(id)).filter(Boolean),
     })
 
     if (result?.success) {
@@ -219,22 +222,42 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Location / Unit</label>
-            <select
-              value={form.unit}
-              onChange={(e) => set('unit', e.target.value)}
-              className={`w-full px-3 py-2 text-sm rounded-xl border bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none transition-all ${
-                errors.unit ? 'border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-blue-400'
-              }`}
-            >
-              <option value="">Select unit...</option>
-              {units.map((unit) => (
-                <option key={unit.id} value={unit.unit}>
-                  {unit.unit} {unit.tenant ? `- ${unit.tenant}` : '(Vacant)'}
-                </option>
-              ))}
-            </select>
-            {errors.unit && <p className="text-xs text-red-500 mt-1">{errors.unit}</p>}
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Assigned Units</label>
+            <div className={`max-h-44 overflow-y-auto rounded-xl border bg-white dark:bg-slate-800 p-2 space-y-1.5 ${
+              errors.unitIds ? 'border-red-400' : 'border-slate-200 dark:border-slate-600'
+            }`}>
+              {units.map((unit) => {
+                const checked = form.unitIds.includes(String(unit.id))
+                return (
+                  <label
+                    key={unit.id}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                      checked
+                        ? 'bg-violet-50 dark:bg-violet-900/20'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        set('unitIds', e.target.checked
+                          ? [...form.unitIds, String(unit.id)]
+                          : form.unitIds.filter((id) => id !== String(unit.id)))
+                      }}
+                      className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="text-sm text-slate-700 dark:text-slate-200">
+                      {unit.unit} {unit.tenant ? `- ${unit.tenant}` : '(Vacant)'}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">
+              The first selected unit will be used as the primary unit for compatibility with existing billing pages.
+            </p>
+            {errors.unitIds && <p className="text-xs text-red-500 mt-1">{errors.unitIds}</p>}
           </div>
 
           {initial && (
@@ -298,8 +321,10 @@ function MeterCard({ meter, onEdit, onDelete }) {
 
       <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center justify-between">
-          <span>Unit</span>
-          <span className="font-medium text-slate-700 dark:text-slate-300">{meter.unit || '-'}</span>
+          <span>Units</span>
+          <span className="font-medium text-slate-700 dark:text-slate-300 text-right max-w-[150px]">
+            {meter.unitsLabel || meter.unit || '-'}
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span>Tenant</span>
@@ -336,6 +361,12 @@ export default function MeterManagement() {
     loading,
     saving,
     error,
+    meta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
+    counts,
     getAvailableWatches,
     addMeter,
     updateMeter,
@@ -347,16 +378,6 @@ export default function MeterManagement() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-
-  const counts = useMemo(
-    () => ({
-      electric: meters.filter((meter) => meter.type === 'electric').length,
-      water: meters.filter((meter) => meter.type === 'water').length,
-      thermal: meters.filter((meter) => meter.type === 'thermal').length,
-      other: meters.filter((meter) => meter.type === 'other').length,
-    }),
-    [meters]
-  )
 
   if (pageLoading || loading) return <DashboardSkeleton />
 
@@ -377,7 +398,7 @@ export default function MeterManagement() {
       !q ||
       (meter.meterName || '').toLowerCase().includes(q) ||
       (meter.watchName || '').toLowerCase().includes(q) ||
-      (meter.unit || '').toLowerCase().includes(q) ||
+      (meter.unitsLabel || meter.unit || '').toLowerCase().includes(q) ||
       (meter.tenant || '').toLowerCase().includes(q)
 
     return matchType && matchSearch
@@ -430,7 +451,7 @@ export default function MeterManagement() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {METER_TYPES.map((item) => {
           const Icon = item.icon
           return (
@@ -440,7 +461,7 @@ export default function MeterManagement() {
                   <Icon className={`w-5 h-5 ${item.color}`} />
                 </div>
                 <div>
-                  <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">{counts[item.value]}</p>
+                  <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">{counts[item.value] || 0}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">{item.label} Meters</p>
                 </div>
               </div>
@@ -486,19 +507,34 @@ export default function MeterManagement() {
           <p className="text-sm text-slate-400">Try adjusting your search or add a new meter</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((meter) => (
-            <MeterCard
-              key={meter.id}
-              meter={meter}
-              onEdit={(item) => {
-                setEditing(item)
-                setShowForm(true)
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filtered.map((meter) => (
+              <MeterCard
+                key={meter.id}
+                meter={meter}
+                onEdit={(item) => {
+                  setEditing(item)
+                  setShowForm(true)
+                }}
+                onDelete={setConfirmDelete}
+              />
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-4 shadow-sm dark:border-slate-700/50 dark:bg-slate-900">
+            <PaginationBar
+              meta={meta}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              onPerPageChange={(value) => {
+                setPerPage(value)
+                setPage(1)
               }}
-              onDelete={setConfirmDelete}
             />
-          ))}
-        </div>
+          </div>
+        </>
       )}
 
       <MeterFormModal

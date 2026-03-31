@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
-import { Zap, Droplets, Flame, Shield, History, Check, X } from 'lucide-react'
-import { useAuth } from '@/context/AuthContext'
+import { useState } from 'react'
+import { Zap, Droplets, Flame, Shield, Check, X } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
+import { useRateHistory } from '@/hooks/common/useRateHistory'
+import RateHistoryPanel from '@/components/common/RateHistoryPanel'
 
 const TYPE_CONFIG = {
   electricity: { label: 'Electricity', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-700/50', gradient: 'from-amber-400 to-orange-500', bar: 'bg-amber-400', defaultUnit: 'per kWh' },
@@ -14,21 +15,6 @@ const TYPE_CONFIG = {
 
 function formatPeso(value) {
   return `PHP ${Number(value || 0).toFixed(2)}`
-}
-
-function formatDateTime(value) {
-  if (!value) return 'No timestamp'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)
 }
 
 function RateEditCard({ type, rate, unit, completeness, saving, onSave }) {
@@ -139,26 +125,9 @@ function RateEditCard({ type, rate, unit, completeness, saving, onSave }) {
 
 export default function BillingRates() {
   const pageLoading = usePageLoader(600)
-  const { user } = useAuth()
   const { isSuperAdmin } = usePermissions()
-  const { rates, rawRates, loading, saving, error, saveRate } = useAdminRates()
-  const [localLog, setLocalLog] = useState([])
-
-  const historyLog = useMemo(() => {
-    const apiLog = rawRates
-      .slice()
-      .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
-      .map((entry) => ({
-        id: `api-${entry.id}`,
-        type: entry.type === 'electric' ? 'electricity' : entry.type,
-        oldRate: Number(entry.price_per_unit || 0),
-        newRate: Number(entry.price_per_unit || 0),
-        changedBy: 'System',
-        changedAt: entry.updated_at || entry.created_at,
-      }))
-
-    return [...localLog, ...apiLog].slice(0, 10)
-  }, [localLog, rawRates])
+  const { rates, loading, saving, error, saveRate } = useAdminRates()
+  const { history, loading: historyLoading, reload: reloadHistory } = useRateHistory()
 
   if (pageLoading || loading) return <DashboardSkeleton />
 
@@ -173,21 +142,10 @@ export default function BillingRates() {
   }
 
   const handleSave = async (type, data) => {
-    const previousRate = rates[type]
     const result = await saveRate(type, data)
 
     if (result?.success) {
-      setLocalLog((prev) => [
-        {
-          id: Date.now(),
-          type,
-          oldRate: Number(previousRate?.rate || 0),
-          newRate: Number(data.rate || 0),
-          changedBy: user?.name || 'Super Admin',
-          changedAt: new Date().toISOString(),
-        },
-        ...prev.slice(0, 9),
-      ])
+      reloadHistory()
     }
 
     return result
@@ -231,30 +189,7 @@ export default function BillingRates() {
         ))}
       </div>
 
-      {historyLog.length > 0 && (
-        <div className="glass rounded-2xl p-5 shadow-md">
-          <div className="flex items-center gap-2 mb-4">
-            <History className="w-4 h-4 text-slate-400" />
-            <h3 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">Recent Rate Changes</h3>
-          </div>
-          <div className="space-y-2">
-            {historyLog.map((entry) => {
-              const cfg = TYPE_CONFIG[entry.type]
-              return (
-                <div key={entry.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`font-semibold capitalize ${cfg.color}`}>{entry.type}</span>
-                    <span className="text-slate-400">
-                      {formatPeso(entry.oldRate)} to <span className="text-emerald-600 font-semibold">{formatPeso(entry.newRate)}</span>
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400">{entry.changedBy} - {formatDateTime(entry.changedAt)}</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <RateHistoryPanel history={history} loading={historyLoading} />
     </div>
   )
 }

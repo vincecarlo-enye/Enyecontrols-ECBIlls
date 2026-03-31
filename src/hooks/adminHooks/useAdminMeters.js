@@ -8,13 +8,44 @@ import {
 } from '../../services/adminService/adminMeterService'
 import { fetchAdminUnits } from '../../services/adminService/adminUnitService'
 
+function parseAssignedUnitIds(value, fallbackUnitId = null) {
+  if (Array.isArray(value)) {
+    return value.map((id) => Number(id)).filter(Boolean)
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return parsed.map((id) => Number(id)).filter(Boolean)
+      }
+    } catch {
+      //
+    }
+  }
+
+  return fallbackUnitId ? [Number(fallbackUnitId)] : []
+}
+
+function normalizeWatchType(type) {
+  if (type === 'electricity') return 'electric'
+  return type
+}
+
 function mapMeters(rows = []) {
   return rows.map((meter) => ({
     id: meter.id,
-    type: meter.type,
+    type: normalizeWatchType(meter.type),
     meterName: meter.meter_name || '',
     watchName: meter.watch_name || '',
     pageName: meter.page_name || '',
+    unitIds: parseAssignedUnitIds(meter.assigned_unit_ids, meter.unit_id || meter?.unit?.id || null),
+    assignedUnits: Array.isArray(meter.assigned_units) ? meter.assigned_units : [],
+    unitsLabel: Array.isArray(meter.assigned_units) && meter.assigned_units.length > 0
+      ? meter.assigned_units
+          .map((unit) => unit.unit_number || unit.name || `Unit #${unit.id}`)
+          .join(', ')
+      : meter?.unit?.unit_number || meter?.unit?.name || '',
     unit: meter?.unit?.unit_number || meter?.unit?.name || '',
     unitId: meter?.unit_id || meter?.unit?.id || null,
     tenant: meter?.tenant?.name || meter?.unit?.tenants?.[0]?.name || '',
@@ -31,11 +62,6 @@ function mapUnits(rows = []) {
     tenant: unit?.tenants?.[0]?.name || '',
     tenantId: unit?.tenants?.[0]?.id || null,
   }))
-}
-
-function normalizeWatchType(type) {
-  if (type === 'electricity') return 'electric'
-  return type
 }
 
 function inferMeterType(watchName, unit, value) {
@@ -96,37 +122,56 @@ function normalizeAvailableWatches(payload) {
     .filter(Boolean)
 }
 
+const DEFAULT_PER_PAGE = 12
+const DEFAULT_META = {
+  current_page: 1,
+  per_page: DEFAULT_PER_PAGE,
+  total: 0,
+  last_page: 1,
+  from: 0,
+  to: 0,
+}
+
 export function useAdminMeters() {
   const [meters, setMeters] = useState([])
   const [units, setUnits] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
+  const [meta, setMeta] = useState(DEFAULT_META)
 
-  const loadMeters = useCallback(async () => {
+  const loadMeters = useCallback(async (nextPage = page, nextPerPage = perPage) => {
     try {
       setLoading(true)
       setError('')
 
       const [metersRes, unitsRes] = await Promise.all([
-        fetchAdminMeters(),
+        fetchAdminMeters({ page: nextPage, per_page: nextPerPage }),
         fetchAdminUnits(),
       ])
 
       setMeters(mapMeters(Array.isArray(metersRes?.data) ? metersRes.data : []))
       setUnits(mapUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : []))
+      setMeta(metersRes?.meta || {
+        ...DEFAULT_META,
+        current_page: nextPage,
+        per_page: nextPerPage,
+      })
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load meters.')
       setMeters([])
       setUnits([])
+      setMeta(DEFAULT_META)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, perPage])
 
   useEffect(() => {
-    loadMeters()
-  }, [loadMeters])
+    loadMeters(page, perPage)
+  }, [loadMeters, page, perPage])
 
   const getAvailableWatches = useCallback(async (pageName) => {
     const res = await fetchAvailableMeterWatches(pageName)
@@ -143,12 +188,12 @@ export function useAdminMeters() {
         watch_name: data.watchName,
         page_name: data.pageName || null,
         type: normalizeWatchType(data.type),
-        unit_id: data.unitId || null,
-        tenant_id: data.tenantId || null,
+        unit_ids: Array.isArray(data.unitIds) ? data.unitIds : [],
         status: data.status || 'active',
       })
 
-      await loadMeters()
+      setPage(1)
+      await loadMeters(1, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to create meter.'
@@ -157,7 +202,7 @@ export function useAdminMeters() {
     } finally {
       setSaving(false)
     }
-  }, [loadMeters])
+  }, [loadMeters, perPage])
 
   const updateMeter = useCallback(async (id, data) => {
     try {
@@ -169,12 +214,11 @@ export function useAdminMeters() {
         watch_name: data.watchName,
         page_name: data.pageName || null,
         type: normalizeWatchType(data.type),
-        unit_id: data.unitId || null,
-        tenant_id: data.tenantId || null,
+        unit_ids: Array.isArray(data.unitIds) ? data.unitIds : [],
         status: data.status || 'active',
       })
 
-      await loadMeters()
+      await loadMeters(page, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to update meter.'
@@ -183,14 +227,16 @@ export function useAdminMeters() {
     } finally {
       setSaving(false)
     }
-  }, [loadMeters])
+  }, [loadMeters, page, perPage])
 
   const removeMeter = useCallback(async (id) => {
     try {
       setSaving(true)
       setError('')
       await deleteAdminMeter(id)
-      await loadMeters()
+      const nextPage = page > 1 && meters.length === 1 ? page - 1 : page
+      if (nextPage !== page) setPage(nextPage)
+      await loadMeters(nextPage, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to delete meter.'
@@ -199,7 +245,17 @@ export function useAdminMeters() {
     } finally {
       setSaving(false)
     }
-  }, [loadMeters])
+  }, [loadMeters, page, perPage, meters.length])
+
+  const counts = useMemo(
+    () => ({
+      electric: meters.filter((meter) => meter.type === 'electric').length,
+      water: meters.filter((meter) => meter.type === 'water').length,
+      thermal: meters.filter((meter) => meter.type === 'thermal').length,
+      other: meters.filter((meter) => meter.type === 'other').length,
+    }),
+    [meters]
+  )
 
   return {
     meters,
@@ -207,6 +263,12 @@ export function useAdminMeters() {
     loading,
     saving,
     error,
+    meta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
+    counts,
     loadMeters,
     getAvailableWatches,
     addMeter,

@@ -246,8 +246,11 @@ export default function TenantBills() {
       const billAmount = Number(receiptModal?.selectedItem?.amount ?? 0)
 
       const payload = {
-        ...receiptData,
         amount: billAmount,
+        payment_method: 'bank_transfer',
+        reference_no: receiptData.referenceNumber,
+        notes: receiptData.note,
+        proof_image: receiptData.proofImageFile,
       }
 
       await submitPaymentReceipt(billId, payload)

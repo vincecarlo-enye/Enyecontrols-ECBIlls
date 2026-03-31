@@ -18,6 +18,17 @@ const TOOLTIP_STYLE = {
   backgroundColor: '#fff',
 }
 
+function formatCompactPeso(value) {
+  const amount = Number(value || 0)
+  const abs = Math.abs(amount)
+
+  if (abs >= 1000) {
+    return `PHP ${(amount / 1000).toFixed(0)}K`
+  }
+
+  return `PHP ${amount.toLocaleString()}`
+}
+
 function formatMonthKey(value) {
   if (!value) return 'Unknown'
   if (/^\d{4}-\d{2}$/.test(String(value))) {
@@ -209,8 +220,16 @@ export default function FinanceReports() {
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 12)
     .map((payment) => {
-      const dominantUtility = Object.entries(payment.breakdown).sort((a, b) => b[1] - a[1])[0]?.[0] || 'electricity'
-      const utilityLabel = dominantUtility === 'water' ? 'Water' : dominantUtility === 'thermal' ? 'Thermal' : 'Electricity'
+      const activeUtilities = Object.entries(payment.breakdown).filter(([, amount]) => Number(amount) > 0)
+      let utilityLabel = 'No Utility Data'
+
+      if (activeUtilities.length === 1) {
+        const [utilityKey] = activeUtilities[0]
+        utilityLabel = utilityKey === 'water' ? 'Water' : utilityKey === 'thermal' ? 'Thermal' : 'Electricity'
+      } else if (activeUtilities.length > 1) {
+        utilityLabel = 'Mixed Utilities'
+      }
+
       const statusLabel = payment.status === 'verified' ? 'Paid' : payment.status === 'rejected' ? 'Rejected' : 'Pending'
       return {
         id: payment.invoiceId,
@@ -233,14 +252,16 @@ export default function FinanceReports() {
     Electricity: 'text-amber-600 dark:text-amber-400',
     Water: 'text-cyan-600 dark:text-cyan-400',
     Thermal: 'text-rose-600 dark:text-rose-400',
+    'Mixed Utilities': 'text-violet-600 dark:text-violet-400',
+    'No Utility Data': 'text-slate-500 dark:text-slate-400',
   }
-
   const utilityIcon = {
     Electricity: Zap,
     Water: Droplets,
     Thermal: Flame,
+    'Mixed Utilities': BarChart3,
+    'No Utility Data': AlertCircle,
   }
-
   return (
     <div className="space-y-6 animate-in">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -264,9 +285,9 @@ export default function FinanceReports() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Annual Revenue', value: `PHP ${(totalRevenue / 1000000).toFixed(2)}M`, color: 'text-blue-600 dark:text-blue-400', sub: `${bills.length} total bills` },
-          { label: 'Total Collected', value: `PHP ${(totalCollected / 1000000).toFixed(2)}M`, color: 'text-emerald-600 dark:text-emerald-400', sub: `${collRate}% collection rate` },
-          { label: 'Net Profit', value: `PHP ${(netProfit / 1000000).toFixed(2)}M`, color: 'text-violet-600 dark:text-violet-400', sub: 'Revenue minus expenses' },
+          { label: 'Annual Revenue', value: formatCompactPeso(totalRevenue), color: 'text-blue-600 dark:text-blue-400', sub: `${bills.length} total bills` },
+          { label: 'Total Collected', value: formatCompactPeso(totalCollected), color: 'text-emerald-600 dark:text-emerald-400', sub: `${collRate}% collection rate` },
+          { label: 'Net Profit', value: formatCompactPeso(netProfit), color: 'text-violet-600 dark:text-violet-400', sub: 'Revenue minus expenses' },
           { label: 'Outstanding', value: `PHP ${unpaidAmount.toLocaleString()}`, color: 'text-rose-600 dark:text-rose-400', sub: `${unpaidBills.length} unpaid bills` },
         ].map((card) => (
           <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
@@ -328,7 +349,7 @@ export default function FinanceReports() {
               <div key={label} className={`rounded-xl p-3 ${bg} text-center`}>
                 <Icon className={`w-4 h-4 mx-auto mb-1 ${cls}`} />
                 <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">{label}</p>
-                <p className={`text-sm font-bold ${cls}`}>PHP {(value / 1000000).toFixed(2)}M</p>
+                <p className={`text-sm font-bold ${cls}`}>{formatCompactPeso(value)}</p>
               </div>
             ))}
           </div>
@@ -470,10 +491,10 @@ export default function FinanceReports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {recentTransactions.map((row) => {
+              {recentTransactions.map((row, index) => {
                 const Icon = utilityIcon[row.utility]
                 return (
-                  <tr key={`${row.id}-${row.date}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr key={`${row.id}-${row.date}-${row.status}-${index}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{row.id}</td>
                     <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{row.tenant}</td>
                     <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{row.unit}</td>
@@ -513,4 +534,5 @@ export default function FinanceReports() {
     </div>
   )
 }
+
 

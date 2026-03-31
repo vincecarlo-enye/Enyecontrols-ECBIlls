@@ -8,12 +8,30 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition || null
+  typeof window !== 'undefined'
+    ? window.SpeechRecognition || window.webkitSpeechRecognition || null
+    : null
 
 export function useVoiceInput({ onTranscript, onError } = {}) {
   const [isListening, setIsListening] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [isSupported] = useState(() => !!SpeechRecognition)
+  const [availabilityReason] = useState(() => {
+    if (typeof window === 'undefined') return 'Voice input is unavailable during server render.'
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+
+    if (!window.isSecureContext && !isLocalhost) {
+      return 'Voice input requires HTTPS or localhost. Open this app on localhost or use HTTPS to enable the microphone.'
+    }
+
+    if (!SpeechRecognition) {
+      return 'Speech recognition is not supported in this browser. Try Chrome or Edge.'
+    }
+
+    return ''
+  })
   const recognitionRef = useRef(null)
 
   // Clean up on unmount
@@ -25,7 +43,16 @@ export function useVoiceInput({ onTranscript, onError } = {}) {
 
   const startListening = useCallback(() => {
     if (!SpeechRecognition) {
-      onError?.('Speech recognition is not supported in this browser.')
+      onError?.(availabilityReason || 'Speech recognition is not supported in this browser.')
+      return
+    }
+
+    const isLocalhost =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+
+    if (!window.isSecureContext && !isLocalhost) {
+      onError?.(availabilityReason || 'Voice input requires HTTPS or localhost.')
       return
     }
 
@@ -79,7 +106,7 @@ export function useVoiceInput({ onTranscript, onError } = {}) {
 
     recognitionRef.current = recognition
     recognition.start()
-  }, [isListening, onTranscript, onError])
+  }, [availabilityReason, isListening, onTranscript, onError])
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop()
@@ -96,6 +123,7 @@ export function useVoiceInput({ onTranscript, onError } = {}) {
     isListening,
     interimText,
     isSupported,
+    availabilityReason,
     startListening,
     stopListening,
     toggleListening,

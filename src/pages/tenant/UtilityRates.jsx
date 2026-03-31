@@ -4,6 +4,8 @@
  */
 import { Zap, Flame, Droplets, Lock } from 'lucide-react'
 import useTenantRates from '@/hooks/tenantHooks/useTenantRates'
+import { useRateHistory } from '@/hooks/common/useRateHistory'
+import RateHistoryPanel from '@/components/common/RateHistoryPanel'
 
 const config = {
   electricity: {
@@ -76,6 +78,7 @@ function RateViewCard({ type, rate, unit, effectiveFrom, description }) {
 
 export default function TenantUtilityRates() {
   const { rates, loading, error } = useTenantRates()
+  const { history, loading: historyLoading } = useRateHistory()
 
   return (
     <div>
@@ -112,6 +115,10 @@ export default function TenantUtilityRates() {
           effectiveFrom={rates.thermal.effectiveFrom}
           description={rates.thermal.description}
         />
+      </div>
+
+      <div className="mt-4">
+        <RateHistoryPanel history={history} loading={historyLoading} compact />
       </div>
 
       {loading && (

@@ -7,13 +7,13 @@ import { superAdminRoutes } from './superAdminRoutes'
 import { tenantRoutes } from './tenantRoutes'
 import { facilityRoutes } from './facilityRoutes'
 import { financeRoutes } from './financeRoutes'
-import { DashboardSkeleton } from '@/components/skeletons'
+import AppLoadingScreen from '@/components/common/AppLoadingScreen'
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 
 export default function AppRouter() {
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
+    <Suspense fallback={<AppLoadingScreen />}>
       <Routes>
         <Route
           path="/login"

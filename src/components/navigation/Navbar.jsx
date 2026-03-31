@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Bell, Sun, Moon, Search, Menu, ChevronDown, LogOut, AlertTriangle, Info, Building2, Shield } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
-import { useAnnouncements } from '@/context/AnnouncementContext'
 import { useUnitFilter } from '@/context/UnitFilterContext'
+import { fetchNotifications, markNotificationAsRead } from '@/services/notificationService'
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -19,33 +19,35 @@ const pageTitles = {
   '/tenant/usage': 'Usage Monitoring',
   '/tenant/profile': 'My Profile',
   '/tenant/consumption-reports': 'Consumption Reports',
+  '/tenant/notifications': 'Notifications',
   '/tenant/make-report': 'Make Report',
   '/admin/meters': 'Meter Management',
+  '/admin/notifications': 'Notifications',
   '/super-admin': 'Dashboard',
   '/super-admin/billing': 'Billing',
   '/super-admin/tenants': 'Tenants',
   '/super-admin/units': 'Units',
   '/super-admin/usage-reports': 'Usage Reports',
   '/super-admin/tenant-reports': 'Tenant Reports',
+  '/super-admin/notifications': 'Notifications',
   '/super-admin/meters': 'Meter Management',
   '/super-admin/billing-rates': 'Billing Rates',
   '/super-admin/users': 'User Management',
   '/super-admin/announcements': 'Announcements',
-}
-
-const TENANT_UNITS_MAP = {
-  'T-001': ['12F-A', '12F-B'],
+  '/finance/notifications': 'Notifications',
+  '/facility/notifications': 'Notifications',
 }
 
 export default function Navbar({ onMenuClick }) {
   const { isDark, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
-  const { announcements } = useAnnouncements()
   const { selectedUnit, setSelectedUnit } = useUnitFilter()
   const location = useLocation()
   const navigate = useNavigate()
   const [showNotifs, setShowNotifs] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [notifLoading, setNotifLoading] = useState(false)
   const title = pageTitles[location.pathname] || 'ECBills'
   const notifRef = useRef(null)
   const profileRef = useRef(null)
@@ -58,9 +60,19 @@ export default function Navbar({ onMenuClick }) {
     notice: { icon: Bell, iconClass: 'text-indigo-500' },
   }
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  const getNotificationsPath = () => {
+    if (user?.role === 'super_admin') return '/super-admin/notifications'
+    if (user?.role === 'tenant') return '/tenant/notifications'
+    if (user?.role === 'finance') return '/finance/notifications'
+    if (user?.role === 'facility_manager') return '/facility/notifications'
+    return '/admin/notifications'
+  }
+
+  const handleLogout = async () => {
+    setShowProfile(false)
+    setShowNotifs(false)
+    await logout()
+    navigate('/login', { replace: true })
   }
 
   useEffect(() => {
@@ -72,10 +84,66 @@ export default function Navbar({ onMenuClick }) {
     return () => window.removeEventListener('click', handleClickOutside)
   }, [])
 
-  const notifs = (announcements || []).slice(0, 3)
+  useEffect(() => {
+    if (!user) return
+
+    let cancelled = false
+
+    const loadNotifications = async () => {
+      try {
+        setNotifLoading(true)
+        const res = await fetchNotifications()
+        if (cancelled) return
+        setNotifications(Array.isArray(res?.data) ? res.data : [])
+      } catch {
+        if (!cancelled) setNotifications([])
+      } finally {
+        if (!cancelled) setNotifLoading(false)
+      }
+    }
+
+    loadNotifications()
+    const interval = window.setInterval(loadNotifications, 60000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [user])
+
+  const handleNotificationClick = async (notification) => {
+    if (!notification?.id) return
+
+    if (!notification.is_read) {
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === notification.id ? { ...item, is_read: true } : item
+        )
+      )
+
+      try {
+        await markNotificationAsRead(notification.id)
+      } catch {}
+    }
+
+    setShowNotifs(false)
+    navigate(getNotificationsPath(), {
+      state: { selectedNotificationId: notification.id },
+    })
+  }
+
+  const notifs = (notifications || []).slice(0, 5)
+  const unreadCount = (notifications || []).filter((item) => !item.is_read).length
 
   const isTenantPage = location.pathname.startsWith('/tenant')
-  const tenantUnits = user?.tenantId ? TENANT_UNITS_MAP[user.tenantId] || [] : []
+  const tenantUnits = Array.from(
+    new Set(
+      (Array.isArray(user?.tenants) ? user.tenants : [user?.tenant])
+        .filter(Boolean)
+        .map((tenant) => tenant?.unit?.unit_number || tenant?.unit?.name || '')
+        .filter(Boolean)
+    )
+  )
   const showUnitFilter = isTenantPage && user?.role === 'tenant' && tenantUnits.length > 1
 
   const roleDisplay = user?.role === 'super_admin'
@@ -159,32 +227,72 @@ export default function Navbar({ onMenuClick }) {
             className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all relative"
           >
             <Bell className="w-5 h-5" />
-            {notifs.length > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-800" />
+            {unreadCount > 0 && (
+              <>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-800" />
+                <span className="absolute -top-0.5 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-slate-800">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              </>
             )}
           </button>
 
           {showNotifs && (
             <div className="fixed left-3 right-3 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 glass rounded-2xl shadow-2xl shadow-slate-200/60 dark:shadow-black/40 border border-slate-200/60 dark:border-slate-700/50 overflow-hidden animate-in z-50 max-h-[70vh] overflow-y-auto">
               <div className="p-4 border-b border-slate-200/60 dark:border-slate-700/50">
-                <p className="font-semibold text-sm text-slate-800 dark:text-white">Announcements</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-sm text-slate-800 dark:text-white">Notifications</p>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {unreadCount} unread
+                  </span>
+                </div>
               </div>
-              {notifs.map(n => {
+              {notifLoading ? (
+                <div className="p-4 text-xs text-slate-400">Loading notifications...</div>
+              ) : notifs.length === 0 ? (
+                <div className="p-4 text-xs text-slate-400">No notifications found.</div>
+              ) : notifs.map(n => {
                 const cfg = notifTypeConfig[n.type] || notifTypeConfig.info
                 const Icon = cfg.icon
                 return (
-                  <div
+                  <button
                     key={n.id}
-                    className="flex items-start gap-3 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors border-b border-slate-100 dark:border-slate-700/30 last:border-0"
+                    onClick={() => handleNotificationClick(n)}
+                    className={`w-full text-left flex items-start gap-3 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors border-b border-slate-100 dark:border-slate-700/30 last:border-0 ${
+                      n.is_read ? '' : 'bg-blue-50/60 dark:bg-blue-900/10'
+                    }`}
                   >
                     <Icon className={`w-4 h-4 mt-0.5 ${cfg.iconClass}`} />
                     <div className="flex-1">
-                      <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">{n.title}</p>
-                      <p className="text-xs text-slate-400 mt-1">{n.date}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">{n.title}</p>
+                        {!n.is_read && <span className="mt-1 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                        {n.message}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-2">
+                        {n.created_at
+                          ? new Date(n.created_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : ''}
+                      </p>
                     </div>
-                  </div>
+                  </button>
                 )
               })}
+              <button
+                onClick={() => {
+                  setShowNotifs(false)
+                  navigate(getNotificationsPath())
+                }}
+                className="w-full px-4 py-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-700/30"
+              >
+                View all notifications
+              </button>
             </div>
           )}
         </div>

@@ -92,6 +92,9 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
               onChange={(e) => setBillingMonth(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all"
             />
+            <p className="mt-2 text-xs text-slate-400">
+              Finance can only generate bills from readings already approved by the Facility Manager.
+            </p>
           </div>
 
           {selectedTenant && (
@@ -268,7 +271,12 @@ export default function FinanceBillManagement() {
       return result
     }
 
-    addToast(editBill?.id ? 'Bill regenerated successfully.' : 'Bill generated successfully.', 'success')
+    addToast(
+      editBill?.id
+        ? 'Bill regenerated as draft. Publish it to show on the tenant side.'
+        : 'Bill generated as draft. Publish it to show on the tenant side.',
+      'success'
+    )
     return result
   }
 
@@ -562,3 +570,4 @@ export default function FinanceBillManagement() {
     </div>
   )
 }
+

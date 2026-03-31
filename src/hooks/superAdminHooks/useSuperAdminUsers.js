@@ -20,36 +20,59 @@ function normalizeUsers(rows = []) {
   }))
 }
 
+const DEFAULT_PER_PAGE = 10
+const DEFAULT_META = {
+  current_page: 1,
+  per_page: DEFAULT_PER_PAGE,
+  total: 0,
+  last_page: 1,
+  from: 0,
+  to: 0,
+}
+
 export function useSuperAdminUsers() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
+  const [meta, setMeta] = useState(DEFAULT_META)
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (nextPage = page, nextPerPage = perPage) => {
     try {
       setLoading(true)
       setError('')
-      const response = await fetchSuperAdminUsers()
+      const response = await fetchSuperAdminUsers({
+        page: nextPage,
+        per_page: nextPerPage,
+      })
       setUsers(normalizeUsers(Array.isArray(response?.data) ? response.data : []))
+      setMeta(response?.meta || {
+        ...DEFAULT_META,
+        current_page: nextPage,
+        per_page: nextPerPage,
+      })
     } catch (err) {
       setUsers([])
+      setMeta(DEFAULT_META)
       setError(err?.response?.data?.message || 'Failed to load users.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, perPage])
 
   useEffect(() => {
-    loadUsers()
-  }, [loadUsers])
+    loadUsers(page, perPage)
+  }, [loadUsers, page, perPage])
 
   const createUser = useCallback(async (payload) => {
     try {
       setSaving(true)
       setError('')
       await createSuperAdminUser(payload)
-      await loadUsers()
+      await loadUsers(1, perPage)
+      setPage(1)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to create user.'
@@ -58,14 +81,14 @@ export function useSuperAdminUsers() {
     } finally {
       setSaving(false)
     }
-  }, [loadUsers])
+  }, [loadUsers, perPage])
 
   const updateUser = useCallback(async (id, payload) => {
     try {
       setSaving(true)
       setError('')
       await updateSuperAdminUser(id, payload)
-      await loadUsers()
+      await loadUsers(page, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to update user.'
@@ -74,7 +97,7 @@ export function useSuperAdminUsers() {
     } finally {
       setSaving(false)
     }
-  }, [loadUsers])
+  }, [loadUsers, page, perPage])
 
   const toggleUserStatus = useCallback(async (user) => {
     try {
@@ -82,7 +105,7 @@ export function useSuperAdminUsers() {
       setError('')
       const nextStatus = user.status === 'suspended' ? 'active' : 'suspended'
       await updateSuperAdminUserStatus(user.id, nextStatus)
-      await loadUsers()
+      await loadUsers(page, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to update user status.'
@@ -91,14 +114,16 @@ export function useSuperAdminUsers() {
     } finally {
       setSaving(false)
     }
-  }, [loadUsers])
+  }, [loadUsers, page, perPage])
 
   const removeUser = useCallback(async (id) => {
     try {
       setSaving(true)
       setError('')
       await deleteSuperAdminUser(id)
-      await loadUsers()
+      const nextPage = page > 1 && users.length === 1 ? page - 1 : page
+      if (nextPage !== page) setPage(nextPage)
+      await loadUsers(nextPage, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to delete user.'
@@ -107,7 +132,7 @@ export function useSuperAdminUsers() {
     } finally {
       setSaving(false)
     }
-  }, [loadUsers])
+  }, [loadUsers, page, perPage, users.length])
 
   const resetPassword = useCallback(async (id, password) => {
     try {
@@ -129,6 +154,11 @@ export function useSuperAdminUsers() {
     loading,
     saving,
     error,
+    meta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
     reload: loadUsers,
     createUser,
     updateUser,

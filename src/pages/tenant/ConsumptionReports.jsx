@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Zap, Droplets, Flame } from 'lucide-react'
 import {
   AreaChart,
@@ -14,6 +15,8 @@ import {
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import { useTenantConsumptionReports } from '@/hooks/tenantHooks/useTenantConsumptionReports'
+import { useUnitFilter } from '@/context/UnitFilterContext'
+import UnitFilterBar from '@/components/common/UnitFilterBar'
 
 const ttStyle = {
   contentStyle: {
@@ -58,12 +61,23 @@ function formatValue(value, unit) {
 
 export default function TenantConsumptionReports() {
   const pageLoading = usePageLoader(700)
-  const { unit, summary, monthly, loading, error } = useTenantConsumptionReports()
+  const { selectedUnit } = useUnitFilter()
+  const { unit, units, summary, monthly, loading, error, reload } = useTenantConsumptionReports()
+
+  useEffect(() => {
+    reload(selectedUnit)
+  }, [reload, selectedUnit])
 
   const isLoading = pageLoading || loading
   if (isLoading) return <ReportsSkeleton />
 
-  const unitLabel = unit?.unit_number ? `Unit ${unit.unit_number}` : 'Assigned Unit'
+  const unitLabel = selectedUnit === 'all'
+    ? (Array.isArray(units) && units.length > 1
+      ? 'All Assigned Units'
+      : unit?.unit_number
+        ? `Unit ${unit.unit_number}`
+        : 'Assigned Unit')
+    : `Unit ${selectedUnit}`
   const hasData = Array.isArray(monthly) && monthly.length > 0
 
   const summaryCards = [
@@ -106,6 +120,8 @@ export default function TenantConsumptionReports() {
           {error}
         </div>
       ) : null}
+
+      <UnitFilterBar />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {summaryCards.map((s, i) => {

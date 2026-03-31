@@ -1,13 +1,33 @@
 import api from "../../lib/api"
 
-export async function fetchAdminMeters() {
-  const res = await api.get('/api/super-admin/meters')
-  return res.data
+export async function fetchAdminMeters(params = {}) {
+  const requestParams = { paginate: 1, ...params }
+
+  try {
+    const res = await api.get('/api/super-admin/meters', { params: requestParams })
+    return res.data
+  } catch (error) {
+    if (error?.response?.status !== 403) {
+      throw error
+    }
+
+    const fallback = await api.get('/api/admin/meters', { params: requestParams })
+    return fallback.data
+  }
 }
 
 export async function fetchAdminMeter(id) {
-  const res = await api.get(`/api/super-admin/meters/${id}`)
-  return res.data
+  try {
+    const res = await api.get(`/api/super-admin/meters/${id}`)
+    return res.data
+  } catch (error) {
+    if (error?.response?.status !== 403) {
+      throw error
+    }
+
+    const fallback = await api.get(`/api/admin/meters/${id}`)
+    return fallback.data
+  }
 }
 
 export async function fetchAvailableMeterWatches(pageName) {
@@ -36,3 +56,4 @@ export async function deleteAdminMeter(id) {
   const res = await api.delete(`/api/super-admin/meters/${id}`)
   return res.data
 }
+

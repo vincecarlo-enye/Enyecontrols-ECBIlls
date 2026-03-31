@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+ï»¿import { useEffect, useMemo, useState } from 'react'
 import {
   CreditCard, CheckCircle2, XCircle, Clock, Search,
   Eye, Calendar, TrendingUp, CalendarDays, Zap, Droplets, Flame,
@@ -52,10 +52,11 @@ function normalizePayment(row = {}) {
   const bill = row?.bill || {}
   const tenant = row?.tenant || bill?.tenant || {}
   const unit = bill?.unit || tenant?.unit || {}
+  const apiBaseUrl = String(api?.defaults?.baseURL || '').replace(/\/+$/, '')
   const proofImage = row?.proof_image
     ? row.proof_image.startsWith('http')
       ? row.proof_image
-      : `/storage/${String(row.proof_image).replace(/^\/?storage\/?/, '')}`
+      : `${apiBaseUrl}/storage/${String(row.proof_image).replace(/^\/?storage\/?/, '')}`
     : ''
 
   return {
@@ -74,7 +75,7 @@ function normalizePayment(row = {}) {
     billStatus: bill?.status || 'unpaid',
     breakdown: buildBreakdown(Array.isArray(bill?.items) ? bill.items : []),
     receipt: {
-      referenceNumber: row?.reference_no || '—',
+      referenceNumber: row?.reference_no || 'â€”',
       paymentDate: formatDate(row?.paid_at || ''),
       submittedBy: tenant?.name || 'Tenant',
       note: row?.notes || '',
@@ -298,9 +299,9 @@ export default function FinancePaymentReview() {
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{payment.tenant}</td>
                       <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{payment.unit}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {payment.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">{payment.receipt?.referenceNumber || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">{payment.receipt?.referenceNumber || 'â€”'}</td>
                       <td className="px-4 py-3 text-[12px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {payment.receipt?.paymentDate ? <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{payment.receipt.paymentDate}</span> : '—'}
+                        {payment.receipt?.paymentDate ? <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{payment.receipt.paymentDate}</span> : 'â€”'}
                       </td>
                       <td className="px-4 py-3"><BillStatusBadge status={payment.status} /></td>
                       <td className="px-4 py-3">
@@ -403,9 +404,9 @@ export default function FinancePaymentReview() {
                       <td className="px-4 py-3 font-semibold tabular-nums text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {payment.amount.toLocaleString()}</td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[12px]">{payment.dueDate}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-[12px]">
-                        {payment.receipt?.paymentDate ? <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CalendarDays className="w-3 h-3" />{payment.receipt.paymentDate}</span> : <span className="text-slate-400">—</span>}
+                        {payment.receipt?.paymentDate ? <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CalendarDays className="w-3 h-3" />{payment.receipt.paymentDate}</span> : <span className="text-slate-400">â€”</span>}
                       </td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{payment.receipt?.referenceNumber || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{payment.receipt?.referenceNumber || 'â€”'}</td>
                       <td className="px-4 py-3"><BillStatusBadge status={payment.status} /></td>
                     </tr>
                   ))}
@@ -438,3 +439,4 @@ export default function FinancePaymentReview() {
     </div>
   )
 }
+

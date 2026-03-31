@@ -17,6 +17,7 @@ const TenantConsumptionReports = lazy(() =>
 )
 const TenantMakeReport = lazy(() => import("@/pages/tenant/MakeReport"))
 const TenantBillingReports = lazy(() => import("@/pages/tenant/BillingReports"))
+const NotificationsPage = lazy(() => import("@/pages/common/Notifications"))
 
 export function tenantRoutes() {
   return (
@@ -42,6 +43,7 @@ export function tenantRoutes() {
 
       <Route path="make-report" element={<TenantMakeReport />} />
       <Route path="billing-reports" element={<TenantBillingReports />} />
+      <Route path="notifications" element={<NotificationsPage />} />
     </Route>
   )
 }
