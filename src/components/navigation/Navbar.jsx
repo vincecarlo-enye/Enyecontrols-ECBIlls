@@ -4,7 +4,7 @@ import { Bell, Sun, Moon, Search, Menu, ChevronDown, LogOut, AlertTriangle, Info
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUnitFilter } from '@/context/UnitFilterContext'
-import { fetchNotifications, markNotificationAsRead } from '@/services/notificationService'
+import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService'
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -115,14 +115,13 @@ export default function Navbar({ onMenuClick }) {
     if (!notification?.id) return
 
     if (!notification.is_read) {
-      setNotifications((prev) =>
-        prev.map((item) =>
-          item.id === notification.id ? { ...item, is_read: true } : item
-        )
-      )
-
       try {
         await markNotificationAsRead(notification.id)
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.id === notification.id ? { ...item, is_read: true } : item
+          )
+        )
       } catch {}
     }
 
@@ -130,6 +129,15 @@ export default function Navbar({ onMenuClick }) {
     navigate(getNotificationsPath(), {
       state: { selectedNotificationId: notification.id },
     })
+  }
+
+  const handleReadAllNotifications = async () => {
+    if (unreadCount === 0) return
+
+    try {
+      await markAllNotificationsAsRead()
+      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+    } catch {}
   }
 
   const notifs = (notifications || []).slice(0, 5)
@@ -157,7 +165,7 @@ export default function Navbar({ onMenuClick }) {
     : 'Admin'
 
   return (
-    <header className={`sticky top-0 z-10 h-16 border-b flex items-center px-4 lg:px-6 gap-4 transition-colors
+    <header className={`fixed top-0 left-0 right-0 lg:left-[240px] z-40 h-16 border-b flex items-center px-4 lg:px-6 gap-4 transition-colors backdrop-blur-xl
       ${isSuperAdmin
         ? 'glass border-violet-200/60 dark:border-violet-700/40'
         : 'glass border-slate-200/60 dark:border-slate-700/50'
@@ -246,6 +254,13 @@ export default function Navbar({ onMenuClick }) {
                     {unreadCount} unread
                   </span>
                 </div>
+                <button
+                  onClick={handleReadAllNotifications}
+                  disabled={unreadCount === 0}
+                  className="mt-3 w-full px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Read all
+                </button>
               </div>
               {notifLoading ? (
                 <div className="p-4 text-xs text-slate-400">Loading notifications...</div>

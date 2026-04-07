@@ -16,6 +16,7 @@ const AdminBilling = lazy(() => import('@/pages/admin/Billing'))
 const AdminAnomalies = lazy(() => import('@/pages/admin/Anomalies'))
 const NewBill = lazy(() => import('@/pages/admin/NewBill'))
 const NotificationsPage = lazy(() => import('@/pages/common/Notifications'))
+const ActivityLogsPage = lazy(() => import('@/pages/common/ActivityLogs'))
 
 export function superAdminRoutes() {
   return (
@@ -28,6 +29,7 @@ export function superAdminRoutes() {
       <Route path="usage-reports" element={<AdminUsageReports />} />
       <Route path="tenant-reports" element={<AdminTenantReports />} />
       <Route path="anomalies" element={<AdminAnomalies />} />
+      <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="meters" element={<MeterManagement />} />
       <Route path="billing-rates" element={<BillingRates />} />

@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle, Clock, FileText, AlertTriangle, Send } from 'luc
 export const STATUS_CFG = {
   draft:              { label: 'Draft',              Icon: FileText,       cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
   published:          { label: 'Published',          Icon: Send,           cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  submitted:          { label: 'Submitted',          Icon: Clock,          cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  submitted:          { label: 'Submitted for Review', Icon: Clock,        cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   payment_submitted:  { label: 'Payment Submitted',  Icon: Clock,          cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   paid:               { label: 'Paid',               Icon: CheckCircle2,   cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
   overdue:            { label: 'Overdue',            Icon: AlertTriangle,  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
@@ -12,7 +12,7 @@ export const STATUS_CFG = {
   partial:            { label: 'Partial',            Icon: Clock,          cls: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
   // legacy fallbacks
   unpaid:             { label: 'Unpaid',             Icon: XCircle,        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  pending:            { label: 'Pending',            Icon: Clock,          cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  pending:            { label: 'Pending Verification', Icon: Clock,        cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
 }
 
 export default function BillStatusBadge({ status, size = 'sm' }) {

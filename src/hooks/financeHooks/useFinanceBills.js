@@ -6,6 +6,7 @@ import {
   fetchFinanceTenants,
   fetchSharedRates,
   generateFinanceBill,
+  generateFinanceBillsBulk,
   regenerateFinanceBill,
   updateFinanceBillStatus,
 } from '@/services/financeService/financeBillService'
@@ -180,6 +181,25 @@ export function useFinanceBills() {
     }
   }, [loadData])
 
+  const generateBillsBulk = useCallback(async ({ tenantIds = [], billingMonth }) => {
+    try {
+      setSaving(true)
+      setError('')
+      const response = await generateFinanceBillsBulk({
+        tenant_ids: tenantIds,
+        billing_month: billingMonth,
+      })
+      await loadData()
+      return { success: Boolean(response?.success), data: response?.data, message: response?.message }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to generate bills in bulk.'
+      setError(message)
+      return { success: false, message, data: err?.response?.data?.data }
+    } finally {
+      setSaving(false)
+    }
+  }, [loadData])
+
   const regenerateBill = useCallback(async ({ tenantId, billingMonth }) => {
     try {
       setSaving(true)
@@ -251,6 +271,7 @@ export function useFinanceBills() {
     error,
     reload: loadData,
     createBill,
+    generateBillsBulk,
     regenerateBill,
     publishBill,
     removeBill,
@@ -262,3 +283,6 @@ export function useFinanceBills() {
     totalRevenue,
   }
 }
+
+
+

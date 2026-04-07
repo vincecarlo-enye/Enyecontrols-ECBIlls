@@ -25,6 +25,10 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function joinMeta(parts) {
+  return parts.filter(Boolean).join(' � ')
+}
+
 export default function FacilityAnomalies() {
   const pageLoading = usePageLoader(700)
   const { addToast } = useApp()
@@ -33,7 +37,10 @@ export default function FacilityAnomalies() {
   const [draftNotes, setDraftNotes] = useState('')
 
   const loadingState = pageLoading || loading
-  const selected = useMemo(() => anomalies.find((row) => row.id === selectedId) || anomalies[0] || null, [anomalies, selectedId])
+  const openAlerts = useMemo(() => anomalies.filter((row) => row.status === 'open'), [anomalies])
+  const selected = useMemo(() => {
+    return anomalies.find((row) => row.id === selectedId) || openAlerts[0] || anomalies[0] || null
+  }, [anomalies, openAlerts, selectedId])
 
   if (loadingState) return <FacilityPageSkeleton />
 
@@ -92,18 +99,21 @@ export default function FacilityAnomalies() {
 
       <div className="grid lg:grid-cols-5 gap-4">
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
             <h2 className="font-semibold text-slate-800 dark:text-white">Live Alerts</h2>
+            <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-[11px] font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+              {openAlerts.length} open
+            </span>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[560px] overflow-y-auto">
-            {anomalies.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-slate-400">No anomalies detected right now.</div>
-            ) : anomalies.map((row) => (
+            {openAlerts.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-slate-400">No open anomalies right now.</div>
+            ) : openAlerts.map((row) => (
               <button key={row.id} onClick={() => handleSelect(row)} className={`w-full text-left px-5 py-4 transition-colors ${selected?.id === row.id ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{row.title}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">{row.meterName} Ã‚Â· {row.floor}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{joinMeta([row.meterName, row.unit, row.floor])}</p>
                   </div>
                   <span className={`px-2 py-1 rounded-lg text-[10px] font-medium uppercase ${severityCls[row.severity] || severityCls.medium}`}>{row.severity}</span>
                 </div>
@@ -124,7 +134,7 @@ export default function FacilityAnomalies() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <h2 className="font-semibold text-slate-800 dark:text-white">{selected.title}</h2>
-                  <p className="text-sm text-slate-400 mt-0.5">{selected.meterName} Ã‚Â· {selected.unit} Ã‚Â· {selected.floor}</p>
+                  <p className="text-sm text-slate-400 mt-0.5">{joinMeta([selected.meterName, selected.unit, selected.floor])}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-medium uppercase ${severityCls[selected.severity] || severityCls.medium}`}>{selected.severity}</span>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Zap,
   Droplets,
@@ -20,6 +20,7 @@ import UnitFilterBar from '@/components/common/UnitFilterBar'
 import TenantUtilityRates from '@/pages/tenant/UtilityRates'
 import DashboardCard from '@/components/ui/DashboardCard'
 import { useBills } from '@/components/billing/hooks/useBills'
+import { useTenantUsageMonitoring } from '@/hooks/tenantHooks/useTenantUsageMonitoring'
 
 function formatPeso(value) {
   const amount = Number(value || 0)
@@ -106,6 +107,11 @@ export default function TenantDashboard() {
     loading: billsLoading,
     submitPaymentReceipt,
   } = useBills()
+  const {
+    summary: usageSummary,
+    loading: usageLoading,
+    refreshUsage,
+  } = useTenantUsageMonitoring()
 
   const [viewBill, setViewBill] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -121,6 +127,10 @@ export default function TenantDashboard() {
       )
     )
   }, [user])
+
+  useEffect(() => {
+    refreshUsage(selectedUnit)
+  }, [refreshUsage, selectedUnit])
 
   const visibleBills = useMemo(() => getVisibleBills(bills), [bills])
 
@@ -215,13 +225,13 @@ export default function TenantDashboard() {
     }
   }, [unitBills])
 
-  if (pageLoading || billsLoading) {
+  if (pageLoading || billsLoading || usageLoading) {
     return <TenantDashboardSkeleton />
   }
 
-  const electric = selectedSummary?.electric || {}
-  const water = selectedSummary?.water || {}
-  const thermal = selectedSummary?.thermal || {}
+  const electric = usageSummary?.electric || selectedSummary?.electric || {}
+  const water = usageSummary?.water || selectedSummary?.water || {}
+  const thermal = usageSummary?.thermal || selectedSummary?.thermal || {}
 
   const unitLabel = selectedUnit === 'all'
     ? tenantUnits.length > 1

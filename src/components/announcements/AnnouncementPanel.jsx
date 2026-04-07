@@ -6,6 +6,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { useAdminAnnouncements } from '@/hooks/adminHooks/useAdminAnnouncements'
 import AnnouncementCard from './AnnouncementCard'
 import CreateAnnouncementModal from './CreateAnnouncementModal'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 const AUTHOR_LABEL = {
   super_admin: 'System Administration',
@@ -28,6 +29,7 @@ export default function AnnouncementPanel() {
 
   const [showModal, setShowModal] = useState(false)
   const [editingAnn, setEditingAnn] = useState(null)
+  const [deletingAnn, setDeletingAnn] = useState(null)
 
   const role = user?.role
   const canCreate = can('announcements:create')
@@ -63,14 +65,15 @@ export default function AnnouncementPanel() {
     setShowModal(true)
   }
 
-  const handleDelete = async (id) => {
-    if (confirm('Delete this announcement?')) {
-      try {
-        await deleteAnnouncement(id)
-        addToast('Announcement deleted', 'info')
-      } catch (err) {
-        addToast(err?.response?.data?.message || 'Failed to delete announcement', 'error')
-      }
+  const handleDelete = async () => {
+    if (!deletingAnn) return
+
+    try {
+      await deleteAnnouncement(deletingAnn.id)
+      addToast('Announcement deleted', 'info')
+      setDeletingAnn(null)
+    } catch (err) {
+      addToast(err?.response?.data?.message || 'Failed to delete announcement', 'error')
     }
   }
 
@@ -144,7 +147,10 @@ export default function AnnouncementPanel() {
                 canEdit={canEditAnnouncement(ann)}
                 canDelete={canDeleteAnnouncement(ann)}
                 onEdit={handleEdit}
-                onDelete={handleDelete}
+                onDelete={(id) => {
+                  const match = visibleAnnouncements.find((item) => String(item.id) === String(id))
+                  setDeletingAnn(match || null)
+                }}
               />
             ))
           )}
@@ -160,6 +166,15 @@ export default function AnnouncementPanel() {
         onSave={handleSave}
         creatorRole={role}
         initialData={editingAnn}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingAnn}
+        title="Delete Announcement?"
+        message={deletingAnn ? `This will permanently remove "${deletingAnn.title}" from the announcement list.` : 'This announcement will be permanently removed.'}
+        confirmLabel="Delete Announcement"
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingAnn(null)}
       />
     </>
   )

@@ -25,7 +25,7 @@ import { useAdminUnits } from '@/hooks/adminHooks/useAdminUnits'
 const emptyForm = {
   user_id: '',
   unit_id: '',
-  extra_unit_ids: [''],
+  extra_unit_ids: [{ unit_id: '', move_in_date: '' }],
   name: '',
   email: '',
   phone: '',
@@ -224,7 +224,9 @@ export default function Tenants() {
         })
     )
   }, [tenants, form.user_id])
-  const extraAssignedIds = (form.extra_unit_ids || []).filter(Boolean).map(String)
+  const extraAssignedIds = (form.extra_unit_ids || [])
+    .map((row) => String(row?.unit_id || ''))
+    .filter(Boolean)
   const linkedUnitIds = currentEditUnits.map((unit) => String(unit?.id || '')).filter(Boolean)
   const availableExtraUnits = units.filter((unit) => {
     const unitId = String(unit.id)
@@ -245,7 +247,7 @@ export default function Tenants() {
     setForm({
       user_id: tenant.user_id || '',
       unit_id: tenant.unit_id || tenant.unit?.id || '',
-      extra_unit_ids: [''],
+      extra_unit_ids: [{ unit_id: '', move_in_date: '' }],
       name: tenant.name || '',
       email: tenant.email || '',
       phone: tenant.phone || '',
@@ -266,8 +268,10 @@ export default function Tenants() {
     if (!form.user_id) nextErrors.user_id = 'Tenant user is required'
     if (!form.name.trim()) nextErrors.name = 'Name is required'
     if (drawerMode === 'edit') {
-      const chosenExtra = [...new Set((form.extra_unit_ids || []).filter(Boolean).map(String))]
+      const chosenExtra = [...new Set((form.extra_unit_ids || []).map((row) => String(row?.unit_id || '')).filter(Boolean))]
       if (chosenExtra.length !== extraAssignedIds.length) nextErrors.extra_unit_ids = 'Duplicate extra units are not allowed'
+      const missingMoveIn = (form.extra_unit_ids || []).some((row) => row?.unit_id && !row?.move_in_date)
+      if (missingMoveIn) nextErrors.extra_unit_ids = 'Each added unit must have its own move in date'
     }
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
@@ -312,11 +316,18 @@ export default function Tenants() {
           })
         }
 
-        const newExtraUnitIds = [...new Set((form.extra_unit_ids || []).filter(Boolean).map((id) => Number(id)))]
-        for (const extraUnitId of newExtraUnitIds) {
+        const newExtraUnits = (form.extra_unit_ids || [])
+          .filter((row) => row?.unit_id)
+          .map((row) => ({
+            unit_id: Number(row.unit_id),
+            move_in_date: row.move_in_date || null,
+          }))
+
+        for (const extraUnit of newExtraUnits) {
           await addTenant({
             ...payload,
-            unit_id: extraUnitId,
+            unit_id: extraUnit.unit_id,
+            move_in_date: extraUnit.move_in_date,
           })
         }
         await loadTenants()
@@ -350,24 +361,27 @@ export default function Tenants() {
   const addExtraUnitRow = () => {
     setForm((current) => ({
       ...current,
-      extra_unit_ids: [...(current.extra_unit_ids || ['']), ''],
+      extra_unit_ids: [...(current.extra_unit_ids || [{ unit_id: '', move_in_date: '' }]), { unit_id: '', move_in_date: '' }],
     }))
   }
 
   const removeExtraUnitRow = (index) => {
     setForm((current) => {
-      const next = (current.extra_unit_ids || ['']).filter((_, rowIndex) => rowIndex !== index)
+      const next = (current.extra_unit_ids || [{ unit_id: '', move_in_date: '' }]).filter((_, rowIndex) => rowIndex !== index)
       return {
         ...current,
-        extra_unit_ids: next.length > 0 ? next : [''],
+        extra_unit_ids: next.length > 0 ? next : [{ unit_id: '', move_in_date: '' }],
       }
     })
   }
 
-  const setExtraUnitAtIndex = (index, value) => {
+  const setExtraUnitAtIndex = (index, key, value) => {
     setForm((current) => {
-      const next = [...(current.extra_unit_ids || [''])]
-      next[index] = value
+      const next = [...(current.extra_unit_ids || [{ unit_id: '', move_in_date: '' }])]
+      next[index] = {
+        ...(next[index] || { unit_id: '', move_in_date: '' }),
+        [key]: value,
+      }
       return {
         ...current,
         extra_unit_ids: next,
@@ -609,18 +623,19 @@ export default function Tenants() {
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Add More Units</label>
-                  <span className="text-[10px] text-slate-400">Optional</span>
+                  <span className="text-[10px] text-slate-400">Optional, with separate move in dates</span>
                 </div>
 
                 <div className="space-y-2">
-                  {(form.extra_unit_ids || ['']).map((unitId, index) => {
+                  {(form.extra_unit_ids || [{ unit_id: '', move_in_date: '' }]).map((row, index) => {
+                    const unitId = row?.unit_id || ''
                     const chosenByOtherRows = extraAssignedIds.filter((value, valueIndex) => valueIndex !== index)
                     const options = availableExtraUnits.filter((unit) => !chosenByOtherRows.includes(String(unit.id)) || String(unit.id) === String(unitId))
                     return (
-                      <div key={index} className="flex items-center gap-2">
+                      <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_170px_auto] gap-2">
                         <select
                           value={unitId}
-                          onChange={(event) => setExtraUnitAtIndex(index, event.target.value)}
+                          onChange={(event) => setExtraUnitAtIndex(index, 'unit_id', event.target.value)}
                           className={`${fieldCls(false)} flex-1`}
                         >
                           <option value="">- Select additional unit -</option>
@@ -630,6 +645,13 @@ export default function Tenants() {
                             </option>
                           ))}
                         </select>
+
+                        <input
+                          type="date"
+                          value={row?.move_in_date || ''}
+                          onChange={(event) => setExtraUnitAtIndex(index, 'move_in_date', event.target.value)}
+                          className={fieldCls(false)}
+                        />
 
                         {(form.extra_unit_ids || []).length > 1 ? (
                           <button
@@ -660,7 +682,7 @@ export default function Tenants() {
 
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-900/40 dark:bg-blue-900/20">
                 <p className="text-xs leading-relaxed text-blue-700 dark:text-blue-300">
-                  Saving this form will keep the current tenant record updated and create additional linked tenant records for any extra units you add here.
+                  Saving this form will keep the current tenant record updated and create additional linked tenant records for any extra units you add here. Each added unit keeps its own move in date.
                 </p>
               </div>
             </div>

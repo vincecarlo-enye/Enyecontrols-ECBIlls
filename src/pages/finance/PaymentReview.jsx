@@ -73,6 +73,18 @@ function normalizePayment(row = {}) {
     amount: Number(row?.amount ?? bill?.amount ?? 0),
     status: row?.status || 'pending',
     billStatus: bill?.status || 'unpaid',
+    statusLabel:
+      (row?.status || 'pending') === 'pending'
+        ? 'Payment: Pending Verification'
+        : (row?.status || '') === 'verified'
+          ? 'Payment: Verified'
+          : (row?.status || '') === 'rejected'
+            ? 'Payment: Rejected'
+            : `Payment: ${row?.status || 'Pending'}`,
+    billStatusLabel:
+      (bill?.status || 'unpaid') === 'submitted'
+        ? 'Bill: Submitted for Review'
+        : `Bill: ${String(bill?.status || 'unpaid').replace(/_/g, ' ')}`,
     breakdown: buildBreakdown(Array.isArray(bill?.items) ? bill.items : []),
     receipt: {
       referenceNumber: row?.reference_no || '—',
@@ -303,7 +315,12 @@ export default function FinancePaymentReview() {
                       <td className="px-4 py-3 text-[12px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {payment.receipt?.paymentDate ? <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{payment.receipt.paymentDate}</span> : '—'}
                       </td>
-                      <td className="px-4 py-3"><BillStatusBadge status={payment.status} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-start gap-1">
+                          <BillStatusBadge status={payment.status} />
+                          <span className="text-[10px] text-slate-400">{payment.billStatusLabel}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => reviewModal.open(payment)}
@@ -407,7 +424,12 @@ export default function FinancePaymentReview() {
                         {payment.receipt?.paymentDate ? <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CalendarDays className="w-3 h-3" />{payment.receipt.paymentDate}</span> : <span className="text-slate-400">—</span>}
                       </td>
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{payment.receipt?.referenceNumber || '—'}</td>
-                      <td className="px-4 py-3"><BillStatusBadge status={payment.status} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-start gap-1">
+                          <BillStatusBadge status={payment.status} />
+                          <span className="text-[10px] text-slate-400">{payment.billStatusLabel}</span>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

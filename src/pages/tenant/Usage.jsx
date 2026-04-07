@@ -39,6 +39,79 @@ function formatReading(value) {
   })
 }
 
+function formatMonthLabel(value) {
+  if (!value) return 'Unknown'
+
+  const raw = String(value).trim()
+  const monthOnly = raw.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)$/i)
+  if (monthOnly) {
+    const normalized = monthOnly[1].slice(0, 3).toLowerCase()
+    const monthMap = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
+    }
+    const now = new Date()
+    const monthIndex = monthMap[normalized]
+    let year = now.getFullYear()
+
+    if (monthIndex > now.getMonth()) {
+      year -= 1
+    }
+
+    return new Date(year, monthIndex, 1).toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    })
+  }
+
+  const parsed = new Date(`${value} 1`)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    })
+  }
+
+  return String(value)
+}
+
+function buildUsageHistory(monthlyRows = [], key, unitLabel) {
+  const rows = Array.isArray(monthlyRows) ? monthlyRows : []
+  const findByOffset = (offset) => {
+    const target = new Date()
+    target.setDate(1)
+    target.setMonth(target.getMonth() - offset)
+    const targetLabel = target.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    })
+
+    return rows.find((row) => formatMonthLabel(row?.month) === targetLabel) || null
+  }
+
+  const previousMonth = findByOffset(1)
+  const twoMonthsAgo = findByOffset(2)
+
+  return [
+    previousMonth
+      ? `PREV MONTH (${formatMonthLabel(previousMonth.month)}) - ${formatReading(previousMonth[key])} ${unitLabel}`
+      : `PREV MONTH - 0 ${unitLabel}`,
+    twoMonthsAgo
+      ? `2MOS AGO (${formatMonthLabel(twoMonthsAgo.month)}) - ${formatReading(twoMonthsAgo[key])} ${unitLabel}`
+      : `2MOS AGO - 0 ${unitLabel}`,
+  ]
+}
+
 function buildHourlyFallback(summary = {}) {
   const electric = toNumber(summary?.electric?.consumption)
   const water = toNumber(summary?.water?.consumption)
@@ -64,6 +137,8 @@ export default function Usage() {
     hourly,
     daily,
     monthly,
+    liveUsageAvailable,
+    usageMessage,
     loading,
     error,
     refreshUsage,
@@ -105,17 +180,15 @@ export default function Usage() {
     {
       label: 'Electric Consumption',
       value: `${formatReading(summary?.electric?.consumption)} ${summary?.electric?.unit || 'kWh'}`,
-      previous: `Prev: ${formatReading(summary?.electric?.previous)}`,
-      current: `Curr: ${formatReading(summary?.electric?.current)}`,
+      history: buildUsageHistory(safeMonthly, 'electric', summary?.electric?.unit || 'kWh'),
       icon: Zap,
       grad: 'from-amber-500 to-amber-600',
       glow: 'shadow-amber-500/20',
     },
     {
       label: 'Water Consumption',
-      value: `${formatReading(summary?.water?.consumption)} ${summary?.water?.unit || 'm³'}`,
-      previous: `Prev: ${formatReading(summary?.water?.previous)}`,
-      current: `Curr: ${formatReading(summary?.water?.current)}`,
+      value: `${formatReading(summary?.water?.consumption)} ${summary?.water?.unit || 'm3'}`,
+      history: buildUsageHistory(safeMonthly, 'water', summary?.water?.unit || 'm3'),
       icon: Droplets,
       grad: 'from-cyan-500 to-cyan-600',
       glow: 'shadow-cyan-500/20',
@@ -123,8 +196,7 @@ export default function Usage() {
     {
       label: 'Thermal Consumption',
       value: `${formatReading(summary?.thermal?.consumption)} ${summary?.thermal?.unit || 'kBTU'}`,
-      previous: `Prev: ${formatReading(summary?.thermal?.previous)}`,
-      current: `Curr: ${formatReading(summary?.thermal?.current)}`,
+      history: buildUsageHistory(safeMonthly, 'thermal', summary?.thermal?.unit || 'kBTU'),
       icon: Flame,
       grad: 'from-rose-500 to-rose-600',
       glow: 'shadow-rose-500/20',
@@ -161,6 +233,12 @@ export default function Usage() {
         </div>
       ) : null}
 
+      {!error && !liveUsageAvailable && usageMessage ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+          {usageMessage}
+        </div>
+      ) : null}
+
       <UnitFilterBar />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -180,9 +258,13 @@ export default function Usage() {
                   <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">
                     {s.value}
                   </p>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    {s.previous} · {s.current}
-                  </p>
+                  <div className="mt-2 space-y-1">
+                    {s.history.map((line) => (
+                      <p key={line} className="text-[10px] text-slate-400">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
                 </div>
 
                 <div
@@ -240,7 +322,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Line type="monotone" dataKey="electric" stroke="#f59e0b" strokeWidth={2} dot={false} name="Electric (kWh)" />
-                <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water (m³)" />
+                <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water (m3)" />
                 <Line type="monotone" dataKey="thermal" stroke="#f43f5e" strokeWidth={2} dot={false} name="Thermal (kBTU)" />
               </LineChart>
             </ResponsiveContainer>
@@ -257,7 +339,7 @@ export default function Usage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0">
                   <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60">
-                    {['Time', 'Electric (kWh)', 'Water (m³)', 'Thermal (kBTU)'].map((col) => (
+                    {['Time', 'Electric (kWh)', 'Water (m3)', 'Thermal (kBTU)'].map((col) => (
                       <th
                         key={col}
                         className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 py-3 whitespace-nowrap"
@@ -322,7 +404,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="electric" name="Electric (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="water" name="Water (m³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="water" name="Water (m3)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -361,7 +443,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="electric" name="Electric (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="water" name="Water (m³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="water" name="Water (m3)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

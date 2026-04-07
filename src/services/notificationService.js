@@ -19,3 +19,8 @@ export async function markNotificationAsRead(id) {
   const res = await api.post(`/api/notifications/${id}/read`)
   return res.data
 }
+
+export async function markAllNotificationsAsRead() {
+  const res = await api.post('/api/notifications/read-all')
+  return res.data
+}

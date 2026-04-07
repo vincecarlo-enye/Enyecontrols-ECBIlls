@@ -62,7 +62,17 @@ function formatValue(value, unit) {
 export default function TenantConsumptionReports() {
   const pageLoading = usePageLoader(700)
   const { selectedUnit } = useUnitFilter()
-  const { unit, units, summary, monthly, loading, error, reload } = useTenantConsumptionReports()
+  const {
+    unit,
+    units,
+    summary,
+    monthly,
+    liveUsageAvailable,
+    usageMessage,
+    loading,
+    error,
+    reload,
+  } = useTenantConsumptionReports()
 
   useEffect(() => {
     reload(selectedUnit)
@@ -118,6 +128,12 @@ export default function TenantConsumptionReports() {
       {error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-300">
           {error}
+        </div>
+      ) : null}
+
+      {!error && !liveUsageAvailable && usageMessage ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+          {usageMessage}
         </div>
       ) : null}
 

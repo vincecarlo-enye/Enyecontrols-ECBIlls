@@ -25,7 +25,6 @@ import { useApp } from '@/context/AppContext'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useBills } from '../../components/billing/hooks/useBills'
 
-// Tenant only sees published, payment_submitted, paid, overdue bills
 const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
 
 const FILTER_OPTIONS = [
@@ -35,14 +34,17 @@ const FILTER_OPTIONS = [
   { key: 'paid', label: 'Paid' },
 ]
 
-// ─── Export dropdown ─────────────────────────────────────────────────────────
+function formatPHP(value) {
+  return `PHP ${Number(value || 0).toLocaleString()}`
+}
+
 function ExportDropdown({ bill }) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="relative" onBlur={() => setTimeout(() => setOpen(false), 150)}>
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-0.5 p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors"
         title="Export"
       >
@@ -75,7 +77,6 @@ function ExportDropdown({ bill }) {
   )
 }
 
-// ─── Table ───────────────────────────────────────────────────────────────────
 const BillsTableInner = memo(function BillsTableInner({
   displayedBills, filtered, unitLabel, filter, setFilter,
   viewer, receiptModal, concernModal,
@@ -93,10 +94,11 @@ const BillsTableInner = memo(function BillsTableInner({
             <button
               key={key}
               onClick={() => setFilter(key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === key
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                filter === key
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
+              }`}
             >
               {label}
             </button>
@@ -105,10 +107,22 @@ const BillsTableInner = memo(function BillsTableInner({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: '720px' }}>
+        <table className="w-full text-sm" style={{ minWidth: '860px' }}>
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
-              {['Bill ID', 'Unit', 'Month', 'Due Date', 'Electricity', 'Water', 'Thermal', 'Amount', 'Status', 'Actions'].map(col => (
+              {[
+                'Bill ID',
+                'Unit',
+                'Month',
+                'Due Date',
+                'Electricity',
+                'Water',
+                'Thermal',
+                'Previous Balance',
+                'Amount Due',
+                'Status',
+                'Actions',
+              ].map((col) => (
                 <th
                   key={col}
                   className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 py-3 whitespace-nowrap"
@@ -122,12 +136,12 @@ const BillsTableInner = memo(function BillsTableInner({
           <tbody>
             {displayedBills.length === 0 ? (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={11}>
                   <EmptyState title="No bills found" message="Bills will appear here once published by Finance." />
                 </td>
               </tr>
             ) : (
-              displayedBills.map(bill => (
+              displayedBills.map((bill) => (
                 <tr
                   key={bill.id}
                   className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
@@ -136,10 +150,11 @@ const BillsTableInner = memo(function BillsTableInner({
                   <td className="px-4 py-3.5 text-xs font-mono font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">{bill.unit}</td>
                   <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-white whitespace-nowrap">{bill.month}</td>
                   <td className="px-4 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.dueDate}</td>
-                  <td className="px-4 py-3.5 text-amber-600 dark:text-amber-400 text-xs font-mono">₱{(bill.breakdown?.electricity ?? 0).toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-cyan-600 dark:text-cyan-400 text-xs font-mono">₱{(bill.breakdown?.water ?? 0).toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-rose-600 dark:text-rose-400 text-xs font-mono">₱{(bill.breakdown?.thermal ?? 0).toLocaleString()}</td>
-                  <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">₱{Number(bill.amount || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3.5 text-amber-600 dark:text-amber-400 text-xs font-mono">{formatPHP(bill.breakdown?.electricity ?? 0)}</td>
+                  <td className="px-4 py-3.5 text-cyan-600 dark:text-cyan-400 text-xs font-mono">{formatPHP(bill.breakdown?.water ?? 0)}</td>
+                  <td className="px-4 py-3.5 text-rose-600 dark:text-rose-400 text-xs font-mono">{formatPHP(bill.breakdown?.thermal ?? 0)}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-amber-700 dark:text-amber-300 whitespace-nowrap">{formatPHP(bill.previous_balance || 0)}</td>
+                  <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">{formatPHP(bill.amount || 0)}</td>
                   <td className="px-4 py-3.5">
                     <BillStatusBadge status={bill.status} />
                   </td>
@@ -196,7 +211,6 @@ const BillsTableInner = memo(function BillsTableInner({
   )
 })
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function TenantBills() {
   const pageLoading = usePageLoader(700)
   const {
@@ -217,28 +231,28 @@ export default function TenantBills() {
 
   if (pageLoading || billsLoading) return <TenantBillsSkeleton />
 
-  const tenantBills = bills.filter(b => TENANT_VISIBLE.includes(b.status))
+  const tenantBills = bills.filter((b) => TENANT_VISIBLE.includes(b.status))
   const unitFiltered = selectedUnit === 'all'
     ? tenantBills
-    : tenantBills.filter(b => String(b.unit) === String(selectedUnit))
+    : tenantBills.filter((b) => String(b.unit) === String(selectedUnit))
 
   const filtered = filter === 'all'
     ? unitFiltered
-    : unitFiltered.filter(b => b.status === filter)
+    : unitFiltered.filter((b) => b.status === filter)
 
   const displayedBills = [...filtered]
     .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
     .slice(0, 20)
 
   const totalPaid = unitFiltered
-    .filter(b => b.status === 'paid')
+    .filter((b) => b.status === 'paid')
     .reduce((s, b) => s + Number(b.amount || 0), 0)
 
   const totalUnpaid = unitFiltered
-    .filter(b => ['published', 'overdue'].includes(b.status))
+    .filter((b) => ['published', 'overdue'].includes(b.status))
     .reduce((s, b) => s + Number(b.amount || 0), 0)
 
-  const pendingCount = unitFiltered.filter(b => b.status === 'submitted').length
+  const pendingCount = unitFiltered.filter((b) => b.status === 'submitted').length
   const unitLabel = selectedUnit === 'all' ? 'All Units' : `Unit ${selectedUnit}`
 
   const handleReceiptSubmit = async (billId, receiptData) => {
@@ -274,7 +288,7 @@ export default function TenantBills() {
     <div className="space-y-5 animate-in">
       <div>
         <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">My Bills</h1>
-        <p className="text-sm text-slate-400 mt-0.5">{unitLabel} · Billing history</p>
+        <p className="text-sm text-slate-400 mt-0.5">{unitLabel} - Billing history</p>
       </div>
 
       <UnitFilterBar />
@@ -286,14 +300,13 @@ export default function TenantBills() {
         </div>
       )}
 
-      {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Paid', value: `₱${totalPaid.toLocaleString()}`, cls: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Outstanding', value: `₱${totalUnpaid.toLocaleString()}`, cls: 'text-red-600 dark:text-red-400' },
+          { label: 'Total Paid', value: formatPHP(totalPaid), cls: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Outstanding', value: formatPHP(totalUnpaid), cls: 'text-red-600 dark:text-red-400' },
           { label: 'Pending Review', value: pendingCount, cls: 'text-amber-600 dark:text-amber-400' },
           { label: 'Total Bills', value: unitFiltered.length, cls: 'text-blue-600 dark:text-blue-400' },
-        ].map(c => (
+        ].map((c) => (
           <div key={c.label} className="glass rounded-2xl p-4 shadow-md">
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wide">{c.label}</p>
             <p className={`text-2xl font-bold mt-1 ${c.cls}`}>{c.value}</p>
@@ -301,7 +314,6 @@ export default function TenantBills() {
         ))}
       </div>
 
-      {/* Pending notice */}
       {pendingCount > 0 && (
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
           <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />

@@ -9,7 +9,10 @@ export default defineConfig(({ mode }) => {
   const certDir = path.resolve(__dirname, '.certs')
   const pfxPath = path.join(certDir, 'ecbills-dev.pfx')
   const httpsEnabled = fs.existsSync(pfxPath)
-  const pythonAudioTarget = env.VITE_PYTHON_AUDIO_TARGET || 'http://192.168.10.144:8001'
+  const pythonAudioTarget =
+    env.VITE_PYTHON_AUDIO_TARGET ||
+    env.VITE_OMNI_URL ||
+    'http://192.168.10.48:8001'
 
   return {
     plugins: [react()],

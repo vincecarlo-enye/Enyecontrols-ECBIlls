@@ -1,0 +1,22 @@
+"Enyecontrols - Statement of Account"
+
+"Invoice No.","17"
+"Tenant","Tenant User"
+"Unit","A-101"
+"Bill Date","April 6, 2026"
+"Due Date","May 10, 2026"
+"Period","Apr 1, 2026 - Apr 30, 2026"
+"Status","PAID"
+
+"UTILITY CHARGES"
+"Description","Prev","Curr","Consumption","Rate","Amount"
+"Electricity","201897.7600","202430.7800","1,323.51 kWh","PHP 13.82/kWh","PHP 18,290.91"
+"Water","2235.8000","2243.6000","20.6 m³","PHP 60.00/m³","PHP 1,236.00"
+"Thermal Energy","6200130.8000","6201655.9000","16,877.8 kBUT/h","PHP 0.76/kBUT/h","PHP 12,827.13"
+
+"Subtotal","","","","","PHP 32,354.04"
+"VAT 12%","","","","","PHP 0.00"
+"Current Charges","","","","","PHP 32,354.04"
+"Previous Balance","","","","","PHP 0.00"
+"Payments Received","","","","","PHP 0.00"
+"TOTAL AMOUNT DUE","","","","","PHP 32,354.04"

@@ -93,15 +93,20 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
               className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all"
             />
             <p className="mt-2 text-xs text-slate-400">
-              Finance can only generate bills from readings already approved by the Facility Manager.
+              Finance can only generate bills from approved readings and active billing rates that cover the selected billing month.
             </p>
           </div>
 
           {selectedTenant && (
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-4 py-3">
-              <p className="text-xs font-mono uppercase text-slate-400 mb-1">Selected Tenant</p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{selectedTenant.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Unit {selectedTenant.unit || 'N/A'}</p>
+            <div className="space-y-3">
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-4 py-3">
+                <p className="text-xs font-mono uppercase text-slate-400 mb-1">Selected Tenant</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{selectedTenant.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Unit {selectedTenant.unit || 'N/A'}</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+                Bills now use dedicated submeters only. If this unit has no dedicated approved electric, water, or thermal submeter readings, that utility will not be billed for the selected month.
+              </div>
             </div>
           )}
         </div>
@@ -116,6 +121,72 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {initial ? 'Regenerate Bill' : 'Generate Bill'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+function BulkBillFormModal({ open, onClose, tenantCount, onSave, saving }) {
+  const [billingMonth, setBillingMonth] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setBillingMonth('')
+  }, [open])
+
+  if (!open) return null
+
+  const handleSubmit = async () => {
+    if (!billingMonth) return
+    const result = await onSave({ billingMonth })
+    if (result?.success) onClose()
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h3 className="font-semibold text-[15px] text-slate-800 dark:text-white">Generate Bills in Bulk</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-4 py-3">
+            <p className="text-xs font-mono uppercase text-slate-400 mb-1">Target</p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{tenantCount} active tenant records</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Existing bills for the same month will be skipped automatically.</p>
+          </div>
+
+          <div>
+            <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Billing Month</label>
+            <input
+              type="month"
+              value={billingMonth}
+              onChange={(e) => setBillingMonth(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all"
+            />
+            <p className="mt-2 text-xs text-slate-400">
+              Bulk generation still requires approved readings and active rates per tenant/unit.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-all">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!billingMonth || saving}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Generate All
           </button>
         </div>
       </div>
@@ -197,6 +268,7 @@ export default function FinanceBillManagement() {
     saving,
     error,
     createBill,
+    generateBillsBulk,
     regenerateBill,
     publishBill,
     removeBill,
@@ -216,6 +288,7 @@ export default function FinanceBillManagement() {
   const [allUtility, setAllUtility] = useState('all')
   const [editBill, setEditBill] = useState(null)
   const formModal = useModalState()
+  const bulkFormModal = useModalState()
   const detailModal = useModalState()
 
   const loadingState = pageLoading || loading
@@ -258,6 +331,10 @@ export default function FinanceBillManagement() {
     formModal.open({})
   }
 
+  const openBulkCreate = () => {
+    bulkFormModal.open({})
+  }
+
   const openEdit = (bill) => {
     setEditBill(bill)
     formModal.open(bill)
@@ -290,6 +367,22 @@ export default function FinanceBillManagement() {
     addToast(result?.success ? 'Bill deleted successfully.' : result?.message || 'Failed to delete bill.', result?.success ? 'success' : 'error')
   }
 
+  const handleBulkSave = async ({ billingMonth }) => {
+    const result = await generateBillsBulk({
+      tenantIds: tenants.map((tenant) => tenant.id),
+      billingMonth,
+    })
+
+    addToast(
+      result?.success
+        ? result?.message || 'Bulk bill generation completed.'
+        : result?.message || 'Failed to generate bills in bulk.',
+      result?.success ? 'success' : 'error'
+    )
+
+    return result
+  }
+
   const STATUS_TABS = [
     { k: 'all', l: 'All' },
     { k: 'draft', l: 'Draft' },
@@ -309,12 +402,20 @@ export default function FinanceBillManagement() {
           <p className="text-sm text-slate-400 mt-0.5">Generate, publish, and monitor all tenant bills</p>
         </div>
         {activeTab === 'manage' && (
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Plus className="w-4 h-4" /> Generate Bill
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openBulkCreate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 shadow-sm transition-all hover:-translate-y-0.5"
+            >
+              <Send className="w-4 h-4" /> Generate All
+            </button>
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <Plus className="w-4 h-4" /> Generate Bill
+            </button>
+          </div>
         )}
       </div>
 
@@ -561,6 +662,14 @@ export default function FinanceBillManagement() {
         tenants={tenants}
         initial={editBill}
         onSave={handleSave}
+        saving={saving}
+      />
+
+      <BulkBillFormModal
+        open={bulkFormModal.isOpen}
+        onClose={bulkFormModal.close}
+        tenantCount={tenants.length}
+        onSave={handleBulkSave}
         saving={saving}
       />
 

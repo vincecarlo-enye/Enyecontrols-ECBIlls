@@ -15,6 +15,11 @@ export async function generateFinanceBill(payload) {
   return res.data
 }
 
+export async function generateFinanceBillsBulk(payload) {
+  const res = await api.post('/api/finance/bills/generate-bulk', payload)
+  return res.data
+}
+
 export async function regenerateFinanceBill(payload) {
   const res = await api.post('/api/finance/bills/regenerate', payload)
   return res.data
@@ -39,3 +44,4 @@ export async function fetchSharedRates() {
   const res = await api.get('/api/rates')
   return res.data
 }
+

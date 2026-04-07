@@ -2,9 +2,9 @@
  * pages/superadmin/Announcements.jsx
  * Super Admin announcement management — full CRUD + system-wide toggle.
  */
-import { useState } from 'react'
-import { Megaphone, Plus, Globe, Shield, Search, Pencil, Trash2, Filter } from 'lucide-react'
-import { useAnnouncements } from '@/context/AnnouncementContext'
+import { useMemo, useState } from 'react'
+import { Megaphone, Plus, Globe, Shield, Search, Filter } from 'lucide-react'
+import { useAdminAnnouncements } from '@/hooks/adminHooks/useAdminAnnouncements'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -12,27 +12,22 @@ import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import CreateAnnouncementModal from '@/components/announcements/CreateAnnouncementModal'
 import AnnouncementCard from '@/components/announcements/AnnouncementCard'
-
-const AUTHOR_LABEL = { super_admin: 'System Administration', admin: 'Building Management', facility_manager: 'Facilities Team', finance: 'Billing Department' }
-const TYPE_COLORS = {
-  warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  info:    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  notice:  'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-400',
-}
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 export default function SAnnouncements() {
   const loading = usePageLoader(600)
   const { user } = useAuth()
-  const { announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement } = useAnnouncements()
   const { addToast } = useApp()
   const { isSuperAdmin, canEditAnnouncement, canDeleteAnnouncement } = usePermissions()
+  const { announcements, loading: announcementsLoading, submitting, addAnnouncement, updateAnnouncement, deleteAnnouncement } = useAdminAnnouncements()
 
   const [showModal, setShowModal] = useState(false)
   const [editingAnn, setEditingAnn] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [deletingAnn, setDeletingAnn] = useState(null)
 
-  if (loading) return <DashboardSkeleton />
+  if (loading || announcementsLoading) return <DashboardSkeleton />
 
   const filtered = announcements.filter(a => {
     const q = search.toLowerCase()
@@ -41,23 +36,49 @@ export default function SAnnouncements() {
     return matchSearch && matchFilter
   })
 
-  const handleSave = (formData) => {
-    if (editingAnn) {
-      updateAnnouncement(editingAnn.id, formData)
-      addToast('Announcement updated successfully')
-    } else {
-      addAnnouncement({ ...formData, author: AUTHOR_LABEL[user?.role] || user?.name, createdBy: user?.role })
-      addToast(formData.isSystemWide ? 'System-wide announcement posted' : 'Announcement posted successfully')
+  const handleSave = async (formData) => {
+    try {
+      if (editingAnn) {
+        await updateAnnouncement(editingAnn.id, formData)
+        addToast('Announcement updated successfully')
+      } else {
+        await addAnnouncement(formData)
+        addToast(formData.isSystemWide ? 'System-wide announcement posted' : 'Announcement posted successfully')
+      }
+      setShowModal(false)
+      setEditingAnn(null)
+    } catch (err) {
+      addToast(err?.response?.data?.message || 'Failed to save announcement', 'error')
     }
-    setShowModal(false); setEditingAnn(null)
   }
 
-  const handleDelete = (id) => {
-    if (confirm('Delete this announcement?')) { deleteAnnouncement(id); addToast('Announcement deleted', 'info') }
+  const handleDelete = async () => {
+    if (!deletingAnn) return
+
+    try {
+      await deleteAnnouncement(deletingAnn.id)
+      addToast('Announcement deleted', 'info')
+      setDeletingAnn(null)
+    } catch (err) {
+      addToast(err?.response?.data?.message || 'Failed to delete announcement', 'error')
+    }
   }
 
   const systemCount = announcements.filter(a => a.isSystemWide || a.createdBy === 'super_admin').length
   const localCount  = announcements.length - systemCount
+  const activeCount = useMemo(() => announcements.filter((a) => {
+    const status = String(a?.status || '').toLowerCase()
+    if (status && status !== 'published') return false
+
+    const now = Date.now()
+    const startsAt = a?.starts_at ? new Date(a.starts_at).getTime() : null
+    const endsAt = a?.ends_at ? new Date(a.ends_at).getTime() : null
+
+    if (startsAt && !Number.isNaN(startsAt) && now < startsAt) return false
+    if (endsAt && !Number.isNaN(endsAt) && now > endsAt) return false
+
+    return true
+  }).length, [announcements])
 
   return (
     <div className="space-y-6">
@@ -71,8 +92,8 @@ export default function SAnnouncements() {
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Create system-wide and local announcements for all roles</p>
         </div>
-        <button onClick={() => { setEditingAnn(null); setShowModal(true) }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all">
+        <button onClick={() => { setEditingAnn(null); setShowModal(true) }} disabled={submitting}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-60">
           <Plus className="w-4 h-4"/>New Announcement
         </button>
       </div>
@@ -89,7 +110,7 @@ export default function SAnnouncements() {
         </div>
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
           <div className="flex items-center gap-2 mb-2"><Filter className="w-4 h-4 text-slate-400"/><p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total</p></div>
-          <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">{announcements.length}</p>
+          <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">{activeCount}</p>
         </div>
       </div>
 
@@ -124,7 +145,10 @@ export default function SAnnouncements() {
               canEdit={canEditAnnouncement(ann)}
               canDelete={canDeleteAnnouncement(ann)}
               onEdit={(a) => { setEditingAnn(a); setShowModal(true) }}
-              onDelete={handleDelete}
+              onDelete={(id) => {
+                const match = announcements.find((item) => String(item.id) === String(id))
+                setDeletingAnn(match || null)
+              }}
             />
           ))}
         </div>
@@ -132,6 +156,15 @@ export default function SAnnouncements() {
 
       <CreateAnnouncementModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingAnn(null) }}
         onSave={handleSave} creatorRole={user?.role} initialData={editingAnn} />
+
+      <ConfirmModal
+        isOpen={!!deletingAnn}
+        title="Delete Announcement?"
+        message={deletingAnn ? `This will permanently remove "${deletingAnn.title}" from the announcement list.` : 'This announcement will be permanently removed.'}
+        confirmLabel="Delete Announcement"
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingAnn(null)}
+      />
     </div>
   )
 }

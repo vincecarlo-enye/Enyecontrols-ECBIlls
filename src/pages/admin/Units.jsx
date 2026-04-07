@@ -46,6 +46,12 @@ function StatCard({ label, value, sub, tone = 'slate' }) {
   )
 }
 
+function formatOtherMeterLabel(count) {
+  if (!count) return 'No other meters'
+  if (count === 1) return '1 other meter'
+  return `${count} other meters`
+}
+
 export default function Units() {
   const pageLoading = usePageLoader(700)
   const { user } = useAuth()
@@ -301,6 +307,9 @@ export default function Units() {
                   const electricMeter = getMeterByType(unit.id, 'electric')
                   const waterMeter = getMeterByType(unit.id, 'water')
                   const thermalMeter = getMeterByType(unit.id, 'thermal')
+                  const otherMeters = (metersByUnit[String(unit.id)] || []).filter(
+                    (meter) => !['electric', 'water', 'thermal'].includes(String(meter.type).toLowerCase())
+                  )
                   const tenantNames = Array.isArray(unit.tenants) ? unit.tenants.map((tenant) => tenant.name).filter(Boolean) : []
 
                   return (
@@ -339,6 +348,7 @@ export default function Units() {
                           <p className="inline-flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-amber-500" /> {electricMeter?.meterName || electricMeter?.watchName || 'No electric meter'}</p>
                           <p className="inline-flex items-center gap-2"><Droplets className="h-3.5 w-3.5 text-cyan-500" /> {waterMeter?.meterName || waterMeter?.watchName || 'No water meter'}</p>
                           <p className="inline-flex items-center gap-2"><Gauge className="h-3.5 w-3.5 text-rose-500" /> {thermalMeter?.meterName || thermalMeter?.watchName || 'No thermal meter'}</p>
+                          <p className="inline-flex items-center gap-2"><Building2 className="h-3.5 w-3.5 text-violet-500" /> {formatOtherMeterLabel(otherMeters.length)}</p>
                         </div>
                       </td>
 
@@ -440,64 +450,91 @@ export default function Units() {
         isOpen={!!viewUnit}
         onClose={() => setViewUnit(null)}
         title={viewUnit?.unit_number}
-        subtitle={viewUnit ? `${viewUnit.building_name || '-'} • Floor ${viewUnit.floor || '-'}` : ''}
+        subtitle={viewUnit ? `${viewUnit.building_name || '-'} - Floor ${viewUnit.floor || '-'}` : ''}
       >
-        {viewUnit ? (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-                <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Unit Details</p>
-                <div className="space-y-3">
+        {viewUnit ? (() => {
+          const otherMeters = (metersByUnit[String(viewUnit.id)] || []).filter(
+            (meter) => !['electric', 'water', 'thermal'].includes(String(meter.type).toLowerCase())
+          )
+
+          return (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+                  <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Unit Details</p>
+                  <div className="space-y-3">
+                    {[
+                      ['Status', viewUnit.status || '-'],
+                      ['Floor', viewUnit.floor || '-'],
+                      ['Building', viewUnit.building_name || '-'],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200 capitalize">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+                  <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Assigned Tenants</p>
+                  {Array.isArray(viewUnit.tenants) && viewUnit.tenants.length > 0 ? (
+                    <div className="space-y-2">
+                      {viewUnit.tenants.map((tenant) => (
+                        <div key={tenant.id} className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50">
+                          <p className="text-sm font-medium text-slate-800 dark:text-white">{tenant.name}</p>
+                          <p className="mt-1 text-xs text-slate-400">{tenant.email || '-'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">No tenant assigned.</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Meter Readiness</p>
+                <div className="grid gap-2">
                   {[
-                    ['Status', viewUnit.status || '-'],
-                    ['Floor', viewUnit.floor || '-'],
-                    ['Building', viewUnit.building_name || '-'],
-                  ].map(([label, value]) => (
-                    <div key={label}>
-                      <p className="text-xs text-slate-400">{label}</p>
-                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 capitalize">{value}</p>
+                    { label: 'Electric', icon: Zap, meter: getMeterByType(viewUnit.id, 'electric'), cls: 'text-amber-500' },
+                    { label: 'Water', icon: Droplets, meter: getMeterByType(viewUnit.id, 'water'), cls: 'text-cyan-500' },
+                    { label: 'Thermal', icon: Gauge, meter: getMeterByType(viewUnit.id, 'thermal'), cls: 'text-rose-500' },
+                  ].map(({ label, icon: Icon, meter, cls }) => (
+                    <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3 dark:border-slate-700 dark:bg-slate-800/40">
+                      <Icon className={`h-4 w-4 ${cls}`} />
+                      <div>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</p>
+                        <p className="text-xs text-slate-400">{meter?.meterName || meter?.watchName || `No ${label.toLowerCase()} meter`}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-                <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Assigned Tenants</p>
-                {Array.isArray(viewUnit.tenants) && viewUnit.tenants.length > 0 ? (
-                  <div className="space-y-2">
-                    {viewUnit.tenants.map((tenant) => (
-                      <div key={tenant.id} className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/50">
-                        <p className="text-sm font-medium text-slate-800 dark:text-white">{tenant.name}</p>
-                        <p className="mt-1 text-xs text-slate-400">{tenant.email || '-'}</p>
-                      </div>
+                <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Other Meters</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {formatOtherMeterLabel(otherMeters.length)}
+                </p>
+                {otherMeters.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {otherMeters.map((meter) => (
+                      <span
+                        key={meter.id}
+                        className="inline-flex items-center rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/20 dark:text-violet-300"
+                      >
+                        {meter.meterName || meter.watchName || `Meter #${meter.id}`}
+                      </span>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400">No tenant assigned.</p>
+                  <p className="mt-2 text-xs text-slate-400">No extra meters assigned.</p>
                 )}
               </div>
             </div>
-
-            <div>
-              <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Meter Readiness</p>
-              <div className="grid gap-2">
-                {[
-                  { label: 'Electric', icon: Zap, meter: getMeterByType(viewUnit.id, 'electric'), cls: 'text-amber-500' },
-                  { label: 'Water', icon: Droplets, meter: getMeterByType(viewUnit.id, 'water'), cls: 'text-cyan-500' },
-                  { label: 'Thermal', icon: Gauge, meter: getMeterByType(viewUnit.id, 'thermal'), cls: 'text-rose-500' },
-                ].map(({ label, icon: Icon, meter, cls }) => (
-                  <div key={label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3 dark:border-slate-700 dark:bg-slate-800/40">
-                    <Icon className={`h-4 w-4 ${cls}`} />
-                    <div>
-                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</p>
-                      <p className="text-xs text-slate-400">{meter?.meterName || meter?.watchName || `No ${label.toLowerCase()} meter`}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
+          )
+        })() : null}
       </Modal>
 
       <ConfirmModal

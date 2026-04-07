@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Building2 } from 'lucide-react'
 import { useUnitFilter } from '@/context/UnitFilterContext'
 import { useAuth } from '@/context/AuthContext'
@@ -14,6 +15,12 @@ export default function UnitFilterBar() {
         .filter(Boolean)
     )
   )
+
+  useEffect(() => {
+    if (selectedUnit !== 'all' && !tenantUnits.includes(selectedUnit)) {
+      setSelectedUnit('all')
+    }
+  }, [selectedUnit, setSelectedUnit, tenantUnits])
 
   if (tenantUnits.length <= 1) return null
 

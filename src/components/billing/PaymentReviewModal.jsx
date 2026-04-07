@@ -43,10 +43,17 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(90svh - 140px)' }}>
           <div className="p-6 space-y-5">
             <div className="flex items-start gap-3 flex-wrap">
-              <BillStatusBadge status={bill.status} />
+              <div className="flex flex-col items-start gap-1">
+                <BillStatusBadge status={bill.status} />
+                {bill.billStatus ? (
+                  <span className="text-[11px] text-slate-400">
+                    Bill status: {bill.billStatus === 'submitted' ? 'Submitted for Review' : String(bill.billStatus).replace(/_/g, ' ')}
+                  </span>
+                ) : null}
+              </div>
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-white">{bill.tenant}</p>
-                <p className="text-xs text-slate-400">Unit {bill.unit} · {bill.month}</p>
+                <p className="text-xs text-slate-400">Unit {bill.unit} Â· {bill.month}</p>
               </div>
             </div>
 

@@ -17,6 +17,7 @@ const adminNavItems = [
   { path: '/admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
   { path: '/admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
   { path: '/admin/anomalies', label: 'Anomalies', icon: Siren },
+  { path: '/admin/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
   { path: '/admin/settings', label: 'Settings', icon: Settings },
 ]
@@ -28,6 +29,7 @@ const superAdminNavItems = [
   { path: '/super-admin/units', label: 'Units', icon: Building2 },
   { path: '/super-admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
   { path: '/super-admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
+  { path: '/super-admin/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/super-admin/notifications', label: 'Notifications', icon: Bell },
   { path: '/super-admin/meters', label: 'Meter Management', icon: Gauge, superAdminOnly: true },
   { path: '/super-admin/billing-rates', label: 'Billing Rates', icon: Zap, superAdminOnly: true },
@@ -41,6 +43,7 @@ const tenantNavItems = [
   { path: '/tenant/usage', label: 'Usage', icon: Activity },
   { path: '/tenant/consumption-reports', label: 'Consumption Reports', icon: TrendingUp },
   { path: '/tenant/billing-reports', label: 'Billing Reports', icon: BarChart3 },
+  { path: '/tenant/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/tenant/notifications', label: 'Notifications', icon: Bell },
   { path: '/tenant/profile', label: 'Profile', icon: User },
 ]
@@ -51,6 +54,7 @@ const financeNavItems = [
   { path: '/finance/payment-review', label: 'Payment Review', icon: CheckSquare },
   { path: '/finance/billing-tickets', label: 'Billing Tickets', icon: Ticket },
   { path: '/finance/reports', label: 'Financial Reports', icon: BarChart3 },
+  { path: '/finance/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/finance/notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -62,6 +66,7 @@ const facilityNavItems = [
   { path: '/facility/maintenance', label: 'Maintenance Requests', icon: Wrench },
   { path: '/facility/equipment', label: 'Equipment Status', icon: Cpu },
   { path: '/facility/reports', label: 'Reports', icon: FileBarChart },
+  { path: '/facility/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/facility/notifications', label: 'Notifications', icon: Bell },
 ]
 

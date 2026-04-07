@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Bell, CheckCheck, Clock3, RefreshCw } from 'lucide-react'
-import { fetchNotification, fetchNotifications, markNotificationAsRead } from '@/services/notificationService'
+import {
+  fetchNotification,
+  fetchNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from '@/services/notificationService'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import PaginationBar from '@/components/common/PaginationBar'
@@ -122,15 +127,31 @@ export default function NotificationsPage() {
     setSelectedId(notification.id)
 
     if (!notification.is_read) {
-      setNotifications((prev) =>
-        prev.map((item) =>
-          item.id === notification.id ? { ...item, is_read: true } : item
-        )
-      )
-
       try {
         await markNotificationAsRead(notification.id)
-      } catch {}
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.id === notification.id ? { ...item, is_read: true } : item
+          )
+        )
+      } catch (err) {
+        setError(err?.response?.data?.message || err?.message || 'Failed to mark notification as read.')
+      }
+    }
+  }
+
+  const handleReadAll = async () => {
+    if (unreadCount === 0) return
+
+    try {
+      await markAllNotificationsAsRead()
+      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+      if (selected) {
+        setSelected((prev) => (prev ? { ...prev, is_read: true } : prev))
+      }
+      await loadNotifications(page, perPage)
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to mark all notifications as read.')
     }
   }
 
@@ -157,6 +178,14 @@ export default function NotificationsPage() {
               {unreadCount} unread on this page
             </span>
           </div>
+          <button
+            onClick={handleReadAll}
+            disabled={unreadCount === 0}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <CheckCheck className="w-4 h-4" />
+            Read All
+          </button>
           <button
             onClick={() => loadNotifications(page, perPage)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"

@@ -23,44 +23,37 @@ const ICONS = {
 const STATUS_CFG = {
   paid: {
     label: 'PAID',
-    badge:
-      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     Icon: CheckCircle2,
   },
   unpaid: {
     label: 'UNPAID',
-    badge:
-      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     Icon: XCircle,
   },
   pending: {
     label: 'PENDING',
-    badge:
-      'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     Icon: Clock,
   },
   published: {
     label: 'PUBLISHED',
-    badge:
-      'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     Icon: Clock,
   },
   payment_submitted: {
     label: 'PENDING REVIEW',
-    badge:
-      'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     Icon: Clock,
   },
   overdue: {
     label: 'OVERDUE',
-    badge:
-      'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
     Icon: XCircle,
   },
   draft: {
     label: 'DRAFT',
-    badge:
-      'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
     Icon: Clock,
   },
 }
@@ -73,7 +66,7 @@ function peso(value) {
 }
 
 function formatLongDate(value) {
-  if (!value) return '—'
+  if (!value) return '-'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -86,7 +79,7 @@ function formatLongDate(value) {
 }
 
 function formatShortPeriodDate(value) {
-  if (!value) return '—'
+  if (!value) return '-'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -115,11 +108,7 @@ function getUtilityLabel(type) {
 }
 
 function inferChargesFromBreakdown(breakdown = {}) {
-  const electric = Number(
-    breakdown.electric ??
-      breakdown.electricity ??
-      0
-  )
+  const electric = Number(breakdown.electric ?? breakdown.electricity ?? 0)
   const water = Number(breakdown.water || 0)
   const thermal = Number(breakdown.thermal || 0)
 
@@ -127,28 +116,28 @@ function inferChargesFromBreakdown(breakdown = {}) {
     {
       id: 'electric',
       particular: 'Electricity',
-      prev: '—',
-      curr: '—',
-      used: electric > 0 ? `${(electric / 10.99).toFixed(1)} kWh` : '—',
-      rate: electric > 0 ? '₱10.99/kWh' : '—',
+      prev: '-',
+      curr: '-',
+      used: electric > 0 ? `${(electric / 10.99).toFixed(1)} kWh` : '-',
+      rate: electric > 0 ? 'PHP 10.99/kWh' : '-',
       amount: electric,
     },
     {
       id: 'water',
       particular: 'Water',
-      prev: '—',
-      curr: '—',
-      used: water > 0 ? `${(water / 30).toFixed(1)} m³` : '—',
-      rate: water > 0 ? '₱30.00/m³' : '—',
+      prev: '-',
+      curr: '-',
+      used: water > 0 ? `${(water / 30).toFixed(1)} m3` : '-',
+      rate: water > 0 ? 'PHP 30.00/m3' : '-',
       amount: water,
     },
     {
       id: 'thermal',
       particular: 'Thermal Energy',
-      prev: '—',
-      curr: '—',
-      used: thermal > 0 ? `${(thermal / 11).toFixed(1)} kBTU/h` : '—',
-      rate: thermal > 0 ? '₱11.00/kBTU' : '—',
+      prev: '-',
+      curr: '-',
+      used: thermal > 0 ? `${(thermal / 11).toFixed(1)} kBTU/h` : '-',
+      rate: thermal > 0 ? 'PHP 11.00/kBTU' : '-',
       amount: thermal,
     },
   ].filter((row) => Number(row.amount) > 0)
@@ -170,21 +159,16 @@ function buildChargesFromItems(items = []) {
       item?.prev_reading ??
       item?.start_reading ??
       item?.previous ??
-      '—'
+      '-'
 
     const currentReading =
       item?.current_reading ??
       item?.curr_reading ??
       item?.end_reading ??
       item?.current ??
-      '—'
+      '-'
 
-    const consumption = Number(
-      item?.consumption ??
-        item?.usage ??
-        item?.quantity ??
-        0
-    )
+    const consumption = Number(item?.consumption ?? item?.usage ?? item?.quantity ?? 0)
 
     const unit =
       item?.rate?.unit_measure ||
@@ -194,30 +178,21 @@ function buildChargesFromItems(items = []) {
 
     const pricePerUnit = Number(
       item?.rate?.price_per_unit ??
-        item?.rate_value ??
-        item?.rate_amount ??
-        item?.unit_price ??
-        0
+      item?.rate_value ??
+      item?.rate_amount ??
+      item?.unit_price ??
+      0
     )
 
-    const amount = Number(
-      item?.amount ??
-        item?.total ??
-        item?.charge_amount ??
-        0
-    )
+    const amount = Number(item?.amount ?? item?.total ?? item?.charge_amount ?? 0)
 
     return {
       id: item?.id || index,
       particular: label,
       prev: previousReading,
       curr: currentReading,
-      used: unit
-        ? `${consumption.toLocaleString()} ${unit}`
-        : `${consumption.toLocaleString()}`,
-      rate: pricePerUnit
-        ? `₱${pricePerUnit.toFixed(2)}/${unit || 'unit'}`
-        : '—',
+      used: unit ? `${consumption.toLocaleString()} ${unit}` : `${consumption.toLocaleString()}`,
+      rate: pricePerUnit ? `PHP ${pricePerUnit.toFixed(2)}/${unit || 'unit'}` : '-',
       amount,
     }
   })
@@ -234,7 +209,7 @@ function normalizeBill(bill) {
   const unitName =
     typeof bill.unit === 'string'
       ? bill.unit
-      : bill.unit?.unit_number || bill.unit?.name || bill.unit_name || '—'
+      : bill.unit?.unit_number || bill.unit?.name || bill.unit_name || '-'
 
   const items = Array.isArray(bill.items) ? bill.items : []
   const fallbackBreakdown = bill.breakdown || {}
@@ -244,70 +219,31 @@ function normalizeBill(bill) {
       ? buildChargesFromItems(items)
       : inferChargesFromBreakdown(fallbackBreakdown)
 
-  const computedSubtotal = charges.reduce(
-    (sum, row) => sum + Number(row.amount || 0),
-    0
-  )
+  const computedSubtotal = charges.reduce((sum, row) => sum + Number(row.amount || 0), 0)
 
-  const subtotal = Number(
-    bill.subtotal ??
-      bill.sub_total ??
-      computedSubtotal
-  )
-
-  const tax = Number(
-    bill.tax ??
-      bill.vat ??
-      bill.tax_amount ??
-      0
-  )
-
-  const previousBalance = Number(
-    bill.previous_balance ??
-      bill.balance_forward ??
-      0
-  )
-
-  const paymentsReceived = Number(
-    bill.payments_received ??
-      bill.amount_paid ??
-      0
-  )
-
+  const subtotal = Number(bill.subtotal ?? bill.sub_total ?? computedSubtotal)
+  const tax = Number(bill.tax ?? bill.vat ?? bill.tax_amount ?? 0)
+  const previousBalance = Number(bill.previous_balance ?? bill.balance_forward ?? 0)
+  const paymentsReceived = Number(bill.payments_received ?? bill.amount_paid ?? 0)
+  const currentCharges = subtotal + tax
   const grandTotal = Number(
     bill.grand_total ??
-      bill.total_amount ??
-      bill.amount ??
-      (subtotal + tax + previousBalance - paymentsReceived)
+    bill.total_amount ??
+    bill.amount ??
+    (currentCharges + previousBalance - paymentsReceived)
   )
 
-  const billDateRaw =
-    bill.billDate ||
-    bill.created_at ||
-    bill.billing_start ||
-    null
-
-  const dueDateRaw =
-    bill.dueDate ||
-    bill.due_date ||
-    null
-
-  const billingStart =
-    bill.billing_start ||
-    bill.period_start ||
-    null
-
-  const billingEnd =
-    bill.billing_end ||
-    bill.period_end ||
-    null
+  const billDateRaw = bill.billDate || bill.created_at || bill.billing_start || null
+  const dueDateRaw = bill.dueDate || bill.due_date || null
+  const billingStart = bill.billing_start || bill.period_start || null
+  const billingEnd = bill.billing_end || bill.period_end || null
 
   const billingPeriod =
     billingStart && billingEnd
       ? `${formatShortPeriodDate(billingStart)} - ${formatShortPeriodDate(billingEnd)}`
       : billingEnd
         ? formatShortPeriodDate(billingEnd)
-        : '—'
+        : '-'
 
   return {
     invoiceNo: bill.id,
@@ -320,6 +256,7 @@ function normalizeBill(bill) {
     charges,
     subtotal,
     tax,
+    currentCharges,
     previousBalance,
     paymentsReceived,
     grandTotal,
@@ -396,31 +333,28 @@ function BillContent({ bill }) {
         <tbody>
           ${
             d.charges.length === 0
-              ? `<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">No utility charges available.</td></tr>`
-              : d.charges
-                  .map(
-                    (c) => `
+              ? '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">No utility charges available.</td></tr>'
+              : d.charges.map((c) => `
             <tr>
               <td><strong>${c.particular}</strong></td>
               <td>${c.prev}</td>
               <td>${c.curr}</td>
               <td>${c.used}</td>
               <td>${c.rate}</td>
-              <td class="ar">₱${peso(c.amount)}</td>
+              <td class="ar">PHP ${peso(c.amount)}</td>
             </tr>
-          `
-                  )
-                  .join('')
+          `).join('')
           }
         </tbody>
       </table>
 
       <div class="sum">
         <p class="lbl">Summary</p>
-        <div class="sr"><span>Subtotal</span><span>₱${peso(d.subtotal)}</span></div>
-        <div class="sr"><span>VAT (12%)</span><span>₱${peso(d.tax)}</span></div>
-        <div class="sr"><span>Previous Balance</span><span>₱${peso(d.previousBalance)}</span></div>
-        <div class="sr"><span>Payments Received</span><span>₱${peso(d.paymentsReceived)}</span></div>
+        <div class="sr"><span>Subtotal</span><span>PHP ${peso(d.subtotal)}</span></div>
+        <div class="sr"><span>VAT (12%)</span><span>PHP ${peso(d.tax)}</span></div>
+        <div class="sr"><span><strong>Current Charges</strong></span><span><strong>PHP ${peso(d.currentCharges)}</strong></span></div>
+        <div class="sr"><span>Previous Balance</span><span>PHP ${peso(d.previousBalance)}</span></div>
+        <div class="sr"><span>Payments Received</span><span>PHP ${peso(d.paymentsReceived)}</span></div>
       </div>
 
       <div class="tot">
@@ -428,12 +362,12 @@ function BillContent({ bill }) {
           <p style="font-size:10px;opacity:.75;text-transform:uppercase;letter-spacing:.1em">Total Amount Due</p>
           <p style="font-size:11px;opacity:.7;margin-top:3px">Due by ${d.dueDate}</p>
         </div>
-        <span style="font-size:22px;font-weight:800">₱${peso(d.grandTotal)}</span>
+        <span style="font-size:22px;font-weight:800">PHP ${peso(d.grandTotal)}</span>
       </div>
 
       <div class="foot">
         <p>Pay at any authorized payment center or via bank transfer to Enyecontrols Management (BDO #1234-5678-90).</p>
-        <p><strong>billing@enye.ph</strong> · +63 2 8888 0000</p>
+        <p><strong>billing@enye.ph</strong> - +63 2 8888 0000</p>
       </div>
     </body></html>`)
     w.document.close()
@@ -446,40 +380,71 @@ function BillContent({ bill }) {
   }
 
   const handleDownloadCSV = () => {
-    const rows = [
-      ['Enyecontrols — Statement of Account'],
-      [],
-      ['Invoice No.', d.invoiceNo],
-      ['Tenant', d.tenantName],
-      ['Unit', d.unit],
-      ['Bill Date', d.billDate],
-      ['Due Date', d.dueDate],
-      ['Period', d.billingPeriod],
-      ['Status', d.status.toUpperCase()],
-      [],
-      ['UTILITY CHARGES'],
-      ['Description', 'Prev', 'Curr', 'Consumption', 'Rate', 'Amount'],
-      ...d.charges.map((c) => [
-        c.particular,
-        c.prev,
-        c.curr,
-        c.used,
-        c.rate,
-        `₱${peso(c.amount)}`,
-      ]),
-      [],
-      ['Subtotal', '', '', '', '', `₱${peso(d.subtotal)}`],
-      ['VAT 12%', '', '', '', '', `₱${peso(d.tax)}`],
-      ['Previous Balance', '', '', '', '', `₱${peso(d.previousBalance)}`],
-      ['Payments Received', '', '', '', '', `₱${peso(d.paymentsReceived)}`],
-      ['TOTAL AMOUNT DUE', '', '', '', '', `₱${peso(d.grandTotal)}`],
+    const headers = [
+      'Section',
+      'Invoice No.',
+      'Tenant',
+      'Unit',
+      'Bill Date',
+      'Due Date',
+      'Period',
+      'Status',
+      'Description',
+      'Previous Reading',
+      'Current Reading',
+      'Consumption',
+      'Rate',
+      'Amount',
     ]
 
-    const csv = rows
-      .map((r) =>
-        r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
-      )
-      .join('\n')
+    const detailRows = d.charges.length > 0
+      ? d.charges.map((c) => ([
+          'Utility Charge',
+          d.invoiceNo,
+          d.tenantName,
+          d.unit,
+          d.billDate,
+          d.dueDate,
+          d.billingPeriod,
+          d.status.toUpperCase(),
+          c.particular,
+          c.prev,
+          c.curr,
+          c.used,
+          c.rate,
+          `PHP ${peso(c.amount)}`,
+        ]))
+      : [[
+          'Utility Charge',
+          d.invoiceNo,
+          d.tenantName,
+          d.unit,
+          d.billDate,
+          d.dueDate,
+          d.billingPeriod,
+          d.status.toUpperCase(),
+          'No utility charges available.',
+          '',
+          '',
+          '',
+          '',
+          'PHP 0.00',
+        ]]
+
+    const summaryRows = [
+      ['Summary', d.invoiceNo, d.tenantName, d.unit, d.billDate, d.dueDate, d.billingPeriod, d.status.toUpperCase(), 'Subtotal', '', '', '', '', `PHP ${peso(d.subtotal)}`],
+      ['Summary', d.invoiceNo, d.tenantName, d.unit, d.billDate, d.dueDate, d.billingPeriod, d.status.toUpperCase(), 'VAT (12%)', '', '', '', '', `PHP ${peso(d.tax)}`],
+      ['Summary', d.invoiceNo, d.tenantName, d.unit, d.billDate, d.dueDate, d.billingPeriod, d.status.toUpperCase(), 'Current Charges', '', '', '', '', `PHP ${peso(d.currentCharges)}`],
+      ['Summary', d.invoiceNo, d.tenantName, d.unit, d.billDate, d.dueDate, d.billingPeriod, d.status.toUpperCase(), 'Previous Balance', '', '', '', '', `PHP ${peso(d.previousBalance)}`],
+      ['Summary', d.invoiceNo, d.tenantName, d.unit, d.billDate, d.dueDate, d.billingPeriod, d.status.toUpperCase(), 'Payments Received', '', '', '', '', `PHP ${peso(d.paymentsReceived)}`],
+      ['Summary', d.invoiceNo, d.tenantName, d.unit, d.billDate, d.dueDate, d.billingPeriod, d.status.toUpperCase(), 'Total Amount Due', '', '', '', '', `PHP ${peso(d.grandTotal)}`],
+    ]
+
+    const rows = [headers, ...detailRows, ...summaryRows]
+
+    const csv = `﻿${rows
+      .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\r\n')}`
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -658,6 +623,7 @@ function BillContent({ bill }) {
 
     row('Subtotal', `PHP ${peso(d.subtotal)}`)
     row('VAT (12%)', `PHP ${peso(d.tax)}`)
+    row('Current Charges', `PHP ${peso(d.currentCharges)}`, true)
     row('Previous Balance', `PHP ${peso(d.previousBalance)}`)
     row('Payments Received', `PHP ${peso(d.paymentsReceived)}`)
     y += 10
@@ -704,16 +670,12 @@ function BillContent({ bill }) {
             <Building2 className="w-5 h-5 text-white/80 flex-shrink-0" />
             <div>
               <p className="font-semibold text-white text-sm">Enyecontrols</p>
-              <p className="text-xs text-white/70">
-                Official Statement of Account
-              </p>
+              <p className="text-xs text-white/70">Official Statement of Account</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${st.badge}`}
-            >
+            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${st.badge}`}>
               <st.Icon className="w-3 h-3" />
               {st.label}
             </span>
@@ -811,10 +773,7 @@ function BillContent({ bill }) {
               <tbody>
                 {d.charges.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="px-3 py-6 text-center text-slate-400 text-xs"
-                    >
+                    <td colSpan={6} className="px-3 py-6 text-center text-slate-400 text-xs">
                       No utility charges available.
                     </td>
                   </tr>
@@ -828,28 +787,18 @@ function BillContent({ bill }) {
                       >
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2">
-                            {CIcon && (
-                              <CIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            )}
+                            {CIcon && <CIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
                             <span className="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               {c.particular}
                             </span>
                           </div>
                         </td>
-                        <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">
-                          {c.prev}
-                        </td>
-                        <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">
-                          {c.curr}
-                        </td>
-                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {c.used}
-                        </td>
-                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          {c.rate}
-                        </td>
+                        <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">{c.prev}</td>
+                        <td className="px-3 py-3 font-mono text-slate-500 dark:text-slate-400">{c.curr}</td>
+                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{c.used}</td>
+                        <td className="px-3 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{c.rate}</td>
                         <td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
-                          ₱{peso(c.amount)}
+                          PHP {peso(c.amount)}
                         </td>
                       </tr>
                     )
@@ -864,18 +813,24 @@ function BillContent({ bill }) {
           <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">
             Summary
           </p>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
-              ['Subtotal', d.subtotal],
-              ['VAT (12%)', d.tax],
-              ['Previous Balance', d.previousBalance],
-              ['Payments Received', d.paymentsReceived],
-            ].map(([l, v]) => (
-              <div key={l} className="flex justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400">{l}</span>
-                <span className="font-mono text-slate-700 dark:text-slate-300">
-                  ₱{peso(v)}
-                </span>
+              ['Subtotal', d.subtotal, 'text-slate-700 dark:text-slate-300'],
+              ['VAT (12%)', d.tax, 'text-slate-700 dark:text-slate-300'],
+              ['Current Charges', d.currentCharges, 'text-blue-700 dark:text-blue-300'],
+              ['Previous Balance', d.previousBalance, 'text-amber-700 dark:text-amber-300'],
+              ['Payments Received', d.paymentsReceived, 'text-emerald-700 dark:text-emerald-300'],
+            ].map(([l, v, valueClass]) => (
+              <div
+                key={l}
+                className="rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/80 dark:bg-slate-900/40 px-3 py-3"
+              >
+                <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
+                  {l}
+                </p>
+                <p className={`mt-1 text-sm font-semibold ${valueClass}`}>
+                  PHP {peso(v)}
+                </p>
               </div>
             ))}
           </div>
@@ -889,7 +844,7 @@ function BillContent({ bill }) {
             <p className="text-xs text-white/70 mt-0.5">Due by {d.dueDate}</p>
           </div>
           <p className="text-white font-bold text-xl sm:text-2xl whitespace-nowrap">
-            ₱{peso(d.grandTotal)}
+            PHP {peso(d.grandTotal)}
           </p>
         </div>
 
@@ -900,8 +855,7 @@ function BillContent({ bill }) {
           <p>
             Pay at any authorized payment center or via bank transfer to
             Enyecontrols Management (BDO #1234-5678-90). Inquiries:{' '}
-            <span className="text-slate-500">billing@enye.ph</span> · +63 2 8888
-            0000
+            <span className="text-slate-500">billing@enye.ph</span> - +63 2 8888 0000
           </p>
         </div>
       </div>

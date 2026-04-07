@@ -47,6 +47,13 @@ function resolvePlayableAudioUrl(audioUrl = '') {
   }
 }
 
+async function tryPlayAudio(audioElement, src) {
+  audioElement.pause()
+  audioElement.currentTime = 0
+  audioElement.src = `${src}${src.includes('?') ? '&' : '?'}t=${Date.now()}`
+  await audioElement.play()
+}
+
 function pickPreferredFemaleVoice(voices = []) {
   if (!Array.isArray(voices) || voices.length === 0) return null
 
@@ -412,19 +419,30 @@ export default function AIAssistant() {
       }
 
       window.speechSynthesis.cancel()
-      audio.pause()
-      audio.currentTime = 0
       const safeAudioUrl = resolvePlayableAudioUrl(audioUrl)
-      audio.src = `${safeAudioUrl}${safeAudioUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
+      const directAudioUrl = (() => {
+        try {
+          return new URL(audioUrl, window.location.origin).toString()
+        } catch {
+          return audioUrl
+        }
+      })()
       audio.onplay = () => setIsAISpeaking(true)
       audio.onended = () => setIsAISpeaking(false)
-      audio.onerror = () => {
-        setIsAISpeaking(false)
-        if (fallbackText) {
-          speakWithBrowser(fallbackText)
+      audio.onerror = null
+
+      try {
+        await tryPlayAudio(audio, safeAudioUrl)
+      } catch {
+        try {
+          await tryPlayAudio(audio, directAudioUrl)
+        } catch {
+          setIsAISpeaking(false)
+          if (fallbackText) {
+            speakWithBrowser(fallbackText)
+          }
         }
       }
-      await audio.play()
     } catch {
       setIsAISpeaking(false)
       if (fallbackText) {

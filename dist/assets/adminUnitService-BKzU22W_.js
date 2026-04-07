@@ -1,0 +1,1 @@
+import{b as a}from"./index-CztXakyN.js";async function e(){return(await a.get("/api/admin/units")).data}async function r(t){return(await a.post("/api/admin/units",t)).data}async function d(t,n){return(await a.put(`/api/admin/units/${t}`,n)).data}async function c(t){return(await a.delete(`/api/admin/units/${t}`)).data}export{r as c,c as d,e as f,d as u};

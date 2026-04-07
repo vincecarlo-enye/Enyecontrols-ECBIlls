@@ -11,16 +11,16 @@ export async function fetchAdminAnnouncement(id) {
 }
 
 export async function createAdminAnnouncement(payload) {
-  const res = await api.post('/api/announcements', payload)
+  const res = await api.post('/api/admin/announcements', payload)
   return res.data
 }
 
 export async function updateAdminAnnouncement(id, payload) {
-  const res = await api.put(`/api/announcements/${id}`, payload)
+  const res = await api.put(`/api/admin/announcements/${id}`, payload)
   return res.data
 }
 
 export async function deleteAdminAnnouncement(id) {
-  const res = await api.delete(`/api/announcements/${id}`)
+  const res = await api.delete(`/api/admin/announcements/${id}`)
   return res.data
 }

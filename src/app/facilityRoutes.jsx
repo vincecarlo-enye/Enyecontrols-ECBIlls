@@ -18,6 +18,7 @@ const FacilityEquipment   = lazy(() => import('@/pages/facility/Equipment'))
 const FacilityReports     = lazy(() => import('@/pages/facility/Reports'))
 const FacilityAnomalies   = lazy(() => import('@/pages/facility/Anomalies'))
 const NotificationsPage   = lazy(() => import('@/pages/common/Notifications'))
+const ActivityLogsPage    = lazy(() => import('@/pages/common/ActivityLogs'))
 
 export function facilityRoutes() {
   return (
@@ -36,6 +37,7 @@ export function facilityRoutes() {
       <Route path="equipment"   element={<FacilityEquipment />} />
       <Route path="reports"     element={<FacilityReports />} />
       <Route path="anomalies"   element={<FacilityAnomalies />} />
+      <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
     </Route>
   )

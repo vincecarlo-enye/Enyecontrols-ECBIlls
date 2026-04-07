@@ -127,7 +127,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md glass rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/50 overflow-hidden animate-in">
+      <div className="w-full max-w-md max-h-[90vh] flex flex-col glass rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/50 overflow-hidden animate-in">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/60 dark:border-slate-700/50">
           <h2 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">
             {initial ? 'Edit Meter' : 'Add New Meter'}
@@ -137,7 +137,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Meter Type</label>
             <div className="grid grid-cols-4 gap-2">
@@ -275,7 +275,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-6 pb-5">
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200/60 dark:border-slate-700/50 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 supports-[backdrop-filter]:dark:bg-slate-900/80">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors">
             Cancel
           </button>

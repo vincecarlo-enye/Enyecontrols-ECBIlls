@@ -7,8 +7,12 @@ import {
 
 const fallbackRates = {
   electricity: { id: null, rate: 0, unit: '/kWh', completeness: 0, raw: null },
-  water: { id: null, rate: 0, unit: '/m³', completeness: 0, raw: null },
+  water: { id: null, rate: 0, unit: '/m3', completeness: 0, raw: null },
   thermal: { id: null, rate: 0, unit: '/kBTU/h', completeness: 0, raw: null },
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 function normalizeType(type) {
@@ -35,6 +39,18 @@ function mapRatesToCardShape(rows = []) {
   })
 
   return mapped
+}
+
+function rateWindowCoversDate(rawRate, date = todayIsoDate()) {
+  if (!rawRate) return false
+
+  const from = rawRate.effective_from ? String(rawRate.effective_from).slice(0, 10) : null
+  const to = rawRate.effective_to ? String(rawRate.effective_to).slice(0, 10) : null
+
+  if (from && from > date) return false
+  if (to && to < date) return false
+
+  return true
 }
 
 export function useAdminRates() {
@@ -70,11 +86,12 @@ export function useAdminRates() {
     const nextRate = Number(nextData?.rate || 0)
     const nextUnit = String(nextData?.unit || '').replace(/^\//, '')
     const rawType = type === 'electricity' ? 'electric' : type
+    const effectiveFrom = todayIsoDate()
 
     try {
       setSaving(true)
 
-      if (target?.id) {
+      if (target?.id && rateWindowCoversDate(target.raw, effectiveFrom)) {
         const raw = target.raw
 
         await updateAdminRate(target.id, {
@@ -93,7 +110,7 @@ export function useAdminRates() {
           type: rawType,
           price_per_unit: nextRate,
           unit_measure: nextUnit || fallbackRates[type].unit.replace(/^\//, ''),
-          effective_from: new Date().toISOString().slice(0, 10),
+          effective_from: effectiveFrom,
           effective_to: null,
           is_active: true,
           description: `${type} billing rate`,
@@ -123,21 +140,39 @@ export function useAdminRates() {
       for (const type of ['electricity', 'water', 'thermal']) {
         const target = rates[type]
         const next = nextRates[type]
+        const effectiveFrom = todayIsoDate()
 
-        if (!target?.id || !next) continue
+        if (!next) continue
 
-        const raw = target.raw
+        if (target?.id && rateWindowCoversDate(target.raw, effectiveFrom)) {
+          const raw = target.raw
 
-        await updateAdminRate(target.id, {
-          name: raw.name,
-          type: raw.type,
-          price_per_unit: Number(next.rate || 0),
-          unit_measure: String(next.unit || raw.unit_measure || '').replace(/^\//, '') || raw.unit_measure,
-          effective_from: raw.effective_from,
-          effective_to: raw.effective_to,
-          is_active: raw.is_active,
-          description: raw.description,
-        })
+          await updateAdminRate(target.id, {
+            name: raw.name,
+            type: raw.type,
+            price_per_unit: Number(next.rate || 0),
+            unit_measure: String(next.unit || raw.unit_measure || '').replace(/^\//, '') || raw.unit_measure,
+            effective_from: raw.effective_from,
+            effective_to: raw.effective_to,
+            is_active: raw.is_active,
+            description: raw.description,
+          })
+        } else {
+          const rawType = type === 'electricity' ? 'electric' : type
+
+          await createAdminRate({
+            name: `${type.charAt(0).toUpperCase()}${type.slice(1)} Rate`,
+            type: rawType,
+            price_per_unit: Number(next.rate || 0),
+            unit_measure:
+              String(next.unit || fallbackRates[type].unit).replace(/^\//, '') ||
+              fallbackRates[type].unit.replace(/^\//, ''),
+            effective_from: effectiveFrom,
+            effective_to: null,
+            is_active: true,
+            description: `${type} billing rate`,
+          })
+        }
       }
 
       await loadRates()
