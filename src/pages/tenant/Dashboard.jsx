@@ -17,13 +17,14 @@ import BillViewerModal from '@/components/billing/BillViewerModal'
 import ReceiptUploadModal from '@/components/billing/ReceiptUploadModal'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import UnitFilterBar from '@/components/common/UnitFilterBar'
+import UtilityCard from '@/components/common/UtilityCard'
 import TenantUtilityRates from '@/pages/tenant/UtilityRates'
-import DashboardCard from '@/components/ui/DashboardCard'
+import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import { useBills } from '@/components/billing/hooks/useBills'
 
 function formatPeso(value) {
   const amount = Number(value || 0)
-  return `₱${amount.toLocaleString()}`
+  return `PHP ${amount.toLocaleString()}`
 }
 
 function formatReadableDate(value) {
@@ -74,7 +75,7 @@ function getBillingPeriod(bill) {
     return formatReadableDate(raw.billing_end)
   }
 
-  return bill?.billingPeriod || bill?.dueDate || '—'
+  return bill?.billingPeriod || bill?.dueDate || 'No billing period yet'
 }
 
 function getBillForViewer(bill) {
@@ -86,7 +87,7 @@ function getBillForViewer(bill) {
     unit:
       bill?.raw?.unit ||
       bill?.unit ||
-      '—',
+      'No unit assigned',
     amount: Number(bill?.amount || 0),
     due_date: bill?.raw?.due_date || bill?.dueDate,
     dueDate: bill?.dueDate,
@@ -111,14 +112,15 @@ export default function TenantDashboard() {
   const [modalOpen, setModalOpen] = useState(false)
   const [payBill, setPayBill] = useState(null)
   const [payModalOpen, setPayModalOpen] = useState(false)
+
   const tenantUnits = useMemo(() => {
     return Array.from(
       new Set(
         (Array.isArray(user?.tenants) ? user.tenants : [user?.tenant])
           .filter(Boolean)
           .map((tenant) => tenant?.unit?.unit_number || tenant?.unit?.name || '')
-          .filter(Boolean)
-      )
+          .filter(Boolean),
+      ),
     )
   }, [user])
 
@@ -166,7 +168,7 @@ export default function TenantDashboard() {
       return acc
     }, {
       electric: { consumption: 0, unit: 'kWh' },
-      water: { consumption: 0, unit: 'm³' },
+      water: { consumption: 0, unit: 'm3' },
       thermal: { consumption: 0, unit: 'kBTU' },
     })
   }, [currentBill, latestBillsByUnit, selectedUnit])
@@ -215,7 +217,7 @@ export default function TenantDashboard() {
     }
   }, [unitBills])
 
-  if (pageLoading || billsLoading) {
+  if ((pageLoading && bills.length === 0) || (billsLoading && bills.length === 0)) {
     return <TenantDashboardSkeleton />
   }
 
@@ -234,8 +236,8 @@ export default function TenantDashboard() {
   const stats = [
     {
       label: 'Current Bill',
-      value: currentBillValue > 0 ? formatPeso(currentBillValue) : '—',
-      sub: currentDueLabel ? `Due ${currentDueLabel}` : '',
+      value: currentBillValue > 0 ? formatPeso(currentBillValue) : 'No current bill',
+      sub: currentDueLabel ? `Due ${currentDueLabel}` : 'No published bill yet',
       icon: Receipt,
       grad: 'from-blue-500 to-blue-600',
       glow: 'shadow-blue-500/20',
@@ -250,7 +252,7 @@ export default function TenantDashboard() {
     },
     {
       label: 'Water',
-      value: `${Number(water.consumption || 0).toLocaleString()} ${water.unit || 'm³'}`,
+      value: `${Number(water.consumption || 0).toLocaleString()} ${water.unit || 'm3'}`,
       sub: 'This billing period',
       icon: Droplets,
       grad: 'from-cyan-500 to-cyan-600',
@@ -258,7 +260,7 @@ export default function TenantDashboard() {
     },
     {
       label: 'Thermal',
-      value: `${Number(thermal.consumption || 0).toLocaleString()} ${thermal.unit || 'BTU'}`,
+      value: `${Number(thermal.consumption || 0).toLocaleString()} ${thermal.unit || 'kBTU'}`,
       sub: 'This billing period',
       icon: Flame,
       grad: 'from-rose-500 to-rose-600',
@@ -266,13 +268,34 @@ export default function TenantDashboard() {
     },
     {
       label: 'Due Date',
-      value: currentBill?.dueDate || '—',
+      value: currentBill?.dueDate || 'No due date yet',
       sub: currentBill?.status === 'published' ? 'Payment due' : 'Latest bill status',
       icon: CalendarClock,
       grad: 'from-indigo-500 to-indigo-600',
       glow: 'shadow-indigo-500/20',
     },
   ]
+
+  const utilityMeters = {
+    electric: {
+      usage: Number(electric.consumption || 0),
+      unit: electric.unit || 'kWh',
+      estimatedCost: Number(currentBill?.breakdown?.electricity ?? 0),
+      trend: prediction.nextElectric > Number(electric.consumption || 0) ? 4.1 : -2.4,
+    },
+    water: {
+      usage: Number(water.consumption || 0),
+      unit: water.unit || 'm3',
+      estimatedCost: Number(currentBill?.breakdown?.water ?? 0),
+      trend: prediction.nextWater > Number(water.consumption || 0) ? 2.8 : -1.9,
+    },
+    thermal: {
+      usage: Number(thermal.consumption || 0),
+      unit: thermal.unit || 'BTU',
+      estimatedCost: Number(currentBill?.breakdown?.thermal ?? 0),
+      trend: prediction.nextThermal > Number(thermal.consumption || 0) ? 3.5 : -1.4,
+    },
+  }
 
   const openBill = (bill) => {
     setViewBill(getBillForViewer(bill))
@@ -301,7 +324,7 @@ export default function TenantDashboard() {
         err?.response?.data?.message ||
           err?.message ||
           'Failed to submit payment receipt.',
-        'error'
+        'error',
       )
     }
   }
@@ -313,27 +336,32 @@ export default function TenantDashboard() {
           Welcome back, {user?.name?.split(' ')[0] || 'Tenant'}
         </h1>
         <p className="muted-text mt-0.5">
-          {user?.tenant?.unit?.building_name || user?.company || 'Your account'} · Here's your billing summary · {unitLabel}
+          {user?.tenant?.unit?.building_name || user?.company || 'Your account'} · Here&apos;s your billing summary · {unitLabel}
         </p>
       </div>
 
       <UnitFilterBar />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {stats.map((item, index) => (
-          <DashboardCard
-            key={item.label}
-            icon={item.icon}
-            title={item.label}
-            value={item.value}
-            sub={item.sub}
-            gradient={item.grad}
-            glow={item.glow}
-            className={`stagger-${index + 1} animate-in`}
-          />
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <UtilityCard type="electric" {...utilityMeters.electric} />
+        <UtilityCard type="thermal" {...utilityMeters.thermal} />
+        <UtilityCard type="water" {...utilityMeters.water} />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+
+      <SummaryCardStrip
+        stretch
+        stretchGridClassName="grid-cols-1 md:grid-cols-2 xl:grid-cols-5"
+        cards={stats.map((item) => ({
+          label: item.label,
+          value: item.value,
+          sub: item.sub,
+          icon: item.icon,
+          gradient: item.grad,
+          shadow: item.glow,
+        }))}
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           {
             label: 'Predicted Next Bill',
@@ -368,7 +396,7 @@ export default function TenantDashboard() {
           return (
             <div
               key={item.label}
-              className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white dark:bg-slate-900 shadow-md p-5"
+              className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-5 shadow-md dark:border-slate-700/50 dark:bg-slate-900"
             >
               <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${item.tone}`} />
               <div className="flex items-start justify-between gap-3">
@@ -376,15 +404,15 @@ export default function TenantDashboard() {
                   <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
                     {item.label}
                   </p>
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white mt-2">
+                  <p className="mt-2 text-2xl font-bold text-slate-800 dark:text-white">
                     {item.value}
                   </p>
-                  <p className="text-xs text-slate-400 mt-2">
+                  <p className="mt-2 text-xs text-slate-400">
                     {item.sub}
                   </p>
                 </div>
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.tone} flex items-center justify-center shadow-lg`}>
-                  <Icon className="w-4 h-4 text-white" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${item.tone} shadow-lg`}>
+                  <Icon className="h-4 w-4 text-white" />
                 </div>
               </div>
             </div>
@@ -394,22 +422,22 @@ export default function TenantDashboard() {
 
       <TenantUtilityRates />
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/50 dark:bg-slate-900 lg:col-span-3">
+          <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+            <h2 className="text-[15px] font-semibold text-slate-800 dark:text-white">
               My Recent Bills
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">{unitLabel} billing history</p>
+            <p className="mt-0.5 text-xs text-slate-400">{unitLabel} billing history</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ minWidth: '480px' }}>
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
+                <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40">
                   {['Unit', 'Month', 'Period', 'Amount', 'Status', ''].map((col) => (
                     <th
                       key={col}
-                      className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 py-3 whitespace-nowrap"
+                      className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-mono uppercase tracking-wider text-slate-400"
                     >
                       {col}
                     </th>
@@ -419,7 +447,7 @@ export default function TenantDashboard() {
               <tbody>
                 {recentBills.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
                       No recent bills found.
                     </td>
                   </tr>
@@ -427,18 +455,18 @@ export default function TenantDashboard() {
                   recentBills.map((bill) => (
                     <tr
                       key={bill.id}
-                      className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 table-row-hover"
+                      className="table-row-hover border-b border-slate-100 last:border-0 dark:border-slate-700/30"
                     >
                       <td className="px-4 py-3.5 text-xs font-mono text-blue-600 dark:text-blue-400">
                         {bill.unit}
                       </td>
-                      <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-white whitespace-nowrap">
+                      <td className="whitespace-nowrap px-4 py-3.5 font-medium text-slate-800 dark:text-white">
                         {bill.month}
                       </td>
-                      <td className="px-4 py-3.5 font-mono text-xs text-slate-500 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-slate-500">
                         {getBillingPeriod(bill)}
                       </td>
-                      <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">
+                      <td className="whitespace-nowrap px-4 py-3.5 font-semibold text-slate-800 dark:text-white">
                         {formatPeso(bill.amount)}
                       </td>
                       <td className="px-4 py-3.5">
@@ -448,18 +476,18 @@ export default function TenantDashboard() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => openBill(bill)}
-                            className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            className="rounded-lg p-1.5 text-blue-500 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
                             title="View Bill"
                           >
-                            <Receipt className="w-4 h-4" />
+                            <Receipt className="h-4 w-4" />
                           </button>
                           {bill.status === 'published' && (
                             <button
                               onClick={() => openPayModal(bill)}
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-semibold hover:opacity-90 transition-all"
+                              className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2 py-1 text-xs font-semibold text-white transition-all hover:opacity-90"
                               title="Upload Receipt"
                             >
-                              <Upload className="w-3 h-3" /> Pay
+                              <Upload className="h-3 w-3" /> Pay
                             </button>
                           )}
                         </div>

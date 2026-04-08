@@ -4,7 +4,7 @@
 import { Route } from 'react-router-dom'
 import { lazy } from 'react'
 import { RequireAdmin, RequireSuperAdmin } from './guards'
-import MainLayout from '@/layouts/MainLayout'
+import AppShellLayout from '@/layouts/AppShellLayout'
 import { useAuth } from '@/context/AuthContext'
 
 const AdminDashboard = lazy(() => import('@/pages/admin/Dashboard'))
@@ -18,6 +18,7 @@ const AdminTenantReports = lazy(() => import('@/pages/admin/TenantReports'))
 const AdminAnomalies = lazy(() => import('@/pages/admin/Anomalies'))
 const NewBill = lazy(() => import('@/pages/admin/NewBill'))
 const NotificationsPage = lazy(() => import('@/pages/common/Notifications'))
+const ActivityLogsPage = lazy(() => import('@/pages/common/ActivityLogs'))
 const MeterManagement = lazy(() => import('@/pages/superadmin/MeterManagement'))
 const UserManagement = lazy(() => import('@/pages/superadmin/UserManagement'))
 const BillingRates = lazy(() => import('@/pages/superadmin/BillingRates'))
@@ -31,7 +32,7 @@ function RoleDashboard() {
 
 export function adminRoutes() {
   return (
-    <Route path="/admin" element={<RequireAdmin><MainLayout /></RequireAdmin>}>
+    <Route path="/admin" element={<RequireAdmin><AppShellLayout /></RequireAdmin>}>
       <Route index element={<RoleDashboard />} />
       <Route path="billing" element={<AdminBilling />} />
       <Route path="tenants" element={<AdminTenants />} />
@@ -40,6 +41,7 @@ export function adminRoutes() {
       <Route path="settings" element={<AdminSettings />} />
       <Route path="tenant-reports" element={<AdminTenantReports />} />
       <Route path="anomalies" element={<AdminAnomalies />} />
+      <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="billing/new" element={<NewBill />} />
       <Route path="meters" element={<RequireSuperAdmin><MeterManagement /></RequireSuperAdmin>} />

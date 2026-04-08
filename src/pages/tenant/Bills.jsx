@@ -35,7 +35,7 @@ const FILTER_OPTIONS = [
   { key: 'paid', label: 'Paid' },
 ]
 
-// ─── Export dropdown ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Export dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ExportDropdown({ bill }) {
   const [open, setOpen] = useState(false)
 
@@ -75,7 +75,7 @@ function ExportDropdown({ bill }) {
   )
 }
 
-// ─── Table ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BillsTableInner = memo(function BillsTableInner({
   displayedBills, filtered, unitLabel, filter, setFilter,
   viewer, receiptModal, concernModal,
@@ -85,7 +85,7 @@ const BillsTableInner = memo(function BillsTableInner({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-200 dark:border-slate-700">
         <div>
           <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">My Bills</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{filtered.length} records · {unitLabel}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{filtered.length} records Â· {unitLabel}</p>
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -136,10 +136,10 @@ const BillsTableInner = memo(function BillsTableInner({
                   <td className="px-4 py-3.5 text-xs font-mono font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">{bill.unit}</td>
                   <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-white whitespace-nowrap">{bill.month}</td>
                   <td className="px-4 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.dueDate}</td>
-                  <td className="px-4 py-3.5 text-amber-600 dark:text-amber-400 text-xs font-mono">₱{(bill.breakdown?.electricity ?? 0).toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-cyan-600 dark:text-cyan-400 text-xs font-mono">₱{(bill.breakdown?.water ?? 0).toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-rose-600 dark:text-rose-400 text-xs font-mono">₱{(bill.breakdown?.thermal ?? 0).toLocaleString()}</td>
-                  <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">₱{Number(bill.amount || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3.5 text-amber-600 dark:text-amber-400 text-xs font-mono">â‚±{(bill.breakdown?.electricity ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-3.5 text-cyan-600 dark:text-cyan-400 text-xs font-mono">â‚±{(bill.breakdown?.water ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-3.5 text-rose-600 dark:text-rose-400 text-xs font-mono">â‚±{(bill.breakdown?.thermal ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">â‚±{Number(bill.amount || 0).toLocaleString()}</td>
                   <td className="px-4 py-3.5">
                     <BillStatusBadge status={bill.status} />
                   </td>
@@ -196,7 +196,7 @@ const BillsTableInner = memo(function BillsTableInner({
   )
 })
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function TenantBills() {
   const pageLoading = usePageLoader(700)
   const {
@@ -215,7 +215,7 @@ export default function TenantBills() {
   const { user } = useAuth()
   const { addToast } = useApp()
 
-  if (pageLoading || billsLoading) return <TenantBillsSkeleton />
+  if ((pageLoading && bills.length === 0) || (billsLoading && bills.length === 0)) return <TenantBillsSkeleton />
 
   const tenantBills = bills.filter(b => TENANT_VISIBLE.includes(b.status))
   const unitFiltered = selectedUnit === 'all'
@@ -274,7 +274,7 @@ export default function TenantBills() {
     <div className="space-y-5 animate-in">
       <div>
         <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">My Bills</h1>
-        <p className="text-sm text-slate-400 mt-0.5">{unitLabel} · Billing history</p>
+        <p className="text-sm text-slate-400 mt-0.5">{unitLabel} Â· Billing history</p>
       </div>
 
       <UnitFilterBar />
@@ -289,8 +289,8 @@ export default function TenantBills() {
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Paid', value: `₱${totalPaid.toLocaleString()}`, cls: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Outstanding', value: `₱${totalUnpaid.toLocaleString()}`, cls: 'text-red-600 dark:text-red-400' },
+          { label: 'Total Paid', value: `â‚±${totalPaid.toLocaleString()}`, cls: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Outstanding', value: `â‚±${totalUnpaid.toLocaleString()}`, cls: 'text-red-600 dark:text-red-400' },
           { label: 'Pending Review', value: pendingCount, cls: 'text-amber-600 dark:text-amber-400' },
           { label: 'Total Bills', value: unitFiltered.length, cls: 'text-blue-600 dark:text-blue-400' },
         ].map(c => (

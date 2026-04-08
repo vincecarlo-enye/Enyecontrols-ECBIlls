@@ -6,7 +6,7 @@ import { Route, Navigate } from "react-router-dom"
 import { lazy } from "react"
 
 import { RequireTenant } from "./guards"
-import TenantLayout from "@/layouts/TenantLayout"
+import AppShellLayout from "@/layouts/AppShellLayout"
 
 const TenantDashboard = lazy(() => import("@/pages/tenant/Dashboard"))
 const TenantBills = lazy(() => import("@/pages/tenant/Bills"))
@@ -18,6 +18,7 @@ const TenantConsumptionReports = lazy(() =>
 const TenantMakeReport = lazy(() => import("@/pages/tenant/MakeReport"))
 const TenantBillingReports = lazy(() => import("@/pages/tenant/BillingReports"))
 const NotificationsPage = lazy(() => import("@/pages/common/Notifications"))
+const ActivityLogsPage = lazy(() => import("@/pages/common/ActivityLogs"))
 
 export function tenantRoutes() {
   return (
@@ -25,7 +26,7 @@ export function tenantRoutes() {
       path="/tenant"
       element={
         <RequireTenant>
-          <TenantLayout />
+          <AppShellLayout />
         </RequireTenant>
       }
     >
@@ -43,6 +44,7 @@ export function tenantRoutes() {
 
       <Route path="make-report" element={<TenantMakeReport />} />
       <Route path="billing-reports" element={<TenantBillingReports />} />
+      <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
     </Route>
   )

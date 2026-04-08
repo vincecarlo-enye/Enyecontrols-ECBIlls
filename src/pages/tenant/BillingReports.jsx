@@ -3,8 +3,8 @@
  * Tenant's "My Billing Reports" page shows submitted billing concerns.
  */
 
-import { useState } from 'react'
-import { AlertCircle, Plus, X } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { AlertCircle, Plus, Search, X } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
@@ -14,6 +14,8 @@ import TicketCard from '@/components/billing/concerns/TicketCard'
 import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernModal from '@/components/billing/concerns/ConcernModal'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
+import PageActionBar from '@/components/common/PageActionBar'
+import { downloadCsv, printElement } from '@/utils/reporting'
 
 const FILTERS = [
   'all',
@@ -29,6 +31,7 @@ const FILTERS = [
 
 export default function TenantBillingReports() {
   const pageLoading = usePageLoader(600)
+  const printRef = useRef(null)
   const {
     concerns,
     loading: concernsLoading,
@@ -46,8 +49,9 @@ export default function TenantBillingReports() {
   const [concernOpen, setConcernOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedConcern, setSelectedConcern] = useState(null)
+  const [search, setSearch] = useState('')
 
-  if (pageLoading || concernsLoading) {
+  if ((pageLoading && concerns.length === 0) || (concernsLoading && concerns.length === 0)) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-48" />
@@ -66,10 +70,26 @@ export default function TenantBillingReports() {
 
   const myConcerns = concerns
 
-  const filtered =
-    filter === 'all'
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    const base = filter === 'all'
       ? myConcerns
       : myConcerns.filter((concern) => concern.status === filter)
+
+    return base.filter((concern) => {
+      const haystack = [
+        concern.id,
+        concern.subject,
+        concern.category,
+        concern.status,
+        concern.message,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return !query || haystack.includes(query)
+    })
+  }, [filter, myConcerns, search])
 
   const myBills = bills.filter((bill) => {
     if (!tenantUnit) return true
@@ -134,6 +154,26 @@ export default function TenantBillingReports() {
     ).length,
   }
 
+  const handleExport = () => {
+    downloadCsv('tenant-billing-concerns.csv', filtered.map((concern) => ({
+      id: concern.id,
+      subject: concern.subject,
+      category: concern.category,
+      status: concern.status,
+      priority: concern.priority,
+      created_at: concern.created_at,
+      updated_at: concern.updated_at,
+    })))
+  }
+
+  const handlePrint = () => {
+    printElement({
+      title: 'My Billing Reports',
+      subtitle: 'Submitted billing concerns and statuses',
+      element: printRef.current,
+    })
+  }
+
   return (
     <div className="space-y-5 animate-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -153,12 +193,26 @@ export default function TenantBillingReports() {
         </button>
       </div>
 
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="relative min-w-[240px] flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search ticket, category, or status"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          />
+        </div>
+        <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Tickets" printLabel="Print Tickets" />
+      </div>
+
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
+      <div ref={printRef} className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total Tickets', value: counts.total, cls: 'text-blue-600 dark:text-blue-400' },
@@ -218,6 +272,7 @@ export default function TenantBillingReports() {
           ))}
         </div>
       )}
+      </div>
 
       {pickerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -264,7 +319,7 @@ export default function TenantBillingReports() {
                         {bill.month}
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        ₱{bill.amount?.toLocaleString()}
+                        â‚±{bill.amount?.toLocaleString()}
                       </div>
                     </button>
                   ))}

@@ -4,6 +4,8 @@ import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
 import { useFacilityMaintenance } from '@/hooks/facilityHooks/useFacilityMaintenance'
 import { useApp } from '@/context/AppContext'
+import PaginationBar from '@/components/common/PaginationBar'
+import { useClientPagination } from '@/hooks/useClientPagination'
 
 const priorityBadge = {
   critical: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
@@ -27,8 +29,9 @@ export default function Maintenance() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [formErrors, setFormErrors] = useState({})
+  const pagination = useClientPagination(tickets, 10)
 
-  const loadingState = pageLoading || loading
+  const loadingState = (pageLoading && tickets.length === 0) || (loading && tickets.length === 0 && !error)
   if (loadingState) return <FacilityPageSkeleton />
 
   const handleCreate = async () => {
@@ -162,7 +165,7 @@ export default function Maintenance() {
                 <tr>
                   <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">No maintenance tickets yet.</td>
                 </tr>
-              ) : tickets.map((t) => (
+              ) : pagination.pagedItems.map((t) => (
                 <tr key={t.ticket_id || t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-5 py-3.5 font-mono text-xs text-slate-400">{t.id}</td>
                   <td className="px-5 py-3.5 font-medium text-slate-700 dark:text-slate-200 max-w-[200px]">{t.title}</td>
@@ -187,6 +190,18 @@ export default function Maintenance() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+          <PaginationBar
+            meta={pagination.meta}
+            page={pagination.page}
+            perPage={pagination.perPage}
+            onPageChange={pagination.setPage}
+            onPerPageChange={(value) => {
+              pagination.setPerPage(value)
+              pagination.setPage(1)
+            }}
+          />
         </div>
       </div>
     </div>

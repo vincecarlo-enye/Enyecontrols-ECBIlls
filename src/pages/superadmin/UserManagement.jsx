@@ -198,7 +198,7 @@ export default function UserManagement() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [confirmSuspend, setConfirmSuspend] = useState(null)
 
-  if (loading || usersLoading) return <DashboardSkeleton />
+  if ((loading && users.length === 0) || (usersLoading && users.length === 0)) return <DashboardSkeleton />
   if (!isSuperAdmin) return (
     <div className="flex flex-col items-center justify-center py-24">
       <Lock className="w-12 h-12 text-slate-300 mb-4" />

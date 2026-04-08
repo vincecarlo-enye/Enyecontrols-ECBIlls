@@ -2,6 +2,8 @@ import { Wifi, WifiOff } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
 import { useFacilityEquipment } from '@/hooks/facilityHooks/useFacilityEquipment'
+import PaginationBar from '@/components/common/PaginationBar'
+import { useClientPagination } from '@/hooks/useClientPagination'
 
 const statusIcon = {
   online: <Wifi className="w-4 h-4 text-emerald-500" />,
@@ -25,8 +27,9 @@ const typeBadge = {
 export default function EquipmentStatus() {
   const pageLoading = usePageLoader(700)
   const { meters, loading, error, stats } = useFacilityEquipment()
+  const pagination = useClientPagination(meters, 10)
 
-  const loadingState = pageLoading || loading
+  const loadingState = (pageLoading && meters.length === 0) || (loading && meters.length === 0 && !error)
   if (loadingState) return <FacilityPageSkeleton />
 
   return (
@@ -75,7 +78,7 @@ export default function EquipmentStatus() {
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">No equipment records found.</td>
                 </tr>
-              ) : meters.map((meter) => (
+              ) : pagination.pagedItems.map((meter) => (
                 <tr key={meter.meter_id || meter.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{meter.id}</td>
                   <td className="px-5 py-3.5 font-medium text-slate-700 dark:text-slate-200">{meter.name}</td>
@@ -94,6 +97,18 @@ export default function EquipmentStatus() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+          <PaginationBar
+            meta={pagination.meta}
+            page={pagination.page}
+            perPage={pagination.perPage}
+            onPageChange={pagination.setPage}
+            onPerPageChange={(value) => {
+              pagination.setPerPage(value)
+              pagination.setPage(1)
+            }}
+          />
         </div>
       </div>
     </div>

@@ -23,6 +23,7 @@ const pageTitles = {
   '/tenant/make-report': 'Make Report',
   '/admin/meters': 'Meter Management',
   '/admin/notifications': 'Notifications',
+  '/admin/activity-logs': 'Activity Logs',
   '/super-admin': 'Dashboard',
   '/super-admin/billing': 'Billing',
   '/super-admin/tenants': 'Tenants',
@@ -34,8 +35,12 @@ const pageTitles = {
   '/super-admin/billing-rates': 'Billing Rates',
   '/super-admin/users': 'User Management',
   '/super-admin/announcements': 'Announcements',
+  '/super-admin/activity-logs': 'Activity Logs',
   '/finance/notifications': 'Notifications',
+  '/finance/activity-logs': 'Activity Logs',
   '/facility/notifications': 'Notifications',
+  '/facility/activity-logs': 'Activity Logs',
+  '/tenant/activity-logs': 'Activity Logs',
 }
 
 export default function Navbar({ onMenuClick }) {
@@ -155,6 +160,17 @@ export default function Navbar({ onMenuClick }) {
     : user?.role === 'tenant'
     ? 'Tenant'
     : 'Admin'
+
+
+    const getInitials = (name) => {
+  if (!name) return 'U'
+
+  const words = name.trim().split(' ')
+
+  return words.length === 1
+    ? words[0][0].toUpperCase()
+    : (words[0][0] + words[words.length - 1][0]).toUpperCase()
+}
 
   return (
     <header className={`sticky top-0 z-10 h-16 border-b flex items-center px-4 lg:px-6 gap-4 transition-colors
@@ -309,7 +325,7 @@ export default function Navbar({ onMenuClick }) {
                 : 'bg-gradient-to-br from-blue-500 to-cyan-400'
               }`}
             >
-              {user?.initials || 'U'}
+              {getInitials(user?.name)}
             </div>
             <div className="hidden sm:block text-left">
               <div className="flex items-center gap-1">

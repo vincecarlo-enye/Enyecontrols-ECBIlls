@@ -226,7 +226,7 @@ export default function Units() {
     setPage(1)
   }
 
-  if (pageLoading || unitsLoading) return <UnitsSkeleton />
+  if ((pageLoading && units.length === 0) || (unitsLoading && units.length === 0)) return <UnitsSkeleton />
 
   return (
     <div className="space-y-6 animate-in">
@@ -440,7 +440,7 @@ export default function Units() {
         isOpen={!!viewUnit}
         onClose={() => setViewUnit(null)}
         title={viewUnit?.unit_number}
-        subtitle={viewUnit ? `${viewUnit.building_name || '-'} • Floor ${viewUnit.floor || '-'}` : ''}
+        subtitle={viewUnit ? `${viewUnit.building_name || '-'} â€¢ Floor ${viewUnit.floor || '-'}` : ''}
       >
         {viewUnit ? (
           <div className="space-y-5">

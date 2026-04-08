@@ -383,7 +383,7 @@ export default function MeterManagement() {
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
-  if (pageLoading || loading) return <DashboardSkeleton />
+  if ((pageLoading && meters.length === 0) || (loading && meters.length === 0)) return <DashboardSkeleton />
 
   if (!isSuperAdmin) {
     return (

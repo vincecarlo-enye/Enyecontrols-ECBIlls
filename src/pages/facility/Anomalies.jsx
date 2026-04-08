@@ -32,7 +32,7 @@ export default function FacilityAnomalies() {
   const [selectedId, setSelectedId] = useState(null)
   const [draftNotes, setDraftNotes] = useState('')
 
-  const loadingState = pageLoading || loading
+  const loadingState = (pageLoading && anomalies.length === 0) || (loading && anomalies.length === 0 && !error)
   const selected = useMemo(() => anomalies.find((row) => row.id === selectedId) || anomalies[0] || null, [anomalies, selectedId])
 
   if (loadingState) return <FacilityPageSkeleton />
@@ -103,7 +103,7 @@ export default function FacilityAnomalies() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{row.title}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">{row.meterName} Ã‚Â· {row.floor}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{row.meterName} Ãƒâ€šÃ‚Â· {row.floor}</p>
                   </div>
                   <span className={`px-2 py-1 rounded-lg text-[10px] font-medium uppercase ${severityCls[row.severity] || severityCls.medium}`}>{row.severity}</span>
                 </div>
@@ -124,7 +124,7 @@ export default function FacilityAnomalies() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <h2 className="font-semibold text-slate-800 dark:text-white">{selected.title}</h2>
-                  <p className="text-sm text-slate-400 mt-0.5">{selected.meterName} Ã‚Â· {selected.unit} Ã‚Â· {selected.floor}</p>
+                  <p className="text-sm text-slate-400 mt-0.5">{selected.meterName} Ãƒâ€šÃ‚Â· {selected.unit} Ãƒâ€šÃ‚Â· {selected.floor}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-medium uppercase ${severityCls[selected.severity] || severityCls.medium}`}>{selected.severity}</span>

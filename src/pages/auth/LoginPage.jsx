@@ -55,8 +55,8 @@ export default function LoginPage() {
 
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-300 shadow-lg shadow-blue-500/30 mb-4">
-            <img src="/src/assets/enye-logo.png" alt="Enyecontrols" className="w-10 h-10" />
+          <div className="inline-flex items-center justify-center w-28 h-28 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-300 shadow-lg shadow-blue-500/30 mb-4">
+            <img src="/src/assets/ec_bills.png" alt="Enyecontrols" className="w-24 h-24 rounded-2xl" />
           </div>          <h1 className="font-display font-bold text-2xl text-slate-800 dark:text-white">Enyecontrols</h1>
           <p className="text-sm text-slate-400 dark:text-slate-500 font-mono mt-1">Billing System</p>
         </div>

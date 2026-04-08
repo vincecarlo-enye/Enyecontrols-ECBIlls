@@ -129,7 +129,7 @@ export default function BillingRates() {
   const { rates, loading, saving, error, saveRate } = useAdminRates()
   const { history, loading: historyLoading, reload: reloadHistory } = useRateHistory()
 
-  if (pageLoading || loading) return <DashboardSkeleton />
+  if ((pageLoading && !rates?.electricity && !rates?.water && !rates?.thermal) || (loading && !rates?.electricity && !rates?.water && !rates?.thermal)) return <DashboardSkeleton />
 
   if (!isSuperAdmin) {
     return (

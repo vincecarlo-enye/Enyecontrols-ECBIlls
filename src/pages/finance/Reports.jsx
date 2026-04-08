@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -9,6 +9,8 @@ import {
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import api from '@/lib/api'
+import PageActionBar from '@/components/common/PageActionBar'
+import { downloadCsv, printElement } from '@/utils/reporting'
 
 const TOOLTIP_STYLE = {
   borderRadius: 12,
@@ -119,10 +121,14 @@ function CurrencyTooltip({ active, payload, label }) {
 
 export default function FinanceReports() {
   const pageLoading = usePageLoader(700)
+  const printRef = useRef(null)
   const [bills, setBills] = useState([])
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [range, setRange] = useState('6M')
+  const [transactionSearch, setTransactionSearch] = useState('')
+  const [transactionStatus, setTransactionStatus] = useState('all')
 
   useEffect(() => {
     const load = async () => {
@@ -147,9 +153,6 @@ export default function FinanceReports() {
 
     load()
   }, [])
-
-  const loadingState = pageLoading || loading
-  if (loadingState) return <ReportsSkeleton />
 
   const monthlyMap = new Map()
   bills.forEach((bill) => {
@@ -218,7 +221,6 @@ export default function FinanceReports() {
   const recentTransactions = payments
     .slice()
     .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 12)
     .map((payment) => {
       const activeUtilities = Object.entries(payment.breakdown).filter(([, amount]) => Number(amount) > 0)
       let utilityLabel = 'No Utility Data'
@@ -242,6 +244,36 @@ export default function FinanceReports() {
       }
     })
 
+  const rangeLimit = range === '3M' ? 3 : range === '12M' ? 12 : 6
+  const rangedMonthly = useMemo(() => MONTHLY.slice(-rangeLimit), [MONTHLY, rangeLimit])
+  const rangedUtilityByMonth = useMemo(() => UTILITY_BY_MONTH.slice(-rangeLimit), [UTILITY_BY_MONTH, rangeLimit])
+  const rangedUtilityPie = useMemo(() => {
+    const totals = rangedUtilityByMonth.reduce((acc, row) => ({
+      electricity: acc.electricity + Number(row.electricity || 0),
+      water: acc.water + Number(row.water || 0),
+      thermal: acc.thermal + Number(row.thermal || 0),
+    }), { electricity: 0, water: 0, thermal: 0 })
+    const total = totals.electricity + totals.water + totals.thermal
+
+    return [
+      { name: 'Electricity', value: total ? Math.round((totals.electricity / total) * 100) : 0, color: '#f59e0b' },
+      { name: 'Water', value: total ? Math.round((totals.water / total) * 100) : 0, color: '#06b6d4' },
+      { name: 'Thermal', value: total ? Math.round((totals.thermal / total) * 100) : 0, color: '#f43f5e' },
+    ]
+  }, [rangedUtilityByMonth])
+
+  const filteredTransactions = useMemo(() => {
+    const query = transactionSearch.trim().toLowerCase()
+    return recentTransactions.filter((row) => {
+      const matchesStatus = transactionStatus === 'all' || row.status.toLowerCase() === transactionStatus
+      const haystack = [row.id, row.tenant, row.unit, row.utility, row.date]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return matchesStatus && (!query || haystack.includes(query))
+    })
+  }, [recentTransactions, transactionSearch, transactionStatus])
+
   const statusCls = {
     Paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
     Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -262,6 +294,30 @@ export default function FinanceReports() {
     'Mixed Utilities': BarChart3,
     'No Utility Data': AlertCircle,
   }
+
+  const handleExport = () => {
+    downloadCsv(`finance-reports-${range.toLowerCase()}.csv`, filteredTransactions.map((row) => ({
+      invoice_id: row.id,
+      tenant: row.tenant,
+      unit: row.unit,
+      utility: row.utility,
+      amount: row.amount,
+      status: row.status,
+      date: row.date,
+    })))
+  }
+
+  const handlePrint = () => {
+    printElement({
+      title: 'Financial Reports',
+      subtitle: `${range} analytics and filtered transaction records`,
+      element: printRef.current,
+    })
+  }
+
+  const loadingState = (pageLoading && bills.length === 0 && payments.length === 0) || (loading && bills.length === 0 && payments.length === 0 && !error)
+  if (loadingState) return <ReportsSkeleton />
+
   return (
     <div className="space-y-6 animate-in">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -272,8 +328,33 @@ export default function FinanceReports() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Revenue analysis, collection rates and outstanding balances</p>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
-          <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-800/70">
+            {['3M', '6M', '12M'].map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setRange(option)}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                  range === option
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
+            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
+          </div>
+          <PageActionBar
+            onExport={handleExport}
+            onPrint={handlePrint}
+            exportLabel="Export Transactions"
+            printLabel="Print Report"
+            iconOnly
+          />
         </div>
       </div>
 
@@ -283,6 +364,7 @@ export default function FinanceReports() {
         </div>
       )}
 
+      <div ref={printRef} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Annual Revenue', value: formatCompactPeso(totalRevenue), color: 'text-blue-600 dark:text-blue-400', sub: `${bills.length} total bills` },
@@ -308,8 +390,8 @@ export default function FinanceReports() {
             <p className="text-[11px] text-slate-400 mt-0.5">Revenue, collected payments and expenses</p>
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={MONTHLY} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={rangedMonthly} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
             <defs>
               <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.12} />
@@ -353,8 +435,8 @@ export default function FinanceReports() {
               </div>
             ))}
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={UTILITY_BY_MONTH} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={rangedUtilityByMonth} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => `PHP ${(v / 1000).toFixed(0)}K`} />
@@ -375,14 +457,14 @@ export default function FinanceReports() {
           <div className="flex-1 flex flex-col items-center justify-center">
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
-                <Pie data={UTILITY_PIE} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={3} dataKey="value">
-                  {UTILITY_PIE.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                <Pie data={rangedUtilityPie} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={3} dataKey="value">
+                  {rangedUtilityPie.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(v) => [`${v}%`, 'Share']} contentStyle={TOOLTIP_STYLE} />
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-2 w-full mt-3">
-              {UTILITY_PIE.map(({ name, value, color }) => (
+              {rangedUtilityPie.map(({ name, value, color }) => (
                 <div key={name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
@@ -481,6 +563,25 @@ export default function FinanceReports() {
             <p className="text-[11px] text-slate-400 mt-0.5">Latest payment records across all tenants and utilities</p>
           </div>
         </div>
+        <div className="grid gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50 md:grid-cols-[minmax(0,1fr),220px]">
+          <input
+            type="search"
+            value={transactionSearch}
+            onChange={(event) => setTransactionSearch(event.target.value)}
+            placeholder="Search transaction, tenant, unit, utility, or date"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          />
+          <select
+            value={transactionStatus}
+            onChange={(event) => setTransactionStatus(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <option value="all">All Statuses</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -491,7 +592,13 @@ export default function FinanceReports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {recentTransactions.map((row, index) => {
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                    No transactions matched the current filters.
+                  </td>
+                </tr>
+              ) : filteredTransactions.map((row, index) => {
                 const Icon = utilityIcon[row.utility]
                 return (
                   <tr key={`${row.id}-${row.date}-${row.status}-${index}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -519,17 +626,18 @@ export default function FinanceReports() {
         </div>
         <div className="flex items-center gap-6 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
           {[
-            { label: 'Paid', count: recentTransactions.filter((row) => row.status === 'Paid').length, cls: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'Pending', count: recentTransactions.filter((row) => row.status === 'Pending').length, cls: 'text-amber-600 dark:text-amber-400' },
-            { label: 'Rejected', count: recentTransactions.filter((row) => row.status === 'Rejected').length, cls: 'text-rose-600 dark:text-rose-400' },
+            { label: 'Paid', count: filteredTransactions.filter((row) => row.status === 'Paid').length, cls: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Pending', count: filteredTransactions.filter((row) => row.status === 'Pending').length, cls: 'text-amber-600 dark:text-amber-400' },
+            { label: 'Rejected', count: filteredTransactions.filter((row) => row.status === 'Rejected').length, cls: 'text-rose-600 dark:text-rose-400' },
           ].map((stat) => (
             <div key={stat.label} className="flex items-center gap-1.5 text-[11px]">
               <span className={`font-bold text-sm ${stat.cls}`}>{stat.count}</span>
               <span className="text-slate-400">{stat.label}</span>
             </div>
           ))}
-          <span className="ml-auto text-[11px] text-slate-400">Showing {recentTransactions.length} most recent records</span>
+          <span className="ml-auto text-[11px] text-slate-400">Showing {filteredTransactions.length} records</span>
         </div>
+      </div>
       </div>
     </div>
   )

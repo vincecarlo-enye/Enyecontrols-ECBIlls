@@ -264,7 +264,8 @@ export default function AdminBilling() {
     })
   }, [bills, search, statusFilter])
 
-  if (pageLoading || loading || ratesLoading) {
+  if (((pageLoading || loading) && bills.length === 0 && publishedBills.length === 0 && submittedBills.length === 0 && draftBills.length === 0 && overdueBills.length === 0)
+    || (ratesLoading && !rates?.electricity && !rates?.water && !rates?.thermal)) {
     return <BillingSkeleton />
   }
 

@@ -20,6 +20,11 @@ export async function regenerateFinanceBill(payload) {
   return res.data
 }
 
+export async function generateAllFinanceBills(payload) {
+  const res = await api.post('/api/finance/bills/generate-all', payload)
+  return res.data
+}
+
 export async function updateFinanceBillStatus(id, status) {
   const res = await api.patch(`/api/finance/bills/${id}/status`, { status })
   return res.data

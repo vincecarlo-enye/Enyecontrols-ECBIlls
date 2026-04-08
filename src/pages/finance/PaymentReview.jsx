@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CreditCard, CheckCircle2, XCircle, Clock, Search,
   Eye, Calendar, TrendingUp, CalendarDays, Zap, Droplets, Flame,
@@ -12,6 +12,10 @@ import EmptyState from '@/components/ui/EmptyState'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useApp } from '@/context/AppContext'
 import api from '@/lib/api'
+import PaginationBar from '@/components/common/PaginationBar'
+import { useClientPagination } from '@/hooks/useClientPagination'
+import PageActionBar from '@/components/common/PageActionBar'
+import { downloadCsv, printElement } from '@/utils/reporting'
 
 function formatDate(value) {
   if (!value) return ''
@@ -98,6 +102,7 @@ function normalizeBill(row = {}) {
 
 export default function FinancePaymentReview() {
   const pageLoading = usePageLoader(700)
+  const printRef = useRef(null)
   const { addToast } = useApp()
   const reviewModal = useModalState()
   const [activeTab, setActiveTab] = useState('review')
@@ -169,9 +174,7 @@ export default function FinancePaymentReview() {
     }
   }
 
-  const loadingState = pageLoading || loading
-  if (loadingState) return <BillingSkeleton />
-
+  const loadingState = (pageLoading && payments.length === 0 && bills.length === 0) || (loading && payments.length === 0 && bills.length === 0 && !error)
   const pendingPayments = payments.filter((payment) => payment.status === 'pending')
   const verifiedPayments = payments.filter((payment) => payment.status === 'verified')
   const totalPending = pendingPayments.length
@@ -192,14 +195,62 @@ export default function FinancePaymentReview() {
       && (ledgerStatus === 'all' || payment.status === ledgerStatus)
   })
 
+  const queuePagination = useClientPagination(queueFiltered, 10)
+  const ledgerPagination = useClientPagination(ledgerFiltered, 10)
+
+  useEffect(() => {
+    queuePagination.setPage(1)
+  }, [reviewSearch, reviewTab])
+
+  useEffect(() => {
+    ledgerPagination.setPage(1)
+  }, [ledgerSearch, ledgerStatus])
+
+  if (loadingState) return <BillingSkeleton />
+
+  const handleExport = () => {
+    const rows = (activeTab === 'review' ? queueFiltered : ledgerFiltered).map((payment) => ({
+      invoice_id: payment.id,
+      tenant: payment.tenant,
+      unit: payment.unit,
+      month: payment.month,
+      amount: payment.amount,
+      status: payment.status,
+      payment_date: payment.receipt?.paymentDate || '',
+      reference_number: payment.receipt?.referenceNumber || '',
+      electricity: Number(payment.breakdown?.electricity || 0),
+      water: Number(payment.breakdown?.water || 0),
+      thermal: Number(payment.breakdown?.thermal || 0),
+    }))
+
+    downloadCsv(`finance-payment-${activeTab}.csv`, rows)
+  }
+
+  const handlePrint = () => {
+    printElement({
+      title: 'Payment Review',
+      subtitle: activeTab === 'review' ? 'Review queue' : 'Payment ledger',
+      element: printRef.current,
+    })
+  }
+
   return (
     <div className="space-y-5 animate-in">
-      <div>
-        <h1 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2">
-          <CreditCard className="w-5 h-5 text-blue-500" />
-          Payment Review
-        </h1>
-        <p className="text-sm text-slate-400 mt-0.5">Review tenant receipts, approve or reject payments, and track the payment ledger</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-blue-500" />
+            Payment Review
+          </h1>
+          <p className="text-sm text-slate-400 mt-0.5">Review tenant receipts, approve or reject payments, and track the payment ledger</p>
+        </div>
+        <PageActionBar
+          onExport={handleExport}
+          onPrint={handlePrint}
+          exportLabel={activeTab === 'review' ? 'Export Queue' : 'Export Ledger'}
+          printLabel={activeTab === 'review' ? 'Print Queue' : 'Print Ledger'}
+          iconOnly
+        />
       </div>
 
       {error && (
@@ -253,6 +304,7 @@ export default function FinancePaymentReview() {
         ))}
       </div>
 
+      <div ref={printRef}>
       {activeTab === 'review' && (
         <>
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
@@ -293,7 +345,7 @@ export default function FinancePaymentReview() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {queueFiltered.length === 0 ? (
                     <tr><td colSpan={8}><EmptyState title={reviewTab === 'pending' ? 'No payments pending' : 'No submissions found'} message={reviewTab === 'pending' ? 'All payment receipts have been reviewed.' : 'Try adjusting your search.'} /></td></tr>
-                  ) : queueFiltered.map((payment) => (
+                  ) : queuePagination.pagedItems.map((payment) => (
                     <tr key={payment.paymentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{payment.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{payment.tenant}</td>
@@ -328,6 +380,18 @@ export default function FinancePaymentReview() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+              <PaginationBar
+                meta={queuePagination.meta}
+                page={queuePagination.page}
+                perPage={queuePagination.perPage}
+                onPageChange={queuePagination.setPage}
+                onPerPageChange={(value) => {
+                  queuePagination.setPerPage(value)
+                  queuePagination.setPage(1)
+                }}
+              />
             </div>
           </div>
         </>
@@ -389,7 +453,7 @@ export default function FinancePaymentReview() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {ledgerFiltered.length === 0 ? (
                     <tr><td colSpan={9} className="text-center py-12 text-slate-400 text-sm">No payment records found</td></tr>
-                  ) : ledgerFiltered.map((payment) => (
+                  ) : ledgerPagination.pagedItems.map((payment) => (
                     <tr key={payment.paymentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{payment.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{payment.tenant}</td>
@@ -413,6 +477,18 @@ export default function FinancePaymentReview() {
                 </tbody>
               </table>
             </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+              <PaginationBar
+                meta={ledgerPagination.meta}
+                page={ledgerPagination.page}
+                perPage={ledgerPagination.perPage}
+                onPageChange={ledgerPagination.setPage}
+                onPerPageChange={(value) => {
+                  ledgerPagination.setPerPage(value)
+                  ledgerPagination.setPage(1)
+                }}
+              />
+            </div>
             <div className="flex items-center gap-6 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
               {[
                 { label: 'Verified', count: payments.filter((payment) => payment.status === 'verified').length, cls: 'text-emerald-600 dark:text-emerald-400' },
@@ -428,6 +504,7 @@ export default function FinancePaymentReview() {
           </div>
         </>
       )}
+      </div>
 
       <PaymentReviewModal
         bill={reviewModal.selectedItem}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchFacilityConsumption } from '@/services/facilityService/facilityConsumptionService'
 
-export function useFacilityConsumption() {
+export function useFacilityConsumption(filters = {}) {
+  const { year, month } = filters
   const [summary, setSummary] = useState({
     electricity: 0,
     water: 0,
@@ -10,6 +11,7 @@ export function useFacilityConsumption() {
   const [trendData, setTrendData] = useState([])
   const [unitConsumption, setUnitConsumption] = useState([])
   const [anomalies, setAnomalies] = useState([])
+  const [selectedPeriod, setSelectedPeriod] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -18,7 +20,10 @@ export function useFacilityConsumption() {
     setError('')
 
     try {
-      const response = await fetchFacilityConsumption()
+      const response = await fetchFacilityConsumption({
+        year,
+        month,
+      })
       const data = response?.data || {}
 
       setSummary({
@@ -29,16 +34,18 @@ export function useFacilityConsumption() {
       setTrendData(Array.isArray(data?.trend_data) ? data.trend_data : [])
       setUnitConsumption(Array.isArray(data?.unit_consumption) ? data.unit_consumption : [])
       setAnomalies(Array.isArray(data?.anomalies) ? data.anomalies : [])
+      setSelectedPeriod(data?.selected_period || null)
     } catch (err) {
       setSummary({ electricity: 0, water: 0, thermal: 0 })
       setTrendData([])
       setUnitConsumption([])
       setAnomalies([])
+      setSelectedPeriod(null)
       setError(err?.response?.data?.message || err?.message || 'Failed to load facility consumption.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [month, year])
 
   useEffect(() => {
     loadConsumption()
@@ -49,6 +56,7 @@ export function useFacilityConsumption() {
     trendData,
     unitConsumption,
     anomalies,
+    selectedPeriod,
     loading,
     error,
     reload: loadConsumption,

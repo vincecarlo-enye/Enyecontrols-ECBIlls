@@ -37,33 +37,28 @@ export default function DashboardCard({
     <div
       onClick={onClick}
       className={[
-        "relative overflow-hidden rounded-2xl p-4",
-
-        /* glass */
-        "bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl",
-        "border border-white/20 dark:border-slate-700/50",
-
-        /* glow */
-        "shadow-lg",
+        "relative overflow-hidden rounded-[22px] p-4",
+        "border border-slate-200/80 bg-white/95 backdrop-blur-xl",
+        "shadow-[0_10px_30px_rgba(15,23,42,0.08)]",
+        "dark:border-cyan-500/15 dark:bg-[#0d1118]/95",
+        "dark:shadow-[0_0_0_1px_rgba(6,182,212,0.06),0_18px_50px_rgba(0,0,0,0.35)]",
         glow,
-
-        /* bottom gradient */
-        "before:absolute before:inset-x-0 before:bottom-0 before:h-[3px]",
+        "before:absolute before:inset-x-0 before:top-0 before:h-px",
         `before:bg-gradient-to-r before:${gradient}`,
-        "before:opacity-60 hover:before:opacity-100 before:transition-opacity before:duration-300",
-
-        /* hover */
-        "transition-all duration-300",
-        "hover:-translate-y-1 hover:shadow-xl",
+        "before:opacity-80",
+        "after:absolute after:inset-x-5 after:bottom-0 after:h-[3px]",
+        `after:bg-gradient-to-r after:${gradient}`,
+        "after:opacity-75",
+        "transition-all duration-300 hover:-translate-y-1 hover:border-cyan-200 hover:shadow-[0_14px_34px_rgba(15,23,42,0.12)]",
+        "dark:hover:border-cyan-400/25 dark:hover:shadow-[0_0_0_1px_rgba(34,211,238,0.12),0_22px_60px_rgba(0,0,0,0.42)]",
 
         onClick ? "cursor-pointer" : "",
         className,
       ].join(" ")}
     >
-      {/* icon + badge */}
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div
-          className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-lg flex-shrink-0`}
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} shadow-md`}
         >
           {renderIcon()}
         </div>
@@ -77,19 +72,16 @@ export default function DashboardCard({
         )}
       </div>
 
-      {/* title */}
-      <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 leading-tight mb-1">
+      <p className="mb-1.5 text-[10px] font-mono uppercase tracking-[0.16em] text-slate-500 leading-tight dark:text-slate-500">
         {title}
       </p>
 
-      {/* value */}
-      <p className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white leading-none">
+      <p className="text-xl font-bold leading-none text-slate-800 dark:text-slate-50 sm:text-[1.35rem]">
         {value}
       </p>
 
-      {/* sub */}
       {sub && (
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">
+        <p className="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-500">
           {sub}
         </p>
       )}

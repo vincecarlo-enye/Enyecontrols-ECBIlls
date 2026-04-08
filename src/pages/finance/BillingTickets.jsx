@@ -137,7 +137,7 @@ export default function FinanceBillingTickets() {
     resolved: concerns.filter((concern) => ['resolved', 'closed'].includes(concern.status)).length,
   }), [concerns])
 
-  const loadingState = pageLoading || loading
+  const loadingState = (pageLoading && concerns.length === 0) || (loading && concerns.length === 0 && !error)
   if (loadingState) {
     return (
       <div className="space-y-4 animate-pulse">

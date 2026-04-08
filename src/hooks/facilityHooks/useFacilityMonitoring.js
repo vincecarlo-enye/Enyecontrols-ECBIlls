@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   approveFacilityReading,
+  bulkApproveFacilityReadings,
+  bulkRejectFacilityReadings,
   fetchFacilityMonitoring,
   rejectFacilityReading,
 } from '@/services/facilityService/facilityMonitoringService'
@@ -18,6 +20,7 @@ export function useFacilityMonitoring() {
   const [floorData, setFloorData] = useState([])
   const [anomaly, setAnomaly] = useState(EMPTY_ANOMALY)
   const [pendingReadings, setPendingReadings] = useState([])
+  const [actualReadings, setActualReadings] = useState([])
   const [approvalSummary, setApprovalSummary] = useState({ pending: 0, approved: 0, rejected: 0 })
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
@@ -42,6 +45,7 @@ export function useFacilityMonitoring() {
       setFloorData(Array.isArray(data.floor_data) ? data.floor_data : [])
       setAnomaly(data.anomaly || EMPTY_ANOMALY)
       setPendingReadings(Array.isArray(data.pending_readings) ? data.pending_readings : [])
+      setActualReadings(Array.isArray(data.actual_readings) ? data.actual_readings : [])
       setApprovalSummary(data.approval_summary || { pending: 0, approved: 0, rejected: 0 })
       setLastUpdated(new Date().toISOString())
     } catch (err) {
@@ -51,6 +55,7 @@ export function useFacilityMonitoring() {
       setFloorData([])
       setAnomaly(EMPTY_ANOMALY)
       setPendingReadings([])
+      setActualReadings([])
       setApprovalSummary({ pending: 0, approved: 0, rejected: 0 })
       setError(err?.response?.data?.message || err?.message || 'Failed to load monitoring data.')
     } finally {
@@ -104,6 +109,38 @@ export function useFacilityMonitoring() {
     }
   }, [loadMonitoring])
 
+  const bulkApproveReadings = useCallback(async (readingIds = [], note = '') => {
+    try {
+      setActing(true)
+      await bulkApproveFacilityReadings({ reading_ids: readingIds, notes: note })
+      await loadMonitoring({ silent: true })
+      return { success: true, message: 'Selected readings approved successfully.' }
+    } catch (err) {
+      return {
+        success: false,
+        message: err?.response?.data?.message || 'Failed to approve selected readings.',
+      }
+    } finally {
+      setActing(false)
+    }
+  }, [loadMonitoring])
+
+  const bulkRejectReadings = useCallback(async (readingIds = [], note = '') => {
+    try {
+      setActing(true)
+      await bulkRejectFacilityReadings({ reading_ids: readingIds, notes: note })
+      await loadMonitoring({ silent: true })
+      return { success: true, message: 'Selected readings rejected successfully.' }
+    } catch (err) {
+      return {
+        success: false,
+        message: err?.response?.data?.message || 'Failed to reject selected readings.',
+      }
+    } finally {
+      setActing(false)
+    }
+  }, [loadMonitoring])
+
   const trend = useMemo(() => currentLoad - previousLoad, [currentLoad, previousLoad])
 
   return {
@@ -114,6 +151,7 @@ export function useFacilityMonitoring() {
     floorData,
     anomaly,
     pendingReadings,
+    actualReadings,
     approvalSummary,
     loading,
     acting,
@@ -122,6 +160,8 @@ export function useFacilityMonitoring() {
     reload: loadMonitoring,
     approveReading,
     rejectReading,
+    bulkApproveReadings,
+    bulkRejectReadings,
   }
 }
 

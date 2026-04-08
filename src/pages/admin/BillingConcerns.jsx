@@ -36,7 +36,7 @@ const ALL_STATUSES = [
 ]
 
 function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return 'â€”'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
@@ -51,14 +51,14 @@ function formatDate(value) {
 function normalizeConcern(item = {}) {
   return {
     id: String(item?.id ?? ''),
-    billId: String(item?.bill_id ?? item?.bill?.id ?? '—'),
+    billId: String(item?.bill_id ?? item?.bill?.id ?? 'â€”'),
     tenantName: item?.tenant?.name ?? 'Unknown tenant',
     email: item?.tenant?.email ?? '',
     unit:
       item?.tenant?.unit?.unit_number ??
       item?.unit?.unit_number ??
       item?.unit?.building_name ??
-      '—',
+      'â€”',
     category: item?.category ?? 'general',
     subject: item?.subject ?? '',
     message: item?.description ?? item?.message ?? '',
@@ -139,7 +139,7 @@ export default function AdminBillingConcerns() {
     [concerns]
   )
 
-  if (loading || pageLoading) {
+  if ((loading && concerns.length === 0) || (pageLoading && concerns.length === 0)) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-64" />

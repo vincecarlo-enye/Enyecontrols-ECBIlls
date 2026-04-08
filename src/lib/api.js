@@ -1,7 +1,23 @@
 import axios from 'axios'
 
+function resolveBaseURL() {
+  const envUrl = import.meta.env.VITE_API_URL
+  if (envUrl) return envUrl
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://127.0.0.1:8000'
+    }
+
+    return `${window.location.protocol}//${host}:8000`
+  }
+
+  return 'http://127.0.0.1:8000'
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://192.168.10.55:8000',
+  baseURL: resolveBaseURL(),
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',

@@ -1,69 +1,73 @@
-import { TrendingUp, TrendingDown, Zap, Flame, Droplets } from 'lucide-react'
+import { TrendingDown, TrendingUp, Zap, Droplets, Flame } from 'lucide-react'
+import electricityMeterBefore from '@/assets/meters/electricity_b4.png'
+import electricityMeter from '@/assets/meters/electricity.png'
+import waterMeterBefore from '@/assets/meters/water_b4.png'
+import waterMeter from '@/assets/meters/water.png'
+import thermalMeterBefore from '@/assets/meters/thermal_b4.png'
+import thermalMeter from '@/assets/meters/thermal.png'
 
 const normalizeType = (type) => {
-  const t = String(type || '').toLowerCase()
-  if (t === 'electricity') return 'electric'
-  if (t === 'electric') return 'electric'
-  if (t === 'water') return 'water'
-  if (t === 'thermal') return 'thermal'
+  const value = String(type || '').toLowerCase()
+  if (value === 'electricity' || value === 'electric') return 'electric'
+  if (value === 'water') return 'water'
+  if (value === 'thermal') return 'thermal'
   return 'electric'
+}
+
+const imageMap = {
+  electric: {
+    idle: electricityMeterBefore,
+    hover: electricityMeter,
+  },
+  water: {
+    idle: waterMeterBefore,
+    hover: waterMeter,
+  },
+  thermal: {
+    idle: thermalMeterBefore,
+    hover: thermalMeter,
+  },
 }
 
 const iconMap = {
   electric: Zap,
-  thermal: Flame,
   water: Droplets,
+  thermal: Flame,
 }
 
 const colorMap = {
   electric: {
-    gradient: 'from-amber-400 to-orange-500',
-    bg: 'bg-amber-50 dark:bg-amber-900/20',
-    text: 'text-amber-600 dark:text-amber-400',
-    badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-    glow: 'shadow-amber-500/20',
-    ring: 'ring-amber-400/20',
-  },
-  thermal: {
-    gradient: 'from-rose-400 to-pink-500',
-    bg: 'bg-rose-50 dark:bg-rose-900/20',
-    text: 'text-rose-600 dark:text-rose-400',
-    badge: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400',
-    glow: 'shadow-rose-500/20',
-    ring: 'ring-rose-400/20',
+    gradient: 'from-yellow-400 to-orange-500',
+    text: 'text-amber-300',
+    badge: 'bg-emerald-500/10 text-emerald-300 border border-emerald-400/15',
+    valueUnit: 'kWh',
+    label: 'Power Meter',
+    description: 'Real-time electrical monitoring',
   },
   water: {
-    gradient: 'from-cyan-400 to-blue-500',
-    bg: 'bg-cyan-50 dark:bg-cyan-900/20',
-    text: 'text-cyan-600 dark:text-cyan-400',
-    badge: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
-    glow: 'shadow-cyan-500/20',
-    ring: 'ring-cyan-400/20',
+    gradient: 'from-sky-300 to-blue-500',
+    text: 'text-sky-300',
+    badge: 'bg-emerald-500/10 text-emerald-300 border border-emerald-400/15',
+    valueUnit: 'm3',
+    label: 'Water Meter',
+    description: 'Flow rate monitoring',
+  },
+  thermal: {
+    gradient: 'from-rose-400 to-red-500',
+    text: 'text-rose-300',
+    badge: 'bg-emerald-500/10 text-emerald-300 border border-emerald-400/15',
+    valueUnit: 'BTU',
+    label: 'BTU Meter',
+    description: 'Heat-flow monitoring',
   },
 }
 
-const labelMap = {
-  electric: 'Electric Usage',
-  thermal: 'Thermal Energy',
-  water: 'Water Usage',
+function toNumber(value) {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
-const descMap = {
-  electric: 'Consumed by building — allocated to tenants based on metered usage.',
-  thermal: 'Used for centralized chillers, cooling towers & HVAC systems.',
-  water: 'Calculated to allocate water costs proportionally to all tenants.',
-}
-
-const defaultUnitMap = {
-  electric: 'kWh',
-  thermal: 'kBTU/h',
-  water: 'm³',
-}
-
-function toSafeNumber(value) {
-  const n = Number(value ?? 0)
-  return Number.isFinite(n) ? n : 0
-}
+const BAR_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
 export default function UtilityCard({
   type,
@@ -74,60 +78,121 @@ export default function UtilityCard({
   cost,
   trend = 0,
   delta,
-  lastUpdated = 'Updated just now',
-  period,
 }) {
   const normalizedType = normalizeType(type)
-  const Icon = iconMap[normalizedType] || Zap
-  const colors = colorMap[normalizedType] || colorMap.electric
-  const safeUsage = toSafeNumber(usage ?? value)
-  const safeEstimatedCost = toSafeNumber(estimatedCost ?? cost)
-  const safeTrend = toSafeNumber(trend ?? delta)
-  const safeUnit = unit || defaultUnitMap[normalizedType] || ''
-  const safeLastUpdated = lastUpdated || period || 'Updated just now'
-  const isPositive = safeTrend >= 0
-  const TrendIcon = isPositive ? TrendingUp : TrendingDown
+  const meterImages = imageMap[normalizedType]
+  const Icon = iconMap[normalizedType]
+  const palette = colorMap[normalizedType]
+  const safeUsage = toNumber(usage ?? value)
+  const safeCost = toNumber(estimatedCost ?? cost)
+  const safeTrend = toNumber(trend ?? delta)
+  const TrendIcon = safeTrend >= 0 ? TrendingUp : TrendingDown
+  const displayUnit = unit || palette.valueUnit
+  const bars = normalizedType === 'electric'
+    ? [54, 48, 66, 44, 50, 68, 56]
+    : normalizedType === 'water'
+      ? [46, 58, 66, 49, 44, 68, 52]
+      : [48, 44, 67, 52, 46, 66, 49]
+  const barValues = bars.map((height) => Number((safeUsage * (height / 100)).toFixed(2)))
 
   return (
-    <div className={`glass rounded-2xl p-5 card-hover shadow-lg ${colors.glow} ring-1 ${colors.ring} animate-in`}>
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg`}>
-          <Icon className="w-5 h-5 text-white" strokeWidth={2} />
+    <div className="group relative overflow-hidden rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] transition-all duration-300 dark:border-cyan-500/15 dark:bg-[#0d1118]/95 dark:shadow-[0_0_0_1px_rgba(6,182,212,0.06),0_18px_50px_rgba(0,0,0,0.35)]">
+      <div className={`absolute inset-x-8 top-0 h-px bg-gradient-to-r ${palette.gradient} opacity-80`} />
+
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className={`flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br ${palette.gradient} shadow-md`}>
+              <Icon className="h-4 w-4 text-slate-950" strokeWidth={2.2} />
+            </div>
+            <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-800 dark:text-slate-100">
+              {palette.label}
+            </p>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-500">{palette.description}</p>
         </div>
 
-        <span className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg ${colors.badge}`}>
-          <TrendIcon className="w-3 h-3" />
-          {safeTrend > 0 ? '+' : ''}{Math.abs(safeTrend).toFixed(1)}%
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${palette.badge}`}>
+          <TrendIcon className="h-3 w-3" />
+          Live
         </span>
       </div>
 
-      <p className="text-xs font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">
-        {labelMap[normalizedType]}
-      </p>
+      <div className="relative mb-4 overflow-hidden rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-5 dark:border-white/5 dark:bg-[#090c13]">
+        <div className={`absolute inset-0 rounded-[20px] bg-gradient-to-br ${palette.gradient} opacity-[0.08] transition-opacity duration-300 group-hover:opacity-[0.14] dark:opacity-[0.08] dark:group-hover:opacity-[0.16]`} />
+        <div className="absolute inset-y-0 -left-1/3 w-1/2 skew-x-[-20deg] bg-white/25 opacity-0 blur-xl transition-all duration-500 group-hover:left-full group-hover:opacity-100 dark:bg-cyan-300/10" />
+        <div className="relative flex items-center justify-center">
+          <div className={`absolute h-28 w-28 rounded-full bg-gradient-to-br ${palette.gradient} opacity-25 blur-xl transition-all duration-300 group-hover:h-32 group-hover:w-32 group-hover:opacity-35`} />
+          <div className="relative h-28 w-28 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] transition-all duration-300 group-hover:-translate-y-1 group-hover:rotate-[2deg] group-hover:shadow-[0_18px_35px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.4)] dark:border-white/10 dark:bg-slate-900/90 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:group-hover:shadow-[0_18px_35px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <img
+              src={meterImages.idle}
+              alt={`${palette.label} default`}
+              className="absolute inset-0 h-full w-full scale-[1.08] object-cover transition-all duration-300 group-hover:scale-[1.03] group-hover:opacity-0"
+            />
+            <img
+              src={meterImages.hover}
+              alt={`${palette.label} hover`}
+              className="absolute inset-0 h-full w-full scale-[1.02] object-cover opacity-0 transition-all duration-300 group-hover:scale-[1.16] group-hover:opacity-100"
+            />
+          </div>
+        </div>
+      </div>
 
-      <div className="flex items-baseline gap-1.5 mb-0.5">
-        <span className="text-2xl font-display font-bold text-slate-800 dark:text-white">
-          {safeUsage.toLocaleString('en-PH', {
+      <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-3 dark:border-white/5 dark:bg-[#090c13]">
+        <div className="flex items-end gap-2">
+          <span className="text-2xl font-bold text-slate-800 dark:text-slate-50">
+            {safeUsage.toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+          <span className="mb-1 text-xs font-mono text-slate-500 dark:text-slate-500">{displayUnit}</span>
+        </div>
+      </div>
+
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <p className={`text-base font-semibold ${palette.text}`}>
+          PHP {safeCost.toLocaleString('en-PH', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
-        </span>
-        <span className="text-sm text-slate-400 font-mono">{safeUnit}</span>
+        </p>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-600 dark:text-slate-600">
+          {safeTrend >= 0 ? '+' : '-'}{Math.abs(safeTrend).toFixed(1)}%
+        </p>
       </div>
 
-      <p className={`text-base font-semibold ${colors.text} mb-3`}>
-        ₱{safeEstimatedCost.toLocaleString('en-PH', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
-        <span className="text-xs font-normal text-slate-400 ml-1">est. cost</span>
-      </p>
-
-      <div className="border-t border-slate-200/60 dark:border-slate-700/50 pt-3">
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{safeLastUpdated}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-          {descMap[normalizedType]}
-        </p>
+      <div className="flex items-end gap-2">
+        {bars.map((height, index) => (
+          <div
+            key={`${normalizedType}-${index}`}
+            className="group/bar relative flex flex-1 flex-col items-center gap-1.5"
+            title={`${BAR_LABELS[index]}: ${barValues[index].toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} ${displayUnit}`}
+            aria-label={`${BAR_LABELS[index]} consumption ${barValues[index].toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} ${displayUnit}`}
+          >
+            <div
+              className={`w-full rounded-md bg-gradient-to-t ${palette.gradient} opacity-90 transition-all duration-300 group-hover:opacity-100`}
+              style={{ height: Math.max(34, Math.round(height * 0.82)) }}
+            />
+            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-700 shadow-lg group-hover/bar:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+              <span className="whitespace-nowrap">
+                {BAR_LABELS[index]}: {barValues[index].toLocaleString('en-PH', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} {displayUnit}
+              </span>
+            </div>
+            <span className="text-[9px] font-mono text-slate-600 dark:text-slate-600">
+              {BAR_LABELS[index]}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )

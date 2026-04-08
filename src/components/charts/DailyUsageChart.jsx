@@ -1,81 +1,80 @@
-import { useState } from 'react'
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from 'recharts'
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingDown, TrendingUp } from 'lucide-react'
 
-const CustomTooltip = ({ active, payload, label, unit, color }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="glass rounded-xl px-3 py-2 shadow-xl border border-slate-200/60 dark:border-slate-700/50 text-sm">
-        <p className="text-xs font-mono text-slate-400 mb-1">{label}</p>
-        <p className="font-semibold" style={{ color }}>
-          {payload[0].value.toLocaleString()} {unit}
-        </p>
-      </div>
-    )
-  }
-  return null
-}
-
-export default function DailyUsageChart({ title, data, dataKey, unit, color, gradientId, trend }) {
-  const avg = (data.reduce((s, d) => s + d[dataKey], 0) / data.length).toFixed(1)
-  const max = Math.max(...data.map(d => d[dataKey]))
-  const isPositive = trend > 0
-  const TrendIcon = isPositive ? TrendingUp : TrendingDown
+function CustomTooltip({ active, payload, label, unit, color }) {
+  if (!active || !payload?.length) return null
 
   return (
-    <div className="glass rounded-2xl p-5 card-hover shadow-lg animate-in">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-xl dark:border-cyan-500/15 dark:bg-[#0b1018]/95">
+      <p className="mb-1 text-xs font-mono text-slate-500 dark:text-slate-500">{label}</p>
+      <p className="font-semibold" style={{ color }}>
+        {Number(payload[0].value || 0).toLocaleString()} {unit}
+      </p>
+    </div>
+  )
+}
+
+export default function DailyUsageChart({ title, data = [], dataKey, unit, color, gradientId, trend = 0 }) {
+  const safeData = Array.isArray(data) ? data : []
+  const average = safeData.length
+    ? (safeData.reduce((sum, item) => sum + Number(item?.[dataKey] || 0), 0) / safeData.length).toFixed(1)
+    : '0.0'
+  const peak = safeData.length ? Math.max(...safeData.map((item) => Number(item?.[dataKey] || 0))) : 0
+  const TrendIcon = Number(trend) >= 0 ? TrendingUp : TrendingDown
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">{title}</h3>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Last 7 days</p>
+          <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">Last 7 days</p>
         </div>
+
         <div className="text-right">
-          <p className="text-xl font-display font-700 text-slate-800 dark:text-white">
-            {avg} <span className="text-sm font-mono font-normal text-slate-400">{unit}</span>
+          <p className="text-xl font-bold text-slate-800 dark:text-slate-50">
+            {average} <span className="text-sm font-mono font-normal text-slate-500 dark:text-slate-500">{unit}</span>
           </p>
-          <p className="text-xs text-slate-400">avg/day</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-500">avg/day</p>
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="flex items-center gap-4 mb-4">
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ backgroundColor: color + '15' }}>
-          <TrendIcon className="w-3 h-3" style={{ color }} />
-          <span className="text-xs font-medium" style={{ color }}>{Math.abs(trend)}% vs last week</span>
+      <div className="flex items-center gap-4">
+        <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-white/6 dark:bg-white/5">
+          <TrendIcon className="h-3 w-3" style={{ color }} />
+          <span className="text-[11px] font-medium" style={{ color }}>
+            {Math.abs(Number(trend)).toFixed(1)}% vs last week
+          </span>
         </div>
-        <div className="text-xs text-slate-400">
-          Peak: <span className="font-semibold text-slate-600 dark:text-slate-300">{max} {unit}</span>
+        <div className="text-[11px] text-slate-500 dark:text-slate-500">
+          Peak: <span className="font-semibold text-slate-700 dark:text-slate-300">{peak} {unit}</span>
         </div>
       </div>
 
-      {/* Chart */}
       <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+        <AreaChart data={safeData} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+              <stop offset="5%" stopColor={color} stopOpacity={0.28} />
               <stop offset="95%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.14)" />
           <XAxis
             dataKey="day"
-            tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'JetBrains Mono' }}
+            tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'Consolas, monospace' }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'JetBrains Mono' }}
+            tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'Consolas, monospace' }}
             axisLine={false}
             tickLine={false}
           />
@@ -86,8 +85,8 @@ export default function DailyUsageChart({ title, data, dataKey, unit, color, gra
             stroke={color}
             strokeWidth={2.5}
             fill={`url(#${gradientId})`}
-            dot={{ fill: color, strokeWidth: 2, r: 4, stroke: '#fff' }}
-            activeDot={{ r: 6, fill: color, stroke: '#fff', strokeWidth: 2 }}
+            dot={{ fill: color, strokeWidth: 2, r: 3.5, stroke: '#0b1018' }}
+            activeDot={{ r: 5, fill: color, stroke: '#ffffff', strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>

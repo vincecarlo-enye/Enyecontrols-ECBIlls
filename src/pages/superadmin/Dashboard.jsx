@@ -1,47 +1,158 @@
-/**
- * pages/superadmin/Dashboard.jsx
- * Full system-wide Super Admin dashboard.
- */
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import {
+  BarChart2,
+  Building2,
+  Gauge,
+  Globe,
+  Shield,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import UtilityCard from '@/components/common/UtilityCard'
-import DailyUsageChart from '@/components/charts/DailyUsageChart'
 import BillsTable from '@/components/billing/BillsTable'
 import BillViewerModal from '@/components/billing/BillViewerModal'
-import AnnouncementPanel from '@/components/common/AnnouncementPanel'
-import DashboardCard from '@/components/ui/DashboardCard'
 import ChartCard from '@/components/ui/ChartCard'
 import MeterOverviewPanel from '@/components/meters/MeterOverviewPanel'
+import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
+import PageSection from '@/components/layout/PageSection'
+import {
+  CHART_AXIS_TICK,
+  CHART_GRID_PROPS,
+  CHART_MARGIN_COMPACT,
+  ThemedChartTooltip,
+  formatChartNumber,
+} from '@/components/charts/rechartsTheme.jsx'
 import utilitiesData from '@/data/mock/utilities.json'
 import { useBills } from '@/components/billing/hooks/useBills'
 import { useModalState } from '@/hooks/useModalState'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
-import { BarChart2, TrendingUp, Building2, Users, Gauge, Shield, Globe, Zap, Droplets, Flame } from 'lucide-react'
 
 const { stats: utilityStats, electricityDaily, waterDaily, thermalDaily } = utilitiesData
 
+const comparisonColors = {
+  electricity: '#f59e0b',
+  water: '#06b6d4',
+  thermal: '#f43f5e',
+}
+
+const RATE_CARDS = [
+  {
+    type: 'electricity',
+    label: 'Electricity',
+    panel: 'border-amber-200 bg-amber-50 dark:border-amber-700/50 dark:bg-amber-900/20',
+    value: 'text-amber-700 dark:text-amber-300',
+  },
+  {
+    type: 'water',
+    label: 'Water',
+    panel: 'border-cyan-200 bg-cyan-50 dark:border-cyan-700/50 dark:bg-cyan-900/20',
+    value: 'text-cyan-700 dark:text-cyan-300',
+  },
+  {
+    type: 'thermal',
+    label: 'Thermal',
+    panel: 'border-rose-200 bg-rose-50 dark:border-rose-700/50 dark:bg-rose-900/20',
+    value: 'text-rose-700 dark:text-rose-300',
+  },
+]
+
 const MemoCharts = memo(function Charts() {
+  const comparisonData = useMemo(
+    () =>
+      electricityDaily.map((item, index) => ({
+        day: item.day,
+        electricity: Number(item.usage || 0),
+        water: Number(waterDaily?.[index]?.usage || 0),
+        thermal: Number(thermalDaily?.[index]?.usage || 0),
+      })),
+    []
+  )
+
+  const totals = comparisonData.reduce(
+    (acc, row) => {
+      acc.electricity += row.electricity
+      acc.water += row.water
+      acc.thermal += row.thermal
+      return acc
+    },
+    { electricity: 0, water: 0, thermal: 0 }
+  )
+
   return (
     <>
-      <div>
-        <h2 className="section-title mb-3">System-wide Daily Usage Trends</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          <ChartCard title="Electricity Daily Usage" subtitle="kWh · last 7 days" accentHex="#f59e0b" badge="+4.2%" badgeCls="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 font-mono text-[10px]">
-            <DailyUsageChart data={electricityDaily} dataKey="usage" unit="kWh" color="#f59e0b" gradientId="elecGradSA" trend={+4.2} />
-          </ChartCard>
-          <ChartCard title="Water Daily Usage" subtitle="m³ · last 7 days" accentHex="#06b6d4" badge="-2.1%" badgeCls="bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-400 font-mono text-[10px]">
-            <DailyUsageChart data={waterDaily} dataKey="usage" unit="m³" color="#06b6d4" gradientId="waterGradSA" trend={-2.1} />
-          </ChartCard>
-          <ChartCard title="Thermal Energy Daily Usage" subtitle="kBTU/h · last 7 days" accentHex="#f43f5e" badge="+3.4%" badgeCls="bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400 font-mono text-[10px]">
-        <DailyUsageChart data={thermalDaily} dataKey="usage" unit="kBTU/h" color="#f43f5e" gradientId="thermalGradSA" trend={+3.4} />
-      </ChartCard>
-      {/* Meters overview */}
-      <MeterOverviewPanel />
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-5">
+        <ChartCard className="lg:col-span-3" title="7-Day Utility Comparison" subtitle="Cross-utility usage comparison across the last 7 days">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={comparisonData} barGap={6} margin={CHART_MARGIN_COMPACT}>
+              <CartesianGrid {...CHART_GRID_PROPS} />
+              <XAxis dataKey="day" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+              <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+              <Tooltip content={<ThemedChartTooltip formatter={(value, name) => [formatChartNumber(value), name]} />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="electricity" fill={comparisonColors.electricity} radius={[6, 6, 0, 0]} name="Electricity" />
+              <Bar dataKey="water" fill={comparisonColors.water} radius={[6, 6, 0, 0]} name="Water" />
+              <Bar dataKey="thermal" fill={comparisonColors.thermal} radius={[6, 6, 0, 0]} name="Thermal" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard className="lg:col-span-2" title="Usage Trend Mix" subtitle="Relative movement of all utilities through the week">
+          <div className="mb-4 grid grid-cols-3 gap-2">
+            {[
+              { label: 'Electricity', value: totals.electricity, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+              { label: 'Water', value: totals.water, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+              { label: 'Thermal', value: totals.thermal, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20' },
+            ].map((item) => (
+              <div key={item.label} className={`rounded-xl px-3 py-2 text-center ${item.bg}`}>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{item.label}</p>
+                <p className={`text-sm font-bold ${item.color}`}>{Math.round(item.value).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={190}>
+            <AreaChart data={comparisonData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="saElectric" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="saWater" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="saThermal" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid {...CHART_GRID_PROPS} />
+              <XAxis dataKey="day" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+              <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+              <Tooltip content={<ThemedChartTooltip formatter={(value, name) => [formatChartNumber(value), name]} />} />
+              <Area type="monotone" dataKey="electricity" stroke="#f59e0b" fill="url(#saElectric)" strokeWidth={2.2} />
+              <Area type="monotone" dataKey="water" stroke="#06b6d4" fill="url(#saWater)" strokeWidth={2.2} />
+              <Area type="monotone" dataKey="thermal" stroke="#f43f5e" fill="url(#saThermal)" strokeWidth={2.2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
       </div>
-      
+
+      <MeterOverviewPanel />
     </>
   )
 })
@@ -55,83 +166,71 @@ export default function SuperAdminDashboard() {
 
   if (loading) return <DashboardSkeleton />
 
-  const totalRevenue  = bills.filter(b => b.status === 'paid').reduce((s, b) => s + b.amount, 0)
-  const unpaidCount   = bills.filter(b => ['published','overdue'].includes(b.status)).length
-  const activeTenants = tenants.filter(t => t.status === 'active').length
-  const activeMeters  = meters.filter(m => m.status === 'active').length
-  const totalUsers    = users?.length || 0
+  const totalRevenue = bills.filter((bill) => bill.status === 'paid').reduce((sum, bill) => sum + bill.amount, 0)
+  const unpaidCount = bills.filter((bill) => ['published', 'overdue'].includes(bill.status)).length
+  const activeTenants = tenants.filter((tenant) => tenant.status === 'active').length
+  const activeMeters = meters.filter((meter) => meter.status === 'active').length
+  const totalUsers = users?.length || 0
 
   const kpi = [
-    { title: 'Total Revenue',    value: `₱${totalRevenue.toLocaleString()}`, sub: 'All paid bills',         icon: TrendingUp, gradient: 'from-blue-500 to-blue-600',       glow: 'shadow-blue-500/25'    },
-    { title: 'Active Tenants',   value: activeTenants,                        sub: 'of all units occupied', icon: Users,      gradient: 'from-indigo-500 to-indigo-600',   glow: 'shadow-indigo-500/25'  },
-    { title: 'Active Meters',    value: activeMeters,                         sub: 'across all units',      icon: Gauge,      gradient: 'from-violet-500 to-violet-600',   glow: 'shadow-violet-500/25'  },
-    { title: 'Unpaid Bills',     value: unpaidCount,                          sub: 'Requires attention',    icon: BarChart2,  gradient: 'from-rose-500 to-rose-600',       glow: 'shadow-rose-500/25'    },
-    { title: 'System Users',     value: totalUsers,                           sub: 'All roles',             icon: Shield,     gradient: 'from-emerald-500 to-emerald-600', glow: 'shadow-emerald-500/25' },
-    { title: 'Building Floors',  value: '15',                                 sub: 'Floors managed',        icon: Building2,  gradient: 'from-cyan-500 to-cyan-600',       glow: 'shadow-cyan-500/25'    },
+    { title: 'Total Revenue', value: `PHP ${totalRevenue.toLocaleString()}`, sub: 'All paid bills', icon: TrendingUp, gradient: 'from-blue-500 to-blue-600', glow: 'shadow-blue-500/25' },
+    { title: 'Active Tenants', value: activeTenants, sub: 'of all units occupied', icon: Users, gradient: 'from-indigo-500 to-indigo-600', glow: 'shadow-indigo-500/25' },
+    { title: 'Active Meters', value: activeMeters, sub: 'across all units', icon: Gauge, gradient: 'from-violet-500 to-violet-600', glow: 'shadow-violet-500/25' },
+    { title: 'Unpaid Bills', value: unpaidCount, sub: 'Requires attention', icon: BarChart2, gradient: 'from-rose-500 to-rose-600', glow: 'shadow-rose-500/25' },
+    { title: 'System Users', value: totalUsers, sub: 'All roles', icon: Shield, gradient: 'from-emerald-500 to-emerald-600', glow: 'shadow-emerald-500/25' },
+    { title: 'Building Floors', value: '15', sub: 'Floors managed', icon: Building2, gradient: 'from-cyan-500 to-cyan-600', glow: 'shadow-cyan-500/25' },
   ]
 
   return (
-    <div className="section-gap animate-in">
-      {/* Super Admin banner */}
-      <div className="flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600/10 to-indigo-600/10 border border-violet-200 dark:border-violet-700/40">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
-          <Shield className="w-4.5 h-4.5 text-white" />
+    <PageSection variant="dark">
+      <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 px-5 py-3.5 dark:border-violet-700/40">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-500 shadow-lg shadow-violet-500/30">
+          <Shield className="h-4.5 w-4.5 text-white" />
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-display font-700 text-[15px] text-violet-700 dark:text-violet-300">System Overview</p>
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white"><Globe className="w-2.5 h-2.5"/>System-wide</span>
+            <p className="font-display text-[15px] font-700 text-violet-700 dark:text-violet-300">System Overview</p>
+            <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-2 py-0.5 text-[9px] font-bold text-white">
+              <Globe className="h-2.5 w-2.5" />
+              System-wide
+            </span>
           </div>
           <p className="text-xs text-violet-500 dark:text-violet-400">Viewing all tenants, meters, and consumption data across the entire building.</p>
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {kpi.map((card, i) => (
-          <DashboardCard key={card.title} icon={card.icon} title={card.title} value={card.value} sub={card.sub} gradient={card.gradient} glow={card.glow} className={`stagger-${i + 1} animate-in`} />
-        ))}
-      </div>
+      <SummaryCardStrip cards={kpi} />
 
-      {/* Billing Rates live preview */}
       <div>
         <h2 className="section-title mb-3">Current Billing Rates</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {['electricity','water','thermal'].map(type => {
-            const r = billingRates?.[type]
-            const colors = { electricity: 'amber', water: 'cyan', thermal: 'rose' }
-            const icons = { electricity: Zap, water: Droplets, thermal: Flame }
-            const color = colors[type]
-            return r ? (
-              <div key={type} className={`p-4 rounded-2xl bg-${color}-50 dark:bg-${color}-900/20 border border-${color}-200 dark:border-${color}-700/50`}>
-                <p className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">{type} Rate</p>
-                <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">₱{r.rate?.toFixed(2)}</p>
-                <p className="text-xs text-slate-400">{r.unit}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {RATE_CARDS.map(({ type, label, panel, value }) => {
+            const rate = billingRates?.[type]
+
+            return rate ? (
+              <div key={type} className={`rounded-2xl border p-4 ${panel}`}>
+                <p className="mb-1 text-xs font-mono uppercase tracking-wider text-slate-400">{label} Rate</p>
+                <p className={`text-2xl font-display font-700 ${value}`}>PHP {rate.rate?.toFixed(2)}</p>
+                <p className="text-xs text-slate-400">{rate.unit}</p>
               </div>
             ) : null
           })}
         </div>
       </div>
 
-      {/* Utility Cards */}
       <div>
         <h2 className="section-title mb-3">System Utility Consumption</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <UtilityCard type="electricity" {...utilityStats.electricity} />
-          <UtilityCard type="thermal"     {...utilityStats.thermal} />
-          <UtilityCard type="water"       {...utilityStats.water} />
+          <UtilityCard type="thermal" {...utilityStats.thermal} />
+          <UtilityCard type="water" {...utilityStats.water} />
         </div>
       </div>
-      
+
       <MemoCharts />
-        
 
-      {/* Bills */}
       <BillsTable onView={(bill) => viewer.open(bill)} />
-
-      {/* <AnnouncementPanel /> */}
-
       <BillViewerModal bill={viewer.selectedItem} isOpen={viewer.isOpen} onClose={viewer.close} />
-    </div>
+    </PageSection>
   )
 }

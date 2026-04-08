@@ -33,17 +33,45 @@ function getProfileState(user) {
   const unit = tenant?.unit ?? {}
 
   return {
-    name: tenant?.name ?? user?.name ?? '',
-    email: tenant?.email ?? user?.email ?? '',
-    phone: tenant?.phone ?? '',
+    name: user?.name ?? tenant?.name ?? '',
+    email: user?.email ?? tenant?.email ?? '',
+    phone: user?.phone ?? tenant?.phone ?? '',
     building: unit?.building_name ?? '',
     unit: unit?.unit_number ?? '',
-    memberSince: tenant?.move_in_date ?? user?.created_at ?? '',
+    memberSince: user?.created_at ?? tenant?.move_in_date ?? '',
   }
 }
 
+function mergeProfileIntoUser(baseUser, profile) {
+  if (!baseUser && !profile) return null
+
+  const nextUser = { ...(baseUser || {}) }
+  const nextTenant = {
+    ...(baseUser?.tenant || {}),
+    ...(profile?.tenant || {}),
+  }
+
+  if (profile?.name) nextUser.name = profile.name
+  if (profile?.email) nextUser.email = profile.email
+  if (profile?.phone) nextUser.phone = profile.phone
+
+  if (profile?.tenant?.name || profile?.name) nextTenant.name = profile?.tenant?.name || profile?.name
+  if (profile?.tenant?.email || profile?.email) nextTenant.email = profile?.tenant?.email || profile?.email
+  if (profile?.tenant?.phone || profile?.phone) nextTenant.phone = profile?.tenant?.phone || profile?.phone
+  if (profile?.tenant?.move_in_date) nextTenant.move_in_date = profile.tenant.move_in_date
+  if (profile?.tenant?.unit) {
+    nextTenant.unit = {
+      ...(baseUser?.tenant?.unit || {}),
+      ...profile.tenant.unit,
+    }
+  }
+
+  nextUser.tenant = nextTenant
+  return nextUser
+}
+
 function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return 'â€”'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
@@ -57,7 +85,7 @@ function formatDate(value) {
 
 export default function TenantProfile() {
   const pageLoading = usePageLoader(700)
-  const { user, updateCurrentUser } = useAuth()
+  const { user, updateCurrentUser, refreshCurrentUser } = useAuth()
   const { addToast } = useApp()
 
   const [profileLoading, setProfileLoading] = useState(true)
@@ -74,12 +102,15 @@ export default function TenantProfile() {
       try {
         setProfileLoading(true)
         setError('')
-        const profile = await getTenantProfile()
-        if (profile) {
-          updateCurrentUser(profile)
-          setForm(getProfileState(profile))
-        } else {
-          setForm(getProfileState(user))
+        const authUser = await refreshCurrentUser()
+
+        try {
+          const profile = await getTenantProfile()
+          const mergedUser = mergeProfileIntoUser(authUser, profile)
+          updateCurrentUser(mergedUser)
+          setForm(getProfileState(mergedUser))
+        } catch {
+          setForm(getProfileState(authUser))
         }
       } catch (err) {
         const message =
@@ -94,9 +125,9 @@ export default function TenantProfile() {
     }
 
     loadProfile()
-  }, [updateCurrentUser])
+  }, [refreshCurrentUser, updateCurrentUser])
 
-  if (pageLoading || profileLoading) {
+  if ((pageLoading && !form.name && !form.email) || (profileLoading && !form.name && !form.email)) {
     return <TenantProfileSkeleton />
   }
 
@@ -112,8 +143,10 @@ export default function TenantProfile() {
       })
 
       if (updated) {
-        updateCurrentUser(updated)
-        setForm(getProfileState(updated))
+        const freshUser = await refreshCurrentUser()
+        const mergedUser = mergeProfileIntoUser(freshUser, updated)
+        updateCurrentUser(mergedUser)
+        setForm(getProfileState(mergedUser))
       }
 
       setSaved(true)
@@ -169,11 +202,11 @@ export default function TenantProfile() {
   }
 
   const details = [
-    { icon: User, label: 'Full Name', value: form.name || '—' },
-    { icon: Mail, label: 'Email', value: form.email || '—' },
-    { icon: Phone, label: 'Phone', value: form.phone || '—' },
-    { icon: Building2, label: 'Building', value: form.building || '—' },
-    { icon: MapPin, label: 'Unit', value: form.unit || '—' },
+    { icon: User, label: 'Full Name', value: form.name || 'â€”' },
+    { icon: Mail, label: 'Email', value: form.email || 'â€”' },
+    { icon: Phone, label: 'Phone', value: form.phone || 'â€”' },
+    { icon: Building2, label: 'Building', value: form.building || 'â€”' },
+    { icon: MapPin, label: 'Unit', value: form.unit || 'â€”' },
     { icon: Calendar, label: 'Member Since', value: formatDate(form.memberSince) },
   ]
 

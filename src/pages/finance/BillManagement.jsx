@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FileText, Plus, Send, Edit2, Trash2, Search,
@@ -12,7 +12,11 @@ import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useApp } from '@/context/AppContext'
 import { useModalState } from '@/hooks/useModalState'
 import RateConfigCard from '@/components/common/RateConfigCard'
+import PaginationBar from '@/components/common/PaginationBar'
+import PageActionBar from '@/components/common/PageActionBar'
+import { useClientPagination } from '@/hooks/useClientPagination'
 import { useFinanceBills } from '@/hooks/financeHooks/useFinanceBills'
+import { downloadCsv, printElement } from '@/utils/reporting'
 
 const UTIL_CLS = {
   electricity: 'text-amber-600 dark:text-amber-400',
@@ -124,6 +128,85 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
   )
 }
 
+function GenerateAllBillsModal({ open, onClose, onSubmit, saving }) {
+  const [billingMonth, setBillingMonth] = useState('')
+  const [regenerateExisting, setRegenerateExisting] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setBillingMonth('')
+    setRegenerateExisting(false)
+  }, [open])
+
+  if (!open) return null
+
+  const handleSubmit = async () => {
+    if (!billingMonth) return
+
+    const result = await onSubmit({
+      billingMonth,
+      regenerateExisting,
+    })
+
+    if (result?.success) onClose()
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h3 className="font-semibold text-[15px] text-slate-800 dark:text-white">Generate All Bills</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Billing Month</label>
+            <input
+              type="month"
+              value={billingMonth}
+              onChange={(e) => setBillingMonth(e.target.value)}
+              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all"
+            />
+          </div>
+
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={regenerateExisting}
+              onChange={(e) => setRegenerateExisting(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Regenerate existing bills too</p>
+              <p className="text-xs text-slate-400 mt-1">
+                If unchecked, tenants that already have a bill for the selected month will be skipped.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div className="flex gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-all">
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!billingMonth || saving}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Generate All Bills
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 function BillDetailModal({ bill, onClose }) {
   if (!bill) return null
 
@@ -189,6 +272,7 @@ function BillDetailModal({ bill, onClose }) {
 
 export default function FinanceBillManagement() {
   const pageLoading = usePageLoader(700)
+  const printRef = useRef(null)
   const {
     bills,
     tenants,
@@ -197,6 +281,7 @@ export default function FinanceBillManagement() {
     saving,
     error,
     createBill,
+    generateAllBills,
     regenerateBill,
     publishBill,
     removeBill,
@@ -216,9 +301,10 @@ export default function FinanceBillManagement() {
   const [allUtility, setAllUtility] = useState('all')
   const [editBill, setEditBill] = useState(null)
   const formModal = useModalState()
+  const batchModal = useModalState()
   const detailModal = useModalState()
 
-  const loadingState = pageLoading || loading
+  const loadingState = (pageLoading && bills.length === 0 && tenants.length === 0) || (loading && bills.length === 0 && tenants.length === 0 && !error)
 
   const manageFiltered = useMemo(
     () =>
@@ -251,11 +337,26 @@ export default function FinanceBillManagement() {
     [bills, allSearch, allStatus, allUtility]
   )
 
+  const managePagination = useClientPagination(manageFiltered, 10)
+  const allBillsPagination = useClientPagination(allFiltered, 10)
+
+  useEffect(() => {
+    managePagination.setPage(1)
+  }, [manageSearch, manageStatus])
+
+  useEffect(() => {
+    allBillsPagination.setPage(1)
+  }, [allSearch, allStatus, allUtility])
+
   if (loadingState) return <BillingSkeleton />
 
   const openCreate = () => {
     setEditBill(null)
     formModal.open({})
+  }
+
+  const openBatch = () => {
+    batchModal.open({})
   }
 
   const openEdit = (bill) => {
@@ -280,6 +381,18 @@ export default function FinanceBillManagement() {
     return result
   }
 
+  const handleGenerateAll = async ({ billingMonth, regenerateExisting }) => {
+    const result = await generateAllBills({ billingMonth, regenerateExisting })
+
+    if (!result?.success) {
+      addToast(result?.message || 'Failed to generate all bills.', 'error')
+      return result
+    }
+
+    addToast(result.message || 'Batch bill generation completed.', 'success')
+    return result
+  }
+
   const handlePublish = async (id) => {
     const result = await publishBill(id)
     addToast(result?.success ? 'Bill published successfully.' : result?.message || 'Failed to publish bill.', result?.success ? 'success' : 'error')
@@ -298,6 +411,31 @@ export default function FinanceBillManagement() {
     { k: 'paid', l: 'Paid' },
   ]
 
+  const handleExportCurrent = () => {
+    const rows = (activeTab === 'manage' ? manageFiltered : allFiltered).map((bill) => ({
+      invoice_id: bill.id,
+      tenant: bill.tenant,
+      unit: bill.unit,
+      month: bill.month,
+      due_date: bill.dueDate,
+      electricity: Number(bill.breakdown?.electricity || 0),
+      water: Number(bill.breakdown?.water || 0),
+      thermal: Number(bill.breakdown?.thermal || 0),
+      total: Number(bill.amount || 0),
+      status: bill.status,
+    }))
+
+    downloadCsv(`finance-bills-${activeTab}.csv`, rows)
+  }
+
+  const handlePrintCurrent = () => {
+    printElement({
+      title: 'Billing Management',
+      subtitle: activeTab === 'manage' ? 'Manage bills view' : 'All bills view',
+      element: printRef.current,
+    })
+  }
+
   return (
     <div className="space-y-5 animate-in">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -308,14 +446,31 @@ export default function FinanceBillManagement() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Generate, publish, and monitor all tenant bills</p>
         </div>
-        {activeTab === 'manage' && (
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Plus className="w-4 h-4" /> Generate Bill
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <PageActionBar
+            onExport={handleExportCurrent}
+            onPrint={handlePrintCurrent}
+            exportLabel={activeTab === 'manage' ? 'Export Current Bills' : 'Export Filtered Bills'}
+            printLabel={activeTab === 'manage' ? 'Print Manage Bills' : 'Print All Bills'}
+            iconOnly
+          />
+          {activeTab === 'manage' && (
+            <>
+            <button
+              onClick={openBatch}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <LayoutList className="w-4 h-4" /> Generate All Bills
+            </button>
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <Plus className="w-4 h-4" /> Generate Bill
+            </button>
+            </>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -341,6 +496,7 @@ export default function FinanceBillManagement() {
         ))}
       </div>
 
+      <div ref={printRef}>
       {activeTab === 'manage' && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -357,8 +513,6 @@ export default function FinanceBillManagement() {
               </div>
             ))}
           </div>
-
-          <RateConfigCard rates={rates} />
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[200px]">
@@ -399,7 +553,7 @@ export default function FinanceBillManagement() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {manageFiltered.length === 0 ? (
                     <tr><td colSpan={8}><EmptyState title="No bills found" message="Generate a new bill to get started." /></td></tr>
-                  ) : manageFiltered.map((bill) => (
+                  ) : managePagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{bill.tenant}</td>
@@ -455,6 +609,20 @@ export default function FinanceBillManagement() {
                 </tbody>
               </table>
             </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+              <PaginationBar
+                meta={managePagination.meta}
+                page={managePagination.page}
+                perPage={managePagination.perPage}
+                onPageChange={managePagination.setPage}
+                onPerPageChange={(value) => {
+                  managePagination.setPerPage(value)
+                  managePagination.setPage(1)
+                }}
+              />
+            </div>
+          <RateConfigCard rates={rates} />
+
           </div>
         </>
       )}
@@ -526,7 +694,7 @@ export default function FinanceBillManagement() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {allFiltered.length === 0 ? (
                     <tr><td colSpan={11}><EmptyState title="No bills match your filters" message="Try adjusting the search or status filter." /></td></tr>
-                  ) : allFiltered.map((bill) => (
+                  ) : allBillsPagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{bill.tenant}</td>
@@ -551,9 +719,22 @@ export default function FinanceBillManagement() {
                 </tbody>
               </table>
             </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+              <PaginationBar
+                meta={allBillsPagination.meta}
+                page={allBillsPagination.page}
+                perPage={allBillsPagination.perPage}
+                onPageChange={allBillsPagination.setPage}
+                onPerPageChange={(value) => {
+                  allBillsPagination.setPerPage(value)
+                  allBillsPagination.setPage(1)
+                }}
+              />
+            </div>
           </div>
         </>
       )}
+      </div>
 
       <BillFormModal
         open={formModal.isOpen}
@@ -561,6 +742,13 @@ export default function FinanceBillManagement() {
         tenants={tenants}
         initial={editBill}
         onSave={handleSave}
+        saving={saving}
+      />
+
+      <GenerateAllBillsModal
+        open={batchModal.isOpen}
+        onClose={batchModal.close}
+        onSubmit={handleGenerateAll}
         saving={saving}
       />
 

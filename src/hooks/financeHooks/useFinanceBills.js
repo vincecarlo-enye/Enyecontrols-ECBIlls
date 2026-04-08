@@ -6,6 +6,7 @@ import {
   fetchFinanceTenants,
   fetchSharedRates,
   generateFinanceBill,
+  generateAllFinanceBills,
   regenerateFinanceBill,
   updateFinanceBillStatus,
 } from '@/services/financeService/financeBillService'
@@ -199,6 +200,29 @@ export function useFinanceBills() {
     }
   }, [loadData])
 
+  const generateAllBills = useCallback(async ({ billingMonth, regenerateExisting = false }) => {
+    try {
+      setSaving(true)
+      setError('')
+      const response = await generateAllFinanceBills({
+        billing_month: billingMonth,
+        regenerate_existing: regenerateExisting,
+      })
+      await loadData()
+      return {
+        success: true,
+        data: response?.data,
+        message: response?.message || 'Batch bill generation completed.',
+      }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to generate all bills.'
+      setError(message)
+      return { success: false, message }
+    } finally {
+      setSaving(false)
+    }
+  }, [loadData])
+
   const publishBill = useCallback(async (id) => {
     try {
       setSaving(true)
@@ -251,6 +275,7 @@ export function useFinanceBills() {
     error,
     reload: loadData,
     createBill,
+    generateAllBills,
     regenerateBill,
     publishBill,
     removeBill,

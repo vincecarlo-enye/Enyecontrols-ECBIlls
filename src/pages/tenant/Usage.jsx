@@ -75,7 +75,8 @@ export default function Usage() {
     refreshUsage(selectedUnit)
   }, [refreshUsage, selectedUnit])
 
-  const isLoading = pageLoading || loading
+  const isLoading = (pageLoading && !summary?.electric && safeHourly.length === 0 && safeDaily.length === 0 && safeMonthly.length === 0)
+    || (loading && !summary?.electric && safeHourly.length === 0 && safeDaily.length === 0 && safeMonthly.length === 0)
 
   const safeHourly = useMemo(() => {
     return Array.isArray(hourly) && hourly.length > 0
@@ -113,7 +114,7 @@ export default function Usage() {
     },
     {
       label: 'Water Consumption',
-      value: `${formatReading(summary?.water?.consumption)} ${summary?.water?.unit || 'm³'}`,
+      value: `${formatReading(summary?.water?.consumption)} ${summary?.water?.unit || 'mÂ³'}`,
       previous: `Prev: ${formatReading(summary?.water?.previous)}`,
       current: `Curr: ${formatReading(summary?.water?.current)}`,
       icon: Droplets,
@@ -181,7 +182,7 @@ export default function Usage() {
                     {s.value}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {s.previous} · {s.current}
+                    {s.previous} Â· {s.current}
                   </p>
                 </div>
 
@@ -240,7 +241,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Line type="monotone" dataKey="electric" stroke="#f59e0b" strokeWidth={2} dot={false} name="Electric (kWh)" />
-                <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water (m³)" />
+                <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water (mÂ³)" />
                 <Line type="monotone" dataKey="thermal" stroke="#f43f5e" strokeWidth={2} dot={false} name="Thermal (kBTU)" />
               </LineChart>
             </ResponsiveContainer>
@@ -257,7 +258,7 @@ export default function Usage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0">
                   <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60">
-                    {['Time', 'Electric (kWh)', 'Water (m³)', 'Thermal (kBTU)'].map((col) => (
+                    {['Time', 'Electric (kWh)', 'Water (mÂ³)', 'Thermal (kBTU)'].map((col) => (
                       <th
                         key={col}
                         className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 py-3 whitespace-nowrap"
@@ -322,7 +323,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="electric" name="Electric (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="water" name="Water (m³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="water" name="Water (mÂ³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -361,7 +362,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="electric" name="Electric (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="water" name="Water (m³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="water" name="Water (mÂ³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

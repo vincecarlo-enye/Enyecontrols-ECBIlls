@@ -134,7 +134,7 @@ export default function NotificationsPage() {
     }
   }
 
-  if (pageLoading || loading) {
+  if ((pageLoading && notifications.length === 0) || (loading && notifications.length === 0)) {
     return <ReportsSkeleton />
   }
 

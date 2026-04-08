@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Zap, Droplets, Flame } from 'lucide-react'
 import {
   AreaChart,
@@ -17,6 +17,8 @@ import { ReportsSkeleton } from '@/components/skeletons'
 import { useTenantConsumptionReports } from '@/hooks/tenantHooks/useTenantConsumptionReports'
 import { useUnitFilter } from '@/context/UnitFilterContext'
 import UnitFilterBar from '@/components/common/UnitFilterBar'
+import PageActionBar from '@/components/common/PageActionBar'
+import { downloadCsv, printElement } from '@/utils/reporting'
 
 const ttStyle = {
   contentStyle: {
@@ -61,6 +63,7 @@ function formatValue(value, unit) {
 
 export default function TenantConsumptionReports() {
   const pageLoading = usePageLoader(700)
+  const printRef = useRef(null)
   const { selectedUnit } = useUnitFilter()
   const { unit, units, summary, monthly, loading, error, reload } = useTenantConsumptionReports()
 
@@ -68,7 +71,7 @@ export default function TenantConsumptionReports() {
     reload(selectedUnit)
   }, [reload, selectedUnit])
 
-  const isLoading = pageLoading || loading
+  const isLoading = (pageLoading && monthly.length === 0) || (loading && monthly.length === 0)
   if (isLoading) return <ReportsSkeleton />
 
   const unitLabel = selectedUnit === 'all'
@@ -90,7 +93,7 @@ export default function TenantConsumptionReports() {
     },
     {
       label: '6-Month Water',
-      value: formatValue(summary?.water, 'm³'),
+      value: formatValue(summary?.water, 'mÂ³'),
       icon: Droplets,
       grad: 'from-cyan-500 to-cyan-600',
       glow: 'shadow-cyan-500/20',
@@ -104,6 +107,23 @@ export default function TenantConsumptionReports() {
     },
   ]
 
+  const handleExport = () => {
+    downloadCsv('tenant-consumption-report.csv', monthly.map((row) => ({
+      month: row.month,
+      electricity: row.electricity,
+      water: row.water,
+      thermal: row.thermal,
+    })))
+  }
+
+  const handlePrint = () => {
+    printElement({
+      title: 'Consumption Reports',
+      subtitle: unitLabel,
+      element: printRef.current,
+    })
+  }
+
   return (
     <div className="space-y-5 animate-in">
       <div>
@@ -111,8 +131,12 @@ export default function TenantConsumptionReports() {
           Consumption Reports
         </h1>
         <p className="text-sm text-slate-400 mt-0.5">
-          Monthly utility consumption trends · {unitLabel}
+          Monthly utility consumption trends Â· {unitLabel}
         </p>
+      </div>
+
+      <div className="flex justify-end">
+        <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Monthly Data" printLabel="Print Report" />
       </div>
 
       {error ? (
@@ -121,6 +145,7 @@ export default function TenantConsumptionReports() {
         </div>
       ) : null}
 
+      <div ref={printRef} className="space-y-5">
       <UnitFilterBar />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -140,7 +165,7 @@ export default function TenantConsumptionReports() {
                     {s.value}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Last 6 months · {unitLabel}
+                    Last 6 months Â· {unitLabel}
                   </p>
                 </div>
 
@@ -156,7 +181,7 @@ export default function TenantConsumptionReports() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <ChartCard
           title="Electricity Usage"
-          subtitle={`Monthly consumption (kWh) · ${unitLabel}`}
+          subtitle={`Monthly consumption (kWh) Â· ${unitLabel}`}
           icon={Zap}
           gradient="from-amber-500 to-amber-600"
           glow="shadow-amber-500/30"
@@ -192,7 +217,7 @@ export default function TenantConsumptionReports() {
 
         <ChartCard
           title="Water Usage"
-          subtitle={`Monthly consumption (m³) · ${unitLabel}`}
+          subtitle={`Monthly consumption (mÂ³) Â· ${unitLabel}`}
           icon={Droplets}
           gradient="from-cyan-500 to-cyan-600"
           glow="shadow-cyan-500/30"
@@ -209,7 +234,7 @@ export default function TenantConsumptionReports() {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip {...ttStyle} formatter={(v) => [`${Number(v).toLocaleString()} m³`, 'Water']} />
+                <Tooltip {...ttStyle} formatter={(v) => [`${Number(v).toLocaleString()} mÂ³`, 'Water']} />
                 <Area
                   type="monotone"
                   dataKey="water"
@@ -228,7 +253,7 @@ export default function TenantConsumptionReports() {
 
         <ChartCard
           title="Thermal Energy Usage"
-          subtitle={`Monthly consumption (kBTU) · ${unitLabel}`}
+          subtitle={`Monthly consumption (kBTU) Â· ${unitLabel}`}
           icon={Flame}
           gradient="from-rose-500 to-rose-600"
           glow="shadow-rose-500/30"
@@ -254,7 +279,7 @@ export default function TenantConsumptionReports() {
               Combined Overview
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              All utilities side by side · {unitLabel}
+              All utilities side by side Â· {unitLabel}
             </p>
           </div>
 
@@ -268,7 +293,7 @@ export default function TenantConsumptionReports() {
                   <Tooltip {...ttStyle} />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
                   <Bar dataKey="electricity" name="Electricity (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="water" name="Water (m³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="water" name="Water (mÂ³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -277,6 +302,7 @@ export default function TenantConsumptionReports() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

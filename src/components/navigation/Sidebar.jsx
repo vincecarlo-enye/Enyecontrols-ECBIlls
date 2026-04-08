@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Receipt, Users, Building2, BarChart3,
@@ -17,6 +16,7 @@ const adminNavItems = [
   { path: '/admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
   { path: '/admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
   { path: '/admin/anomalies', label: 'Anomalies', icon: Siren },
+  { path: '/admin/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
   { path: '/admin/settings', label: 'Settings', icon: Settings },
 ]
@@ -28,6 +28,7 @@ const superAdminNavItems = [
   { path: '/super-admin/units', label: 'Units', icon: Building2 },
   { path: '/super-admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
   { path: '/super-admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
+  { path: '/super-admin/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/super-admin/notifications', label: 'Notifications', icon: Bell },
   { path: '/super-admin/meters', label: 'Meter Management', icon: Gauge, superAdminOnly: true },
   { path: '/super-admin/billing-rates', label: 'Billing Rates', icon: Zap, superAdminOnly: true },
@@ -41,6 +42,7 @@ const tenantNavItems = [
   { path: '/tenant/usage', label: 'Usage', icon: Activity },
   { path: '/tenant/consumption-reports', label: 'Consumption Reports', icon: TrendingUp },
   { path: '/tenant/billing-reports', label: 'Billing Reports', icon: BarChart3 },
+  { path: '/tenant/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/tenant/notifications', label: 'Notifications', icon: Bell },
   { path: '/tenant/profile', label: 'Profile', icon: User },
 ]
@@ -51,6 +53,7 @@ const financeNavItems = [
   { path: '/finance/payment-review', label: 'Payment Review', icon: CheckSquare },
   { path: '/finance/billing-tickets', label: 'Billing Tickets', icon: Ticket },
   { path: '/finance/reports', label: 'Financial Reports', icon: BarChart3 },
+  { path: '/finance/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/finance/notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -62,12 +65,12 @@ const facilityNavItems = [
   { path: '/facility/maintenance', label: 'Maintenance Requests', icon: Wrench },
   { path: '/facility/equipment', label: 'Equipment Status', icon: Cpu },
   { path: '/facility/reports', label: 'Reports', icon: FileBarChart },
+  { path: '/facility/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/facility/notifications', label: 'Notifications', icon: Bell },
 ]
 
-export default function Sidebar({ mobileOpen, onMobileClose }) {
-  const [collapsed, setCollapsed] = useState(false)
-  const { user, logout } = useAuth()
+export default function Sidebar({ mobileOpen, onMobileClose, collapsed = false, onToggleCollapse = () => {} }) {
+  const { user } = useAuth()
   const navigate = useNavigate()
 
   let navItems = adminNavItems
@@ -78,10 +81,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
 
   const isSuperAdmin = user?.role === 'super_admin'
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
 
   const portalLabel = {
     super_admin: 'Super Admin Portal',
@@ -98,11 +97,10 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   return (
     <>
       {mobileOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 lg:hidden" onClick={onMobileClose} />}
-      <aside className={`fixed top-0 left-0 h-screen z-30 flex flex-col glass border-r border-slate-200/60 dark:border-slate-700/50 transition-all duration-300 ease-in-out ${collapsed ? 'w-[72px]' : 'w-[240px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed top-0 left-0 h-screen z-30 flex flex-col glass border-r border-slate-200/60 dark:border-slate-700/50 transition-[width,transform] duration-200 ease-out ${collapsed ? 'w-[72px]' : 'w-[240px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div onClick={() => navigate('/')} className={`flex items-center h-16 px-4 border-b cursor-pointer transition-colors ${isSuperAdmin ? 'border-violet-200/60 dark:border-violet-700/40 bg-gradient-to-r from-violet-50/50 to-indigo-50/50 dark:from-violet-900/10 dark:to-indigo-900/10' : 'border-slate-200/60 dark:border-slate-700/50'} ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 ${isSuperAdmin ? 'bg-gradient-to-br from-violet-600 to-indigo-500 shadow-violet-500/30' : 'bg-gradient-to-br from-slate-700 to-slate-300 shadow-blue-500/30'}`}>
-            <img src="/src/assets/enye-logo.png" alt="Enye Logo" className="w-6 h-6" />
-          </div>
+            <img src="/src/assets/ecbills_logo.png" alt="Enye Logo" className="w-10 h-10" />
+
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -112,7 +110,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider truncate">{portalLabel}</p>
             </div>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onMobileClose() }} className="ml-auto lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+          <button onClick={(e) => { e.stopPropagation(); onMobileClose() }} className="ml-auto lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"></button>
         </div>
 
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
@@ -153,12 +151,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
         </nav>
 
         <div className="p-3 border-t border-slate-200/60 dark:border-slate-700/50 space-y-2">
-          <button onClick={() => setCollapsed((v) => !v)} className={`w-full hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700 dark:hover:text-slate-200 transition-all ${collapsed ? 'justify-center' : ''}`}>
+          <button onClick={onToggleCollapse} className={`w-full hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700 dark:hover:text-slate-200 transition-all ${collapsed ? 'justify-center' : ''}`}>
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>Collapse</span></>}
-          </button>
-          <button onClick={handleLogout} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700 dark:hover:text-slate-200 transition-all ${collapsed ? 'justify-center' : ''}`}>
-            <X className="w-4 h-4" />
-            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>

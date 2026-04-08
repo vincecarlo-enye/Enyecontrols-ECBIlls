@@ -385,7 +385,7 @@ export default function Tenants() {
     setPage(1)
   }
 
-  if (pageLoading || loading) return <TenantListSkeleton />
+  if ((pageLoading && tenantGroups.length === 0) || (loading && tenantGroups.length === 0)) return <TenantListSkeleton />
 
   return (
     <div className="space-y-6 animate-in min-h-[calc(100vh-80px)]">

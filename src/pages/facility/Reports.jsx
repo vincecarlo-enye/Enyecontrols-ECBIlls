@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell,
@@ -7,6 +7,8 @@ import { Download, Gauge, Clock3, CheckCircle2, AlertTriangle } from 'lucide-rea
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import { useFacilityReports } from '@/hooks/facilityHooks/useFacilityReports'
+import PageActionBar from '@/components/common/PageActionBar'
+import { downloadCsv, printElement } from '@/utils/reporting'
 
 const TYPE_LABELS = {
   electricity: 'Electricity',
@@ -48,6 +50,7 @@ function formatApprovalLabel(value) {
 
 export default function Reports() {
   const pageLoading = usePageLoader(700)
+  const printRef = useRef(null)
   const {
     reportTypes,
     dailyEnergy,
@@ -61,6 +64,9 @@ export default function Reports() {
     error,
   } = useFacilityReports()
   const [selected, setSelected] = useState('Daily Energy')
+  const [readingSearch, setReadingSearch] = useState('')
+  const [readingType, setReadingType] = useState('all')
+  const [approvalFilter, setApprovalFilter] = useState('all')
 
   const currentData = useMemo(() => {
     switch (selected) {
@@ -77,33 +83,47 @@ export default function Reports() {
     }
   }, [selected, dailyEnergy, monthlyWater, thermalDistribution, peakUsage])
 
-  const loadingState = pageLoading || loading
+  const filteredMeterReadings = useMemo(() => {
+    const query = readingSearch.trim().toLowerCase()
+
+    return latestMeterReadings.filter((row) => {
+      const matchesType = readingType === 'all' || row.type === readingType
+      const matchesApproval = approvalFilter === 'all' || (row.approval_status || 'no_data') === approvalFilter
+      const haystack = [
+        row.meter_name,
+        row.watch_name,
+        row.page_name,
+        row.unit_label,
+        row.floor_label,
+        TYPE_LABELS[row.type] || row.type,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      const matchesSearch = !query || haystack.includes(query)
+
+      return matchesType && matchesApproval && matchesSearch
+    })
+  }, [latestMeterReadings, readingSearch, readingType, approvalFilter])
+
+  const loadingState = (pageLoading && latestMeterReadings.length === 0 && currentData.length === 0)
+    || (loading && latestMeterReadings.length === 0 && currentData.length === 0 && !error)
   if (loadingState) return <ReportsSkeleton />
 
-  const convertToCSV = (data) => {
-    if (!data || !data.length) return ''
-    const headers = Object.keys(data[0])
-    const rows = data.map((obj) => headers.map((header) => `"${obj[header] ?? ''}"`).join(','))
-    return [headers.join(','), ...rows].join('\n')
-  }
-
   const handleExport = () => {
-    const exportData = selected === 'Peak Usage' || selected === 'Daily Energy' || selected === 'Monthly Water' || selected === 'Thermal Distribution'
-      ? currentData
-      : latestMeterReadings
+    const exportData = currentData.length > 0 ? currentData : filteredMeterReadings
 
     if (!exportData.length) return
 
-    const csv = convertToCSV(exportData)
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `facility-report-${selected.toLowerCase().replace(/\s+/g, '-')}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    downloadCsv(`facility-report-${selected.toLowerCase().replace(/\s+/g, '-')}.csv`, exportData)
+  }
+
+  const handlePrint = () => {
+    printElement({
+      title: 'Facility Operational Reports',
+      subtitle: `${selected} report and latest meter readings`,
+      element: printRef.current,
+    })
   }
 
   return (
@@ -113,13 +133,7 @@ export default function Reports() {
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Operational Reports</h1>
           <p className="text-sm text-slate-400 mt-0.5">Cleaner facility reports with live meter reading visibility and trend analytics</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-        >
-          <Download className="w-4 h-4" />
-          Export CSV
-        </button>
+        <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Visible Data" />
       </div>
 
       {error && (
@@ -128,6 +142,7 @@ export default function Reports() {
         </div>
       )}
 
+      <div ref={printRef} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Meters', value: overview.totalMeters, icon: Gauge, tone: 'text-blue-600 dark:text-blue-400' },
@@ -263,7 +278,37 @@ export default function Reports() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-200/70 dark:border-slate-700/50">
           <h2 className="font-semibold text-slate-800 dark:text-white">Latest Meter Readings</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Clear view of each meter�s latest reading, latest usage delta, and approval state.</p>
+          <p className="text-xs text-slate-400 mt-0.5">Clear view of each meterâ€™s latest reading, latest usage delta, and approval state.</p>
+        </div>
+        <div className="grid gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50 md:grid-cols-[minmax(0,1.2fr),180px,180px]">
+          <input
+            type="search"
+            value={readingSearch}
+            onChange={(event) => setReadingSearch(event.target.value)}
+            placeholder="Search meter, watch, unit, floor, or page"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          />
+          <select
+            value={readingType}
+            onChange={(event) => setReadingType(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <option value="all">All Utility Types</option>
+            <option value="electricity">Electricity</option>
+            <option value="water">Water</option>
+            <option value="thermal">Thermal</option>
+          </select>
+          <select
+            value={approvalFilter}
+            onChange={(event) => setApprovalFilter(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <option value="all">All Approval States</option>
+            <option value="approved">Approved</option>
+            <option value="pending_approval">Pending Approval</option>
+            <option value="rejected">Rejected</option>
+            <option value="no_data">No Data</option>
+          </select>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -275,11 +320,11 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {latestMeterReadings.length === 0 ? (
+              {filteredMeterReadings.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No meter readings available yet.</td>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No meter readings matched the current filters.</td>
                 </tr>
-              ) : latestMeterReadings.map((row) => (
+              ) : filteredMeterReadings.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-5 py-3.5">
                     <p className="font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{row.meter_name}</p>
@@ -309,6 +354,7 @@ export default function Reports() {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   )
