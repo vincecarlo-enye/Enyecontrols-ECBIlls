@@ -11,12 +11,18 @@ const SAnnouncements = lazy(() => import('@/pages/superadmin/Announcements'))
 const AdminTenants = lazy(() => import('@/pages/admin/Tenants'))
 const AdminUnits = lazy(() => import('@/pages/admin/Units'))
 const AdminUsageReports = lazy(() => import('@/pages/admin/UsageReports'))
+const AdminReconciliation = lazy(() => import('@/pages/admin/Reconciliation'))
+const AdminOccupancyTimeline = lazy(() => import('@/pages/admin/OccupancyTimeline'))
+const AdminOwnerPortal = lazy(() => import('@/pages/admin/OwnerPortal'))
+const AdminSystemHealth = lazy(() => import('@/pages/admin/SystemHealth'))
 const AdminTenantReports = lazy(() => import('@/pages/admin/TenantReports'))
 const AdminBilling = lazy(() => import('@/pages/admin/Billing'))
 const AdminAnomalies = lazy(() => import('@/pages/admin/Anomalies'))
 const NewBill = lazy(() => import('@/pages/admin/NewBill'))
 const NotificationsPage = lazy(() => import('@/pages/common/Notifications'))
 const ActivityLogsPage = lazy(() => import('@/pages/common/ActivityLogs'))
+const OperationalExportsPage = lazy(() => import('@/pages/common/OperationalExports'))
+const GlobalSearchPage = lazy(() => import('@/pages/common/GlobalSearch'))
 
 export function superAdminRoutes() {
   return (
@@ -27,10 +33,16 @@ export function superAdminRoutes() {
       <Route path="tenants" element={<AdminTenants />} />
       <Route path="units" element={<AdminUnits />} />
       <Route path="usage-reports" element={<AdminUsageReports />} />
+      <Route path="reconciliation" element={<AdminReconciliation />} />
+      <Route path="occupancy-timeline" element={<AdminOccupancyTimeline />} />
+      <Route path="owner-portal" element={<AdminOwnerPortal />} />
+      <Route path="system-health" element={<AdminSystemHealth />} />
+      <Route path="operational-exports" element={<OperationalExportsPage />} />
       <Route path="tenant-reports" element={<AdminTenantReports />} />
       <Route path="anomalies" element={<AdminAnomalies />} />
       <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
+      <Route path="search" element={<GlobalSearchPage />} />
       <Route path="meters" element={<MeterManagement />} />
       <Route path="billing-rates" element={<BillingRates />} />
       <Route path="users" element={<UserManagement />} />

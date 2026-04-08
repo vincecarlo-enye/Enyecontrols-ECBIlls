@@ -3,7 +3,15 @@ import {
   getTenantBillingReports,
   submitTenantBillingReport,
   reopenTenantBillingReport,
+  respondTenantBillingReport,
 } from '@/services/tenantService/tenantBillingReportService'
+
+function safeText(value, fallback = '') {
+  if (value === null || value === undefined) return fallback
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return fallback
+}
 
 function formatTimelineDate(value) {
   if (!value) return ''
@@ -22,7 +30,14 @@ function formatTimelineDate(value) {
 
 function buildTimeline(concern = {}, tenant = null) {
   if (Array.isArray(concern?.timeline) && concern.timeline.length > 0) {
-    return concern.timeline
+    return concern.timeline.map((entry, index) => ({
+      id: safeText(entry?.id, `${concern?.id ?? 'concern'}-${index}`),
+      action: safeText(entry?.action, 'Update recorded'),
+      by: safeText(entry?.by, 'System'),
+      role: safeText(entry?.role, 'admin'),
+      date: formatTimelineDate(entry?.date),
+      note: safeText(entry?.note, ''),
+    }))
   }
 
   const createdAt = concern?.createdAt ?? concern?.created_at ?? ''
@@ -45,7 +60,7 @@ function buildTimeline(concern = {}, tenant = null) {
       by: tenantName,
       role: 'tenant',
       date: formatTimelineDate(createdAt),
-      note: concern?.message ?? '',
+      note: safeText(concern?.message, ''),
     })
   }
 
@@ -56,7 +71,7 @@ function buildTimeline(concern = {}, tenant = null) {
       by: 'Admin',
       role: 'admin',
       date: formatTimelineDate(updatedAt || createdAt),
-      note: adminNotes,
+      note: safeText(adminNotes, ''),
     })
   }
 
@@ -67,7 +82,7 @@ function buildTimeline(concern = {}, tenant = null) {
       by: 'Finance',
       role: 'finance',
       date: formatTimelineDate(updatedAt || createdAt),
-      note: financeNotes,
+      note: safeText(financeNotes, ''),
     })
   }
 
@@ -128,27 +143,31 @@ function normalizeConcern(concern = {}) {
       tenant?.company ??
       tenant?.company_name ??
       '',
-    subject: concern?.subject ?? '',
-    category: concern?.category ?? 'general',
-    message: concern?.message ?? '',
-    priority: concern?.priority ?? 'medium',
-    status: concern?.status ?? 'pending',
-    adminNotes: concern?.adminNotes ?? concern?.admin_notes ?? '',
-    financeNotes: concern?.financeNotes ?? concern?.finance_notes ?? '',
+    subject: safeText(concern?.subject, ''),
+    category: safeText(concern?.category, 'general'),
+    message: safeText(concern?.message, ''),
+    priority: safeText(concern?.priority, 'medium'),
+    status: safeText(concern?.status, 'pending'),
+    adminNotes: safeText(concern?.adminNotes ?? concern?.admin_notes, ''),
+    financeNotes: safeText(concern?.financeNotes ?? concern?.finance_notes, ''),
     createdAt: concern?.createdAt ?? concern?.created_at ?? '',
     updatedAt: concern?.updatedAt ?? concern?.updated_at ?? '',
     dateSubmitted:
-      concern?.dateSubmitted ??
-      concern?.date_submitted ??
-      concern?.createdAt ??
-      concern?.created_at ??
-      '',
+      formatTimelineDate(
+        concern?.dateSubmitted ??
+        concern?.date_submitted ??
+        concern?.createdAt ??
+        concern?.created_at ??
+        ''
+      ),
     dateUpdated:
-      concern?.dateUpdated ??
-      concern?.date_updated ??
-      concern?.updatedAt ??
-      concern?.updated_at ??
-      '',
+      formatTimelineDate(
+        concern?.dateUpdated ??
+        concern?.date_updated ??
+        concern?.updatedAt ??
+        concern?.updated_at ??
+        ''
+      ),
     assignedTo:
       concern?.assignedTo ??
       concern?.assigned_to ??
@@ -207,9 +226,9 @@ export default function useTenantBillingReports() {
       setConcerns(normalizedConcerns)
       setCounts({
         total: Number(response?.counts?.total ?? normalizedConcerns.length ?? 0),
-        pending: Number(response?.counts?.pending ?? 0),
-        active: Number(response?.counts?.active ?? 0),
-        resolved: Number(response?.counts?.resolved ?? 0),
+        pending: Number(response?.counts?.pending ?? normalizedConcerns.filter((item) => ['pending', 'reopened', 'awaiting_tenant'].includes(item.status)).length ?? 0),
+        active: Number(response?.counts?.active ?? normalizedConcerns.filter((item) => ['assigned', 'investigating'].includes(item.status)).length ?? 0),
+        resolved: Number(response?.counts?.resolved ?? normalizedConcerns.filter((item) => ['resolved', 'adjusted', 'closed', 'rejected'].includes(item.status)).length ?? 0),
       })
     } catch (err) {
       setError(
@@ -287,6 +306,32 @@ export default function useTenantBillingReports() {
     }
   }, [loadReports])
 
+  const respondToConcern = useCallback(async (id, note = '') => {
+    setSubmitting(true)
+    setError('')
+
+    try {
+      const updated = await respondTenantBillingReport(id, { note })
+      const normalized = normalizeConcern(updated)
+
+      setConcerns((prev) =>
+        prev.map((item) => (item.id === normalized.id ? normalized : item))
+      )
+
+      await loadReports()
+      return normalized
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to submit requested information.'
+      setError(message)
+      throw new Error(message)
+    } finally {
+      setSubmitting(false)
+    }
+  }, [loadReports])
+
   return useMemo(() => ({
     concerns,
     counts,
@@ -296,5 +341,6 @@ export default function useTenantBillingReports() {
     reload: loadReports,
     submitConcern,
     reopenConcern,
-  }), [concerns, counts, loading, submitting, error, loadReports, submitConcern, reopenConcern])
+    respondToConcern,
+  }), [concerns, counts, loading, submitting, error, loadReports, submitConcern, reopenConcern, respondToConcern])
 }

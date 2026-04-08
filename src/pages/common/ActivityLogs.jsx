@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, RefreshCw, Search } from 'lucide-react'
+import { Activity, Eye, RefreshCw, Search } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import PaginationBar from '@/components/common/PaginationBar'
-import { fetchActivityLogs } from '@/services/activityLogService'
+import { fetchActivityLogs, fetchActivityTimeline } from '@/services/activityLogService'
 import { useAuth } from '@/context/AuthContext'
+import ActivityTimelineModal from '@/components/activity/ActivityTimelineModal'
 
 const DEFAULT_PER_PAGE = 10
 const DEFAULT_META = {
@@ -52,6 +53,11 @@ export default function ActivityLogsPage() {
   const [actionFilter, setActionFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState('')
+  const [timelineItems, setTimelineItems] = useState([])
+  const [timelineEntity, setTimelineEntity] = useState(null)
 
   const isGlobalView = ['admin', 'super_admin'].includes(user?.role)
 
@@ -100,6 +106,28 @@ export default function ActivityLogsPage() {
     event.preventDefault()
     setPage(1)
     setSearch(searchInput.trim())
+  }
+
+  const openTimeline = async (log) => {
+    if (!log?.entity_type || !log?.entity_id) return
+
+    setTimelineOpen(true)
+    setTimelineLoading(true)
+    setTimelineError('')
+    setTimelineItems([])
+    setTimelineEntity({
+      label: prettyLabel(log.entity_type),
+      key: `${prettyLabel(log.entity_type)} #${log.entity_id}`,
+    })
+
+    try {
+      const res = await fetchActivityTimeline(log.entity_type, log.entity_id)
+      setTimelineItems(Array.isArray(res?.data) ? res.data : [])
+    } catch (err) {
+      setTimelineError(err?.response?.data?.message || err?.message || 'Failed to load timeline.')
+    } finally {
+      setTimelineLoading(false)
+    }
   }
 
   if (pageLoading || loading) {
@@ -199,12 +227,13 @@ export default function ActivityLogsPage() {
                 <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Description</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Target</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Route</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Timeline</th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                     No activity logs found for the selected filters.
                   </td>
                 </tr>
@@ -243,6 +272,19 @@ export default function ActivityLogsPage() {
                         {log.path || 'N/A'}
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      {log.entity_type && log.entity_id ? (
+                        <button
+                          onClick={() => openTimeline(log)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View Timeline
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">N/A</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
@@ -263,6 +305,16 @@ export default function ActivityLogsPage() {
           />
         </div>
       </div>
+
+      <ActivityTimelineModal
+        open={timelineOpen}
+        onClose={() => setTimelineOpen(false)}
+        entityLabel={timelineEntity?.label}
+        entityKey={timelineEntity?.key}
+        loading={timelineLoading}
+        error={timelineError}
+        items={timelineItems}
+      />
     </div>
   )
 }

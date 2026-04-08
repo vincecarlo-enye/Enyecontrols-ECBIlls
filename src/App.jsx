@@ -4,8 +4,6 @@ import { AppProvider } from '@/context/AppContext'
 import { AuthProvider } from '@/context/AuthContext'
 import { UnitFilterProvider } from '@/context/UnitFilterContext'
 import { ReportsProvider } from '@/context/ReportsContext'
-import { AnnouncementProvider } from '@/context/AnnouncementContext'
-import { BillingConcernProvider } from '@/context/BillingConcernContext'
 import ToastContainer from '@/components/ui/ToastContainer'
 import AppRouter from '@/app/router'
 import AIAssistant from '@/components/ai/AIAssistant'
@@ -15,20 +13,16 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
-          <AnnouncementProvider>
-            <ReportsProvider>
-              <BillingConcernProvider>
-                <UnitFilterProvider>
-                  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                    <AppRouter />
-                    <ToastContainer />
-                    {/* Floating AI Assistant — rendered outside layouts so it floats above all pages */}
-                    <AIAssistant />
-                  </BrowserRouter>
-                </UnitFilterProvider>
-              </BillingConcernProvider>
-            </ReportsProvider>
-          </AnnouncementProvider>
+          <ReportsProvider>
+            <UnitFilterProvider>
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <AppRouter />
+                <ToastContainer />
+                {/* Floating AI Assistant rendered outside layouts so it stays above all pages */}
+                <AIAssistant />
+              </BrowserRouter>
+            </UnitFilterProvider>
+          </ReportsProvider>
         </AppProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -3,7 +3,7 @@
  * Admin Billing - single page replacing both Billing.jsx + BillingOversight.jsx.
  */
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Receipt,
   Plus,
@@ -241,6 +241,25 @@ export default function AdminBilling() {
       ? '/super-admin/billing'
       : '/admin/billing'
 
+  useEffect(() => {
+    const navbarSearchItem = location.state?.navbarSearchItem
+    if (!navbarSearchItem?.query) return
+
+    const query = String(navbarSearchItem.query).trim()
+    if (!query) return
+
+    setActiveTab('manage')
+    setSearch(query)
+
+    navigate(location.pathname, {
+      replace: true,
+      state: {
+        ...location.state,
+        navbarSearchItem: null,
+      },
+    })
+  }, [location.pathname, location.state, navigate])
+
   const oversightFiltered = useMemo(() => {
     return bills.filter((bill) => {
       const q = search.toLowerCase()
@@ -298,13 +317,13 @@ export default function AdminBilling() {
               onExported={(format) => addToast?.(`Bills exported as ${format}`)}
             />
 
-            <button
+            {/* <button
               onClick={() => navigate(`${billingBasePath}/new`)}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
               <Plus className="w-4 h-4 flex-shrink-0" />
               <span className="hidden sm:inline">New Bill</span>
-            </button>
+            </button> */}
           </div>
         )}
       </div>
@@ -665,5 +684,3 @@ export default function AdminBilling() {
     </div>
   )
 }
-
-

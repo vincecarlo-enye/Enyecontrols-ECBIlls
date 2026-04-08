@@ -10,6 +10,7 @@ import {
 const STATUS_CFG = {
   pending:      { label: 'Pending',       cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',       Icon: Clock },
   assigned:     { label: 'Assigned',      cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',           Icon: UserCheck },
+  awaiting_tenant: { label: 'Awaiting Tenant', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', Icon: RefreshCw },
   investigating:{ label: 'Investigating', cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',   Icon: Search },
   resolved:     { label: 'Resolved',      cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', Icon: CheckCircle2 },
   adjusted:     { label: 'Adjusted',      cls: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',           Icon: DollarSign },

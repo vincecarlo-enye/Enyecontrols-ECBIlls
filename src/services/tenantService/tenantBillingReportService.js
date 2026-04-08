@@ -22,3 +22,8 @@ export async function reopenTenantBillingReport(id, payload = {}) {
   const { data } = await api.post(`/api/tenant/billing-reports/${id}/reopen`, payload)
   return data?.data ?? null
 }
+
+export async function respondTenantBillingReport(id, payload = {}) {
+  const { data } = await api.post(`/api/tenant/billing-reports/${id}/respond`, payload)
+  return data?.data ?? null
+}

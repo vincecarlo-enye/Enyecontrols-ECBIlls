@@ -1,14 +1,30 @@
 /**
  * components/billing/concerns/ConcernDetails.jsx
  * Unified detail modal for viewing a billing concern ticket.
- * Role-aware: shows different actions depending on `role` prop.
  */
 
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, UserCheck, XCircle, Info, Search, CheckCircle2, DollarSign, Send, RotateCcw } from 'lucide-react'
+import {
+  X,
+  UserCheck,
+  XCircle,
+  Info,
+  Search,
+  CheckCircle2,
+  DollarSign,
+  Send,
+  RotateCcw,
+} from 'lucide-react'
 import TicketStatusBadge from './TicketStatusBadge'
 import TicketTimeline from './TicketTimeline'
+
+function safeText(value, fallback = '') {
+  if (value === null || value === undefined) return fallback
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return fallback
+}
 
 export default function ConcernDetails({ concern, isOpen, onClose, role, onAction }) {
   const [note, setNote] = useState('')
@@ -16,8 +32,15 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
 
   if (!isOpen || !concern) return null
 
-  const handleAction = (action) => {
-    onAction(concern.id, action, note.trim())
+  const concernId = safeText(concern?.id, '-')
+  const billId = safeText(concern?.billId, '-')
+  const status = safeText(concern?.status, 'pending')
+  const timeline = Array.isArray(concern?.timeline) ? concern.timeline : []
+
+  const handleAction = async (action) => {
+    const result = await onAction(concern.id, action, note.trim())
+    if (result === false) return
+
     setNote('')
     setActiveAction(null)
     onClose()
@@ -31,8 +54,9 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
     resolve: 'Resolution summary',
     adjust: 'Adjustment details',
     respond: 'Response to tenant',
+    respondToRequest: 'Provide the requested information',
     reopen: 'Reason for reopening',
-  }[activeAction] || 'Add a note…'
+  }[activeAction] || 'Add a note...'
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -41,83 +65,99 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
         onClick={(e) => e.stopPropagation()}
         className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700 animate-in"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Ticket Details</h2>
-              <TicketStatusBadge status={concern.status} />
+              <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">
+                Ticket Details
+              </h2>
+              <TicketStatusBadge status={status} />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 font-mono">{concern.id} · Bill: {concern.billId}</p>
+            <p className="text-xs text-slate-400 mt-0.5 font-mono">
+              {concernId} · Bill: {billId}
+            </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Ticket Info */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              ['Tenant', concern.tenantName],
-              ['Company', concern.company],
-              ['Unit', concern.unit],
-              ['Email', concern.email],
-              ['Category', concern.category],
-              ['Date Submitted', concern.dateSubmitted],
-            ].map(([label, val]) => (
+              ['Tenant', concern?.tenantName],
+              ['Company', concern?.company],
+              ['Unit', concern?.unit],
+              ['Email', concern?.email],
+              ['Category', concern?.category],
+              ['Date Submitted', concern?.dateSubmitted],
+            ].map(([label, value]) => (
               <div key={label}>
-                <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400">{label}</p>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5">{val || '—'}</p>
+                <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400">
+                  {label}
+                </p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5">
+                  {safeText(value, '-')}
+                </p>
               </div>
             ))}
           </div>
 
-          {/* Message */}
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1.5">Concern Description</p>
+            <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1.5">
+              Concern Description
+            </p>
             <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border border-slate-100 dark:border-slate-700/50">
-              {concern.message}
+              {safeText(concern?.message, 'No description provided.')}
             </div>
           </div>
 
-          {/* Notes from admin/finance */}
-          {(concern.adminNotes || concern.financeNotes) && (
+          {(safeText(concern?.adminNotes) || safeText(concern?.financeNotes)) && (
             <div className="space-y-3">
-              {concern.adminNotes && (
+              {safeText(concern?.adminNotes) && (
                 <div>
-                  <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1">Admin Notes</p>
+                  <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1">
+                    Admin Notes
+                  </p>
                   <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl px-4 py-3 text-xs text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-800/40">
-                    {concern.adminNotes}
+                    {safeText(concern?.adminNotes)}
                   </div>
                 </div>
               )}
-              {concern.financeNotes && (
-                <div>
-                  <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1">Finance Notes</p>
-                  <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-4 py-3 text-xs text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800/40">
-                    {concern.financeNotes}
+              {safeText(concern?.financeNotes) &&
+                safeText(concern?.financeNotes) !== safeText(concern?.adminNotes) && (
+                  <div>
+                    <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1">
+                      Finance Notes
+                    </p>
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-4 py-3 text-xs text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800/40">
+                      {safeText(concern?.financeNotes)}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           )}
 
-          {/* Timeline */}
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-3">Activity Timeline</p>
-            <TicketTimeline timeline={concern.timeline} />
+            <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-3">
+              Activity Timeline
+            </p>
+            <TicketTimeline timeline={timeline} />
           </div>
 
-          {/* Action area */}
           {activeAction && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800/40 space-y-3">
-              <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">{noteLabel}</p>
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                {noteLabel}
+              </p>
               <textarea
                 rows={3}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Enter your note here…"
+                placeholder="Enter your note here..."
                 className="w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 resize-none"
               />
               <div className="flex gap-2">
@@ -128,7 +168,10 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
                   Confirm
                 </button>
                 <button
-                  onClick={() => { setActiveAction(null); setNote('') }}
+                  onClick={() => {
+                    setActiveAction(null)
+                    setNote('')
+                  }}
                   className="px-4 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
@@ -138,12 +181,10 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
           )}
         </div>
 
-        {/* Footer actions */}
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-          {/* Admin actions */}
           {(role === 'admin' || role === 'super_admin') && !activeAction && (
             <div className="flex flex-wrap gap-2">
-              {(concern.status === 'pending' || concern.status === 'reopened') && (
+              {(status === 'pending' || status === 'reopened') && (
                 <button
                   onClick={() => setActiveAction('assignToFinance')}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
@@ -151,7 +192,7 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
                   <UserCheck className="w-3.5 h-3.5" /> Assign to Finance
                 </button>
               )}
-              {concern.status === 'pending' && (
+              {(status === 'pending' || status === 'reopened') && (
                 <>
                   <button
                     onClick={() => setActiveAction('requestInfo')}
@@ -170,10 +211,9 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             </div>
           )}
 
-          {/* Finance actions */}
           {role === 'finance' && !activeAction && (
             <div className="flex flex-wrap gap-2">
-              {concern.status === 'assigned' && (
+              {(status === 'assigned' || status === 'reopened') && (
                 <button
                   onClick={() => setActiveAction('investigate')}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors"
@@ -181,7 +221,7 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
                   <Search className="w-3.5 h-3.5" /> Start Investigating
                 </button>
               )}
-              {(concern.status === 'assigned' || concern.status === 'investigating') && (
+              {['assigned', 'investigating', 'awaiting_tenant', 'reopened'].includes(status) && (
                 <>
                   <button
                     onClick={() => setActiveAction('respond')}
@@ -206,10 +246,17 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             </div>
           )}
 
-          {/* Tenant actions */}
           {role === 'tenant' && !activeAction && (
             <div className="flex gap-2">
-              {(concern.status === 'resolved' || concern.status === 'adjusted' || concern.status === 'closed') && (
+              {status === 'awaiting_tenant' && (
+                <button
+                  onClick={() => setActiveAction('respondToRequest')}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  <Send className="w-3.5 h-3.5" /> Submit Requested Info
+                </button>
+              )}
+              {['resolved', 'adjusted', 'closed', 'rejected'].includes(status) && (
                 <button
                   onClick={() => setActiveAction('reopen')}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 transition-colors"

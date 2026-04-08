@@ -19,6 +19,7 @@ const TenantMakeReport = lazy(() => import("@/pages/tenant/MakeReport"))
 const TenantBillingReports = lazy(() => import("@/pages/tenant/BillingReports"))
 const NotificationsPage = lazy(() => import("@/pages/common/Notifications"))
 const ActivityLogsPage = lazy(() => import("@/pages/common/ActivityLogs"))
+const GlobalSearchPage = lazy(() => import("@/pages/common/GlobalSearch"))
 
 export function tenantRoutes() {
   return (
@@ -46,6 +47,7 @@ export function tenantRoutes() {
       <Route path="billing-reports" element={<TenantBillingReports />} />
       <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
+      <Route path="search" element={<GlobalSearchPage />} />
     </Route>
   )
 }

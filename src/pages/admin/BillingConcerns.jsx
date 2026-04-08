@@ -4,14 +4,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Search,
-  Eye,
-  UserCheck,
-  XCircle,
-  Info,
-  Filter,
-} from 'lucide-react'
+import { Search, Eye, UserCheck, XCircle, Info, Filter } from 'lucide-react'
 import {
   assignBillingConcern,
   fetchAdminBillingConcerns,
@@ -26,6 +19,7 @@ import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 const ALL_STATUSES = [
   'all',
   'pending',
+  'awaiting_tenant',
   'assigned',
   'investigating',
   'resolved',
@@ -36,7 +30,7 @@ const ALL_STATUSES = [
 ]
 
 function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return '-'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
@@ -51,14 +45,14 @@ function formatDate(value) {
 function normalizeConcern(item = {}) {
   return {
     id: String(item?.id ?? ''),
-    billId: String(item?.bill_id ?? item?.bill?.id ?? '—'),
+    billId: String(item?.bill_id ?? item?.bill?.id ?? '-'),
     tenantName: item?.tenant?.name ?? 'Unknown tenant',
     email: item?.tenant?.email ?? '',
     unit:
       item?.tenant?.unit?.unit_number ??
       item?.unit?.unit_number ??
       item?.unit?.building_name ??
-      '—',
+      '-',
     category: item?.category ?? 'general',
     subject: item?.subject ?? '',
     message: item?.description ?? item?.message ?? '',
@@ -69,6 +63,12 @@ function normalizeConcern(item = {}) {
     adminNotes: item?.admin_notes ?? '',
     financeNotes: item?.finance_notes ?? '',
     assignedTo: item?.assignee?.name ?? '',
+    timeline: Array.isArray(item?.timeline)
+      ? item.timeline.map((entry) => ({
+        ...entry,
+        date: formatDate(entry?.date),
+      }))
+      : [],
     tenant: item?.tenant ?? null,
     raw: item,
   }
@@ -130,11 +130,9 @@ export default function AdminBillingConcerns() {
   const counts = useMemo(
     () => ({
       total: concerns.length,
-      pending: concerns.filter((c) => c.status === 'pending').length,
-      assigned: concerns.filter((c) => c.status === 'assigned').length,
-      resolved: concerns.filter((c) =>
-        ['resolved', 'adjusted', 'closed'].includes(c.status)
-      ).length,
+      pending: concerns.filter((item) => ['pending', 'reopened', 'awaiting_tenant'].includes(item.status)).length,
+      assigned: concerns.filter((item) => item.status === 'assigned').length,
+      resolved: concerns.filter((item) => ['resolved', 'adjusted', 'closed', 'rejected'].includes(item.status)).length,
     }),
     [concerns]
   )
@@ -165,25 +163,42 @@ export default function AdminBillingConcerns() {
       setSubmitting(true)
 
       if (action === 'assignToFinance') {
-        const res = await assignBillingConcern(id, { assigned_to: Number(assignUserId) })
+        const selectedFinanceUserId = String(assignUserId || '').trim()
+        if (!selectedFinanceUserId) {
+          const targetConcern = concerns.find((item) => String(item.id) === String(id)) || selectedConcern
+          if (targetConcern) {
+            setAssignTarget(targetConcern)
+            setDetailOpen(false)
+          }
+          addToast('Select a finance user first to continue assigning.', 'info')
+          return false
+        }
+
+        const res = await assignBillingConcern(id, {
+          assigned_to: selectedFinanceUserId,
+          note,
+        })
         if (res?.data) syncConcern(res.data)
         setAssignTarget(null)
         setAssignUserId('')
         addToast('Ticket assigned to Finance team.', 'success')
+        return true
       } else if (action === 'reject') {
         const res = await updateAdminBillingConcernStatus(id, {
           status: 'rejected',
-          admin_notes: note,
+          note,
         })
         if (res?.data) syncConcern(res.data)
         addToast('Ticket rejected.', 'error')
+        return true
       } else if (action === 'requestInfo') {
         const res = await updateAdminBillingConcernStatus(id, {
-          status: 'pending',
-          admin_notes: note,
+          status: 'awaiting_tenant',
+          note,
         })
         if (res?.data) syncConcern(res.data)
         addToast('More information requested from tenant.', 'info')
+        return true
       }
     } catch (err) {
       addToast(
@@ -192,9 +207,12 @@ export default function AdminBillingConcerns() {
           'Failed to update ticket.',
         'error'
       )
+      throw err
     } finally {
       setSubmitting(false)
     }
+
+    return false
   }
 
   const openDetail = (concern) => {
@@ -329,7 +347,7 @@ export default function AdminBillingConcerns() {
                             <UserCheck className="w-4 h-4" />
                           </button>
                         )}
-                        {concern.status === 'pending' && (
+                        {(concern.status === 'pending' || concern.status === 'reopened') && (
                           <>
                             <button
                               onClick={() => handleAction(concern.id, 'requestInfo', '')}

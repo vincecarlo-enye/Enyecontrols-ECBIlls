@@ -3,11 +3,13 @@ import {
   deleteFinanceBill,
   fetchFinanceBill,
   fetchFinanceBills,
+  fetchFinanceBillingAssistPreview,
   fetchFinanceTenants,
   fetchSharedRates,
   generateFinanceBill,
   generateFinanceBillsBulk,
   regenerateFinanceBill,
+  syncFinanceOverdueBills,
   updateFinanceBillStatus,
 } from '@/services/financeService/financeBillService'
 
@@ -123,6 +125,39 @@ function normalizeRates(rows = []) {
   return base
 }
 
+function normalizeAssistPreview(payload = {}) {
+  const rows = Array.isArray(payload?.rows)
+    ? payload.rows.map((row) => ({
+        tenantId: Number(row?.tenant_id ?? 0),
+        tenantName: row?.tenant_name || 'Unknown Tenant',
+        unitLabel: row?.unit_label || 'N/A',
+        status: row?.status || 'blocked_error',
+        ready: Boolean(row?.ready),
+        reason: row?.reason || '',
+        estimatedTotal: Number(row?.estimated_total ?? 0),
+        billableTotal: Number(row?.billable_total ?? 0),
+        previousBalance: Number(row?.previous_balance ?? 0),
+        existingBillId: row?.existing_bill_id ?? null,
+        billingWindow: row?.billing_window || null,
+        utilities: Array.isArray(row?.utilities) ? row.utilities : [],
+      }))
+    : []
+
+  return {
+    billingMonth: payload?.billing_month || '',
+    locked: Boolean(payload?.locked),
+    lock: payload?.lock || null,
+    summary: {
+      total: Number(payload?.summary?.total ?? rows.length),
+      ready: Number(payload?.summary?.ready ?? rows.filter((row) => row.ready).length),
+      alreadyBilled: Number(payload?.summary?.already_billed ?? rows.filter((row) => row.status === 'already_billed').length),
+      blocked: Number(payload?.summary?.blocked ?? rows.filter((row) => !row.ready && row.status !== 'already_billed').length),
+    },
+    readyTenantIds: Array.isArray(payload?.ready_tenant_ids) ? payload.ready_tenant_ids.map((id) => Number(id)) : [],
+    rows,
+  }
+}
+
 export function useFinanceBills() {
   const [bills, setBills] = useState([])
   const [tenants, setTenants] = useState([])
@@ -134,6 +169,9 @@ export function useFinanceBills() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [assistPreview, setAssistPreview] = useState(null)
+  const [assistLoading, setAssistLoading] = useState(false)
+  const [overdueSyncing, setOverdueSyncing] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -161,6 +199,27 @@ export function useFinanceBills() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  const previewBillingAssist = useCallback(async ({ billingMonth, tenantIds = [] }) => {
+    try {
+      setAssistLoading(true)
+      setError('')
+      const response = await fetchFinanceBillingAssistPreview({
+        billing_month: billingMonth,
+        tenant_ids: tenantIds,
+      })
+      const normalized = normalizeAssistPreview(response?.data || {})
+      setAssistPreview(normalized)
+      return { success: true, data: normalized }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to load billing assist preview.'
+      setError(message)
+      setAssistPreview(null)
+      return { success: false, message }
+    } finally {
+      setAssistLoading(false)
+    }
+  }, [])
 
   const createBill = useCallback(async ({ tenantId, billingMonth }) => {
     try {
@@ -197,6 +256,43 @@ export function useFinanceBills() {
       return { success: false, message, data: err?.response?.data?.data }
     } finally {
       setSaving(false)
+    }
+  }, [loadData])
+
+  const generateReadyBills = useCallback(async ({ billingMonth }) => {
+    const preview = await previewBillingAssist({ billingMonth })
+    if (!preview?.success) return preview
+
+    const readyTenantIds = preview?.data?.readyTenantIds || []
+    if (!readyTenantIds.length) {
+      return { success: false, message: 'No bill-ready tenants found for the selected month.', data: preview.data }
+    }
+
+    const result = await generateBillsBulk({
+      tenantIds: readyTenantIds,
+      billingMonth,
+    })
+
+    if (result?.success) {
+      await previewBillingAssist({ billingMonth })
+    }
+
+    return result
+  }, [generateBillsBulk, previewBillingAssist])
+
+  const syncOverdueBills = useCallback(async ({ asOfDate }) => {
+    try {
+      setOverdueSyncing(true)
+      setError('')
+      const response = await syncFinanceOverdueBills({ as_of_date: asOfDate })
+      await loadData()
+      return { success: true, data: response?.data, message: response?.message }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to sync overdue bills.'
+      setError(message)
+      return { success: false, message }
+    } finally {
+      setOverdueSyncing(false)
     }
   }, [loadData])
 
@@ -269,9 +365,15 @@ export function useFinanceBills() {
     loading,
     saving,
     error,
+    assistPreview,
+    assistLoading,
+    overdueSyncing,
     reload: loadData,
+    previewBillingAssist,
     createBill,
     generateBillsBulk,
+    generateReadyBills,
+    syncOverdueBills,
     regenerateBill,
     publishBill,
     removeBill,
@@ -283,6 +385,3 @@ export function useFinanceBills() {
     totalRevenue,
   }
 }
-
-
-

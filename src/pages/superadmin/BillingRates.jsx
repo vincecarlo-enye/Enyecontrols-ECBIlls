@@ -1,11 +1,13 @@
-import { useState } from 'react'
-import { Zap, Droplets, Flame, Shield, Check, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Zap, Droplets, Flame, Shield, Check, X, AlertTriangle } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
 import { useRateHistory } from '@/hooks/common/useRateHistory'
+import { useBillingPenaltyRule } from '@/hooks/useBillingPenaltyRule'
 import RateHistoryPanel from '@/components/common/RateHistoryPanel'
+import BillingPeriodLockPanel from '@/components/common/BillingPeriodLockPanel'
 
 const TYPE_CONFIG = {
   electricity: { label: 'Electricity', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-700/50', gradient: 'from-amber-400 to-orange-500', bar: 'bg-amber-400', defaultUnit: 'per kWh' },
@@ -123,11 +125,146 @@ function RateEditCard({ type, rate, unit, completeness, saving, onSave }) {
   )
 }
 
+function PenaltyRuleCard({ rule, loading, saving, onSave }) {
+  const [form, setForm] = useState({
+    isEnabled: false,
+    penaltyType: 'percentage',
+    penaltyValue: 0,
+    graceDays: 0,
+    notes: '',
+  })
+
+  useEffect(() => {
+    setForm({
+      isEnabled: Boolean(rule?.isEnabled),
+      penaltyType: rule?.penaltyType || 'percentage',
+      penaltyValue: Number(rule?.penaltyValue ?? 0),
+      graceDays: Number(rule?.graceDays ?? 0),
+      notes: rule?.notes || '',
+    })
+  }, [rule])
+
+  const handleChange = (key, value) => {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  const handleSubmit = async () => {
+    await onSave(form)
+  }
+
+  return (
+    <div className="glass rounded-2xl p-5 shadow-lg border border-amber-200 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 animate-in">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md mb-3">
+            <AlertTriangle className="w-5 h-5 text-white" strokeWidth={2} />
+          </div>
+          <p className="text-xs font-mono uppercase tracking-widest text-slate-400 mb-1">Late Fee Rule</p>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Penalty / Surcharge Settings</h3>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={form.isEnabled}
+            onChange={(e) => handleChange('isEnabled', e.target.checked)}
+            disabled={loading || saving}
+            className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+          />
+          Enabled
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div>
+          <label className="text-xs text-slate-400 mb-1 block">Penalty type</label>
+          <select
+            value={form.penaltyType}
+            onChange={(e) => handleChange('penaltyType', e.target.value)}
+            disabled={loading || saving}
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-amber-400"
+          >
+            <option value="percentage">Percentage of outstanding</option>
+            <option value="fixed">Fixed amount</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-slate-400 mb-1 block">
+            {form.penaltyType === 'fixed' ? 'Fixed amount (PHP)' : 'Penalty rate (%)'}
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.penaltyValue}
+            onChange={(e) => handleChange('penaltyValue', e.target.value)}
+            disabled={loading || saving}
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-amber-400"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-slate-400 mb-1 block">Grace days after due date</label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={form.graceDays}
+            onChange={(e) => handleChange('graceDays', e.target.value)}
+            disabled={loading || saving}
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-amber-400"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs text-slate-400 mb-1 block">Internal note</label>
+          <textarea
+            rows={3}
+            value={form.notes}
+            onChange={(e) => handleChange('notes', e.target.value)}
+            disabled={loading || saving}
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-amber-400 resize-none"
+            placeholder="Example: Apply one-time late fee to unpaid balances after 5 grace days."
+          />
+        </div>
+
+        <div className="rounded-xl bg-white/70 dark:bg-slate-900/40 border border-amber-200/70 dark:border-amber-700/40 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+          {form.isEnabled ? (
+            <>
+              Bills that remain unpaid after <span className="font-semibold">{form.graceDays}</span> grace day(s)
+              will get a <span className="font-semibold">{form.penaltyType === 'fixed' ? `PHP ${Number(form.penaltyValue || 0).toFixed(2)}` : `${Number(form.penaltyValue || 0).toFixed(2)}%`}</span> one-time surcharge.
+            </>
+          ) : (
+            <>Penalty rules are currently disabled. Finance preview and apply actions will stay inactive until this is enabled.</>
+          )}
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={handleSubmit}
+            disabled={loading || saving}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {saving ? 'Saving...' : 'Save Penalty Rule'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BillingRates() {
   const pageLoading = usePageLoader(600)
   const { isSuperAdmin } = usePermissions()
   const { rates, loading, saving, error, saveRate } = useAdminRates()
   const { history, loading: historyLoading, reload: reloadHistory } = useRateHistory()
+  const {
+    rule,
+    loading: penaltyLoading,
+    saving: penaltySaving,
+    error: penaltyError,
+    saveRule,
+  } = useBillingPenaltyRule()
 
   if (pageLoading || loading) return <DashboardSkeleton />
 
@@ -143,6 +280,16 @@ export default function BillingRates() {
 
   const handleSave = async (type, data) => {
     const result = await saveRate(type, data)
+
+    if (result?.success) {
+      reloadHistory()
+    }
+
+    return result
+  }
+
+  const handleSavePenaltyRule = async (payload) => {
+    const result = await saveRule(payload)
 
     if (result?.success) {
       reloadHistory()
@@ -171,9 +318,28 @@ export default function BillingRates() {
         </div>
       )}
 
+      {penaltyError && (
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 text-sm text-red-600 dark:text-red-300">
+          {penaltyError}
+        </div>
+      )}
+
       <div className="p-4 rounded-2xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50">
         <p className="text-sm text-violet-700 dark:text-violet-300 font-medium">Changes made here propagate immediately to Admin, Finance, Facility Manager, Tenant dashboards, and all billing calculations.</p>
       </div>
+
+      <BillingPeriodLockPanel
+        scope="admin"
+        title="Billing Period Lock Control"
+        description="Lock finalized billing months here before touching rates so historical computations stay protected."
+      />
+
+      <PenaltyRuleCard
+        rule={rule}
+        loading={penaltyLoading}
+        saving={penaltySaving}
+        onSave={handleSavePenaltyRule}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {['electricity', 'water', 'thermal'].map((type) => (

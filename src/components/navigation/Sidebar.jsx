@@ -4,8 +4,8 @@ import {
   LayoutDashboard, Receipt, Users, Building2, BarChart3,
   Settings, ChevronLeft, ChevronRight, X, FileText, Activity, User,
   TrendingUp, ClipboardList, Zap, Wrench, Cpu,
-  FileBarChart, Ticket, CheckSquare, Send, Gauge, Shield,
-  UserCog, Megaphone, Siren, Bell,
+  FileBarChart, Ticket, CheckSquare, Send, Gauge, Shield, Scale,
+  UserCog, Megaphone, Siren, Bell, CalendarClock, Download, HeartPulse, Eye,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -15,6 +15,11 @@ const adminNavItems = [
   { path: '/admin/tenants', label: 'Tenants', icon: Users },
   { path: '/admin/units', label: 'Units', icon: Building2 },
   { path: '/admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
+  { path: '/admin/reconciliation', label: 'Reconciliation', icon: Scale },
+  { path: '/admin/occupancy-timeline', label: 'Occupancy Timeline', icon: CalendarClock },
+  { path: '/admin/owner-portal', label: 'Owner Portal', icon: Eye },
+  { path: '/admin/system-health', label: 'System Health', icon: HeartPulse },
+  { path: '/admin/operational-exports', label: 'Operational Exports', icon: Download },
   { path: '/admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
   { path: '/admin/anomalies', label: 'Anomalies', icon: Siren },
   { path: '/admin/activity-logs', label: 'Activity Logs', icon: FileText },
@@ -28,6 +33,11 @@ const superAdminNavItems = [
   { path: '/super-admin/tenants', label: 'Tenants', icon: Users },
   { path: '/super-admin/units', label: 'Units', icon: Building2 },
   { path: '/super-admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
+  { path: '/super-admin/reconciliation', label: 'Reconciliation', icon: Scale },
+  { path: '/super-admin/occupancy-timeline', label: 'Occupancy Timeline', icon: CalendarClock },
+  { path: '/super-admin/owner-portal', label: 'Owner Portal', icon: Eye },
+  { path: '/super-admin/system-health', label: 'System Health', icon: HeartPulse },
+  { path: '/super-admin/operational-exports', label: 'Operational Exports', icon: Download },
   { path: '/super-admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
   { path: '/super-admin/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/super-admin/notifications', label: 'Notifications', icon: Bell },
@@ -54,6 +64,7 @@ const financeNavItems = [
   { path: '/finance/payment-review', label: 'Payment Review', icon: CheckSquare },
   { path: '/finance/billing-tickets', label: 'Billing Tickets', icon: Ticket },
   { path: '/finance/reports', label: 'Financial Reports', icon: BarChart3 },
+  { path: '/finance/operational-exports', label: 'Operational Exports', icon: Download },
   { path: '/finance/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/finance/notifications', label: 'Notifications', icon: Bell },
 ]
@@ -66,6 +77,7 @@ const facilityNavItems = [
   { path: '/facility/maintenance', label: 'Maintenance Requests', icon: Wrench },
   { path: '/facility/equipment', label: 'Equipment Status', icon: Cpu },
   { path: '/facility/reports', label: 'Reports', icon: FileBarChart },
+  { path: '/facility/operational-exports', label: 'Operational Exports', icon: Download },
   { path: '/facility/activity-logs', label: 'Activity Logs', icon: FileText },
   { path: '/facility/notifications', label: 'Notifications', icon: Bell },
 ]

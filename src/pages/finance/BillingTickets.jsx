@@ -6,7 +6,7 @@ import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 import api from '@/lib/api'
 
-const FINANCE_STATUSES = ['all', 'assigned', 'investigating', 'resolved', 'closed', 'rejected']
+const FINANCE_STATUSES = ['all', 'assigned', 'awaiting_tenant', 'investigating', 'resolved', 'adjusted', 'rejected']
 
 function formatDate(value) {
   if (!value) return ''
@@ -19,14 +19,18 @@ function formatDate(value) {
   })
 }
 
-function mapStatus(status) {
-  const raw = String(status || '').toLowerCase()
-  if (raw === 'in_progress') return 'investigating'
-  if (raw === 'pending') return 'assigned'
-  return raw || 'assigned'
-}
-
 function buildTimeline(row) {
+  if (Array.isArray(row?.timeline) && row.timeline.length > 0) {
+    return row.timeline.map((entry) => ({
+      id: entry.id,
+      role: entry.role || 'admin',
+      action: entry.action,
+      by: entry.by || 'System',
+      date: formatDate(entry.date),
+      note: entry.note || '',
+    }))
+  }
+
   const timeline = []
   if (row?.created_at) {
     timeline.push({
@@ -75,7 +79,7 @@ function normalizeConcern(row = {}) {
     category: row?.category || row?.subject || 'General',
     subject: row?.subject || '',
     message: row?.description || '',
-    status: mapStatus(row?.status),
+    status: String(row?.status || 'assigned').toLowerCase(),
     rawStatus: row?.status || 'pending',
     assignedTo: row?.assignee?.name || 'finance',
     adminNotes: row?.admin_notes || '',
@@ -133,8 +137,8 @@ export default function FinanceBillingTickets() {
   const counts = useMemo(() => ({
     total: concerns.length,
     assigned: concerns.filter((concern) => concern.status === 'assigned').length,
-    investigating: concerns.filter((concern) => concern.status === 'investigating').length,
-    resolved: concerns.filter((concern) => ['resolved', 'closed'].includes(concern.status)).length,
+    investigating: concerns.filter((concern) => ['investigating', 'awaiting_tenant'].includes(concern.status)).length,
+    resolved: concerns.filter((concern) => ['resolved', 'adjusted', 'closed', 'rejected'].includes(concern.status)).length,
   }), [concerns])
 
   const loadingState = pageLoading || loading
@@ -168,10 +172,12 @@ export default function FinanceBillingTickets() {
         resolve: 'Ticket resolved.',
         adjust: 'Bill adjustment recorded.',
       }[action], 'success')
+      return true
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to update billing ticket.'
       setError(message)
       addToast(message, 'error')
+      throw err
     } finally {
       setActing(false)
     }

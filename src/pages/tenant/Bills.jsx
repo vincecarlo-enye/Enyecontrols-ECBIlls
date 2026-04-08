@@ -3,11 +3,12 @@
  * Tenant billing page with receipt upload workflow.
  */
 
-import { useState, memo } from 'react'
+import { useEffect, useState, memo } from 'react'
 import {
   Eye, CheckCircle2, Clock, Download, ChevronDown,
-  FileText, FileSpreadsheet, AlertCircle, Upload,
+  FileText, FileSpreadsheet, AlertCircle, Upload, Search,
 } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import BillViewerModal from '@/components/billing/BillViewerModal'
 import ReceiptUploadModal from '@/components/billing/ReceiptUploadModal'
 import UnitFilterBar from '@/components/common/UnitFilterBar'
@@ -19,11 +20,10 @@ import { TenantBillsSkeleton } from '@/components/skeletons'
 import { useUnitFilter } from '@/context/UnitFilterContext'
 import { exportBillCSV } from '@/services/billingService'
 import ConcernModal from '@/components/billing/concerns/ConcernModal'
-import { useBillingConcerns } from '@/context/BillingConcernContext'
-import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useBills } from '../../components/billing/hooks/useBills'
+import { submitTenantBillingReport } from '@/services/tenantService/tenantBillingReportService'
 
 const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
 
@@ -212,6 +212,8 @@ const BillsTableInner = memo(function BillsTableInner({
 })
 
 export default function TenantBills() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const pageLoading = usePageLoader(700)
   const {
     bills,
@@ -225,9 +227,26 @@ export default function TenantBills() {
   const receiptModal = useModalState()
   const concernModal = useModalState()
   const [filter, setFilter] = useState('all')
-  const { submitConcern } = useBillingConcerns()
-  const { user } = useAuth()
+  const [search, setSearch] = useState('')
   const { addToast } = useApp()
+
+  useEffect(() => {
+    const navbarSearchItem = location.state?.navbarSearchItem
+    if (!navbarSearchItem?.query) return
+
+    const query = String(navbarSearchItem.query).trim()
+    if (!query) return
+
+    setSearch(query)
+
+    navigate(location.pathname, {
+      replace: true,
+      state: {
+        ...location.state,
+        navbarSearchItem: null,
+      },
+    })
+  }, [location.pathname, location.state, navigate])
 
   if (pageLoading || billsLoading) return <TenantBillsSkeleton />
 
@@ -236,9 +255,22 @@ export default function TenantBills() {
     ? tenantBills
     : tenantBills.filter((b) => String(b.unit) === String(selectedUnit))
 
-  const filtered = filter === 'all'
+  const searched = !search.trim()
     ? unitFiltered
-    : unitFiltered.filter((b) => b.status === filter)
+    : unitFiltered.filter((b) => {
+        const q = search.trim().toLowerCase()
+        return [
+          b.id,
+          b.unit,
+          b.month,
+          b.status,
+          b.dueDate,
+        ].filter(Boolean).join(' ').toLowerCase().includes(q)
+      })
+
+  const filtered = filter === 'all'
+    ? searched
+    : searched.filter((b) => b.status === filter)
 
   const displayedBills = [...filtered]
     .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
@@ -278,10 +310,24 @@ export default function TenantBills() {
     }
   }
 
-  const handleConcernSubmit = (data) => {
-    submitConcern({ ...data, user })
-    addToast('Billing concern submitted! View in My Billing Reports.', 'success')
-    concernModal.close()
+  const handleConcernSubmit = async (data) => {
+    try {
+      await submitTenantBillingReport({
+        bill_id: Number(data.billId),
+        subject: `${data.category || 'Billing Concern'} - ${data.billMonth || 'Selected Bill'}`,
+        category: data.category || 'general',
+        message: data.message || '',
+        priority: 'medium',
+      })
+      addToast('Billing concern submitted! View in My Billing Reports.', 'success')
+      concernModal.close()
+    } catch (error) {
+      addToast(
+        error?.response?.data?.message || 'Failed to submit billing concern.',
+        'error'
+      )
+      throw error
+    }
   }
 
   return (
@@ -322,6 +368,18 @@ export default function TenantBills() {
           </p>
         </div>
       )}
+
+      <div className="glass rounded-2xl p-4 shadow-md">
+        <div className="relative max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search bill ID, unit, month, or status..."
+            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white/80 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
+          />
+        </div>
+      </div>
 
       <BillsTableInner
         displayedBills={displayedBills}

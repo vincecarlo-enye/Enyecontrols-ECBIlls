@@ -18,6 +18,7 @@ import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 const FILTERS = [
   'all',
   'pending',
+  'awaiting_tenant',
   'assigned',
   'investigating',
   'resolved',
@@ -35,6 +36,7 @@ export default function TenantBillingReports() {
     error,
     submitConcern,
     reopenConcern,
+    respondToConcern,
   } = useTenantBillingReports()
   const { user } = useAuth()
   const { addToast } = useApp()
@@ -71,7 +73,9 @@ export default function TenantBillingReports() {
       ? myConcerns
       : myConcerns.filter((concern) => concern.status === filter)
 
-  const myBills = bills.filter((bill) => {
+  const safeBills = Array.isArray(bills) ? bills : []
+
+  const myBills = safeBills.filter((bill) => {
     if (!tenantUnit) return true
     return String(bill?.unit ?? '').trim() === String(tenantUnit).trim()
   })
@@ -106,14 +110,29 @@ export default function TenantBillingReports() {
   }
 
   const handleAction = async (id, action, note) => {
+    if (action === 'respondToRequest') {
+      try {
+        await respondToConcern(id, note)
+        addToast('Requested information submitted.', 'success')
+        return true
+      } catch (err) {
+        addToast(err?.message || 'Failed to submit requested information.', 'error')
+        throw err
+      }
+    }
+
     if (action === 'reopen') {
       try {
         await reopenConcern(id, note)
         addToast('Ticket reopened.', 'info')
+        return true
       } catch (err) {
         addToast(err?.message || 'Failed to reopen ticket.', 'error')
+        throw err
       }
     }
+
+    return false
   }
 
   const openDetail = (concern) => {
@@ -122,11 +141,11 @@ export default function TenantBillingReports() {
   }
 
   const counts = {
-    total: myConcerns.length,
-    pending: myConcerns.filter((concern) =>
-      ['pending', 'reopened'].includes(concern.status)
+        total: myConcerns.length,
+        pending: myConcerns.filter((concern) =>
+      ['pending', 'reopened', 'awaiting_tenant'].includes(concern.status)
     ).length,
-    active: myConcerns.filter((concern) =>
+        active: myConcerns.filter((concern) =>
       ['assigned', 'investigating'].includes(concern.status)
     ).length,
     resolved: myConcerns.filter((concern) =>

@@ -15,6 +15,16 @@ export async function generateFinanceBill(payload) {
   return res.data
 }
 
+export async function fetchFinanceBillingAssistPreview(payload) {
+  const res = await api.post('/api/finance/bills/generate-assist-preview', payload)
+  return res.data
+}
+
+export async function syncFinanceOverdueBills(payload) {
+  const res = await api.post('/api/finance/bills/sync-overdue', payload)
+  return res.data
+}
+
 export async function generateFinanceBillsBulk(payload) {
   const res = await api.post('/api/finance/bills/generate-bulk', payload)
   return res.data
@@ -44,4 +54,3 @@ export async function fetchSharedRates() {
   const res = await api.get('/api/rates')
   return res.data
 }
-

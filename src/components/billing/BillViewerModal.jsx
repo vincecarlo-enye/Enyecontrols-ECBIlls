@@ -103,6 +103,7 @@ function getUtilityLabel(type) {
   if (t.includes('electric')) return 'Electricity'
   if (t.includes('water')) return 'Water'
   if (t.includes('thermal')) return 'Thermal Energy'
+  if (t.includes('penalty') || t.includes('surcharge') || t.includes('late')) return 'Penalty / Surcharge'
 
   return type || 'Utility'
 }

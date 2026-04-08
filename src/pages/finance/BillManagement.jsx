@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import {
   FileText, Plus, Send, Edit2, Trash2, Search,
@@ -12,7 +13,10 @@ import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useApp } from '@/context/AppContext'
 import { useModalState } from '@/hooks/useModalState'
 import RateConfigCard from '@/components/common/RateConfigCard'
+import BillingPeriodLockPanel from '@/components/common/BillingPeriodLockPanel'
 import { useFinanceBills } from '@/hooks/financeHooks/useFinanceBills'
+import { useBillingPeriodLocks } from '@/hooks/useBillingPeriodLocks'
+import { useBillingPenaltyRule } from '@/hooks/useBillingPenaltyRule'
 
 const UTIL_CLS = {
   electricity: 'text-amber-600 dark:text-amber-400',
@@ -26,7 +30,7 @@ const UTIL_ICONS = {
   thermal: Flame,
 }
 
-function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
+function BillFormModal({ open, onClose, tenants, initial, onSave, saving, isMonthLocked, getMonthLock }) {
   const [tenantId, setTenantId] = useState(initial?.tenantId || '')
   const [billingMonth, setBillingMonth] = useState(initial?.billingMonth || '')
 
@@ -40,6 +44,8 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
     () => tenants.find((tenant) => String(tenant.id) === String(tenantId)),
     [tenantId, tenants]
   )
+  const selectedLock = billingMonth ? getMonthLock?.(billingMonth) : null
+  const monthLocked = billingMonth ? isMonthLocked?.(billingMonth) : false
 
   if (!open) return null
 
@@ -97,6 +103,12 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
             </p>
           </div>
 
+          {monthLocked && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+              {billingMonth} is locked. {selectedLock?.reason ? `Reason: ${selectedLock.reason}` : 'Unlock the billing period first before generating or regenerating bills.'}
+            </div>
+          )}
+
           {selectedTenant && (
             <div className="space-y-3">
               <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-4 py-3">
@@ -117,7 +129,7 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!tenantId || !billingMonth || saving}
+            disabled={!tenantId || !billingMonth || saving || monthLocked}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {initial ? 'Regenerate Bill' : 'Generate Bill'}
@@ -129,7 +141,7 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
   )
 }
 
-function BulkBillFormModal({ open, onClose, tenantCount, onSave, saving }) {
+function BulkBillFormModal({ open, onClose, tenantCount, onSave, saving, isMonthLocked, getMonthLock }) {
   const [billingMonth, setBillingMonth] = useState('')
 
   useEffect(() => {
@@ -138,6 +150,8 @@ function BulkBillFormModal({ open, onClose, tenantCount, onSave, saving }) {
   }, [open])
 
   if (!open) return null
+  const selectedLock = billingMonth ? getMonthLock?.(billingMonth) : null
+  const monthLocked = billingMonth ? isMonthLocked?.(billingMonth) : false
 
   const handleSubmit = async () => {
     if (!billingMonth) return
@@ -175,6 +189,12 @@ function BulkBillFormModal({ open, onClose, tenantCount, onSave, saving }) {
               Bulk generation still requires approved readings and active rates per tenant/unit.
             </p>
           </div>
+
+          {monthLocked && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+              {billingMonth} is locked. {selectedLock?.reason ? `Reason: ${selectedLock.reason}` : 'Unlock the billing period first before running bulk bill generation.'}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800">
@@ -183,7 +203,7 @@ function BulkBillFormModal({ open, onClose, tenantCount, onSave, saving }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!billingMonth || saving}
+            disabled={!billingMonth || saving || monthLocked}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             Generate All
@@ -259,6 +279,8 @@ function BillDetailModal({ bill, onClose }) {
 }
 
 export default function FinanceBillManagement() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const pageLoading = usePageLoader(700)
   const {
     bills,
@@ -267,8 +289,12 @@ export default function FinanceBillManagement() {
     loading,
     saving,
     error,
+    assistPreview,
+    assistLoading,
+    previewBillingAssist,
     createBill,
     generateBillsBulk,
+    generateReadyBills,
     regenerateBill,
     publishBill,
     removeBill,
@@ -279,6 +305,15 @@ export default function FinanceBillManagement() {
     totalRevenue,
   } = useFinanceBills()
   const { addToast } = useApp()
+  const { isMonthLocked, getMonthLock } = useBillingPeriodLocks('finance')
+  const [assistMonth, setAssistMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const {
+    rule: penaltyRule,
+    penaltyPreview,
+    previewLoading: penaltyPreviewLoading,
+    applyPenalties,
+    previewPenalties,
+  } = useBillingPenaltyRule()
 
   const [activeTab, setActiveTab] = useState('manage')
   const [manageSearch, setManageSearch] = useState('')
@@ -286,10 +321,31 @@ export default function FinanceBillManagement() {
   const [allSearch, setAllSearch] = useState('')
   const [allStatus, setAllStatus] = useState('all')
   const [allUtility, setAllUtility] = useState('all')
+  const [penaltyAsOf, setPenaltyAsOf] = useState(() => new Date().toISOString().slice(0, 10))
   const [editBill, setEditBill] = useState(null)
   const formModal = useModalState()
   const bulkFormModal = useModalState()
   const detailModal = useModalState()
+
+  useEffect(() => {
+    const navbarSearchItem = location.state?.navbarSearchItem
+    if (!navbarSearchItem?.query) return
+
+    const query = String(navbarSearchItem.query).trim()
+    if (!query) return
+
+    setActiveTab('all-bills')
+    setManageSearch(query)
+    setAllSearch(query)
+
+    navigate(location.pathname, {
+      replace: true,
+      state: {
+        ...location.state,
+        navbarSearchItem: null,
+      },
+    })
+  }, [location.pathname, location.state, navigate])
 
   const loadingState = pageLoading || loading
 
@@ -383,6 +439,50 @@ export default function FinanceBillManagement() {
     return result
   }
 
+  const handleAssistPreview = async () => {
+    if (!assistMonth) {
+      addToast('Select a billing month first.', 'error')
+      return
+    }
+
+    const result = await previewBillingAssist({ billingMonth: assistMonth })
+    addToast(
+      result?.success ? 'Billing assist preview loaded.' : result?.message || 'Failed to load billing assist preview.',
+      result?.success ? 'success' : 'error'
+    )
+  }
+
+  const handleGenerateReady = async () => {
+    if (!assistMonth) {
+      addToast('Select a billing month first.', 'error')
+      return
+    }
+
+    const result = await generateReadyBills({ billingMonth: assistMonth })
+    addToast(
+      result?.success
+        ? result?.message || 'Ready bills generated successfully.'
+        : result?.message || 'No bill-ready tenants found for the selected month.',
+      result?.success ? 'success' : 'error'
+    )
+  }
+
+  const handlePenaltyPreview = async () => {
+    const result = await previewPenalties({ asOfDate: penaltyAsOf })
+    addToast(
+      result?.success ? 'Penalty preview loaded.' : result?.message || 'Failed to preview penalties.',
+      result?.success ? 'success' : 'error'
+    )
+  }
+
+  const handleApplyPenalties = async () => {
+    const result = await applyPenalties({ asOfDate: penaltyAsOf })
+    addToast(
+      result?.success ? result?.message || 'Penalties applied successfully.' : result?.message || 'No penalties were applied.',
+      result?.success ? 'success' : 'error'
+    )
+  }
+
   const STATUS_TABS = [
     { k: 'all', l: 'All' },
     { k: 'draft', l: 'Draft' },
@@ -458,6 +558,194 @@ export default function FinanceBillManagement() {
               </div>
             ))}
           </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">Automated Monthly Billing Assist</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Preview which tenant records are bill-ready for a billing month, then generate only the ready ones.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="month"
+                  value={assistMonth}
+                  onChange={(e) => setAssistMonth(e.target.value)}
+                  className="px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all"
+                />
+                <button
+                  onClick={handleAssistPreview}
+                  disabled={!assistMonth || assistLoading}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 disabled:opacity-50 transition-all"
+                >
+                  {assistLoading ? 'Checking...' : 'Preview Readiness'}
+                </button>
+                <button
+                  onClick={handleGenerateReady}
+                  disabled={!assistMonth || saving || assistLoading || !assistPreview?.readyTenantIds?.length || assistPreview?.locked}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Generate Ready Only
+                </button>
+              </div>
+            </div>
+
+            {assistPreview?.billingMonth === assistMonth && (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Total Checked', value: assistPreview.summary.total, cls: 'text-slate-700 dark:text-slate-200' },
+                    { label: 'Ready', value: assistPreview.summary.ready, cls: 'text-emerald-600 dark:text-emerald-400' },
+                    { label: 'Already Billed', value: assistPreview.summary.alreadyBilled, cls: 'text-blue-600 dark:text-blue-400' },
+                    { label: 'Blocked', value: assistPreview.summary.blocked, cls: 'text-amber-600 dark:text-amber-400' },
+                  ].map((card) => (
+                    <div key={card.label} className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
+                      <p className={`text-2xl font-bold ${card.cls}`}>{card.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {assistPreview.locked && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+                    {assistMonth} is locked. {assistPreview?.lock?.reason ? `Reason: ${assistPreview.lock.reason}` : 'Unlock the billing period first before generating ready bills.'}
+                  </div>
+                )}
+
+                <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <table className="w-full text-sm" style={{ minWidth: '760px' }}>
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                        {['Tenant', 'Unit', 'Readiness', 'Billable Usage', 'Previous Balance', 'Estimated Total', 'Notes'].map((header) => (
+                          <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {assistPreview.rows.map((row) => (
+                        <tr key={`${row.tenantId}-${row.status}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{row.tenantName}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.unitLabel}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${row.ready ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : row.status === 'already_billed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                              {row.ready ? 'Ready' : row.status === 'already_billed' ? 'Already Billed' : 'Blocked'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">PHP {row.billableTotal.toLocaleString()}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">PHP {row.previousBalance.toLocaleString()}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {row.estimatedTotal.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{row.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">Penalty / Surcharge Assist</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Review overdue bills eligible for late fees based on the current super admin rule, then apply them in one run.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="date"
+                  value={penaltyAsOf}
+                  onChange={(e) => setPenaltyAsOf(e.target.value)}
+                  className="px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none focus:border-amber-400 transition-all"
+                />
+                <button
+                  onClick={handlePenaltyPreview}
+                  disabled={penaltyPreviewLoading}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 disabled:opacity-50 transition-all"
+                >
+                  {penaltyPreviewLoading ? 'Checking...' : 'Preview Penalties'}
+                </button>
+                <button
+                  onClick={handleApplyPenalties}
+                  disabled={
+                    !penaltyRule?.isEnabled ||
+                    penaltyPreviewLoading ||
+                    !penaltyPreview?.summary?.eligible
+                  }
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Apply Due Penalties
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+              {penaltyRule?.isEnabled ? (
+                <>
+                  Active rule: <span className="font-semibold">{penaltyRule.penaltyType === 'fixed' ? `PHP ${Number(penaltyRule.penaltyValue || 0).toFixed(2)}` : `${Number(penaltyRule.penaltyValue || 0).toFixed(2)}%`}</span>
+                  {' '}after <span className="font-semibold">{penaltyRule.graceDays}</span> grace day(s).
+                </>
+              ) : (
+                <>Penalty rules are disabled in Super Admin Billing Rates, so no surcharge can be applied yet.</>
+              )}
+            </div>
+
+            {penaltyPreview && (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Bills Checked', value: penaltyPreview.summary.checked, cls: 'text-slate-700 dark:text-slate-200' },
+                    { label: 'Eligible', value: penaltyPreview.summary.eligible, cls: 'text-amber-600 dark:text-amber-400' },
+                    { label: 'Already Penalized', value: penaltyPreview.summary.already_penalized, cls: 'text-blue-600 dark:text-blue-400' },
+                    { label: 'Not Yet Due', value: penaltyPreview.summary.not_due, cls: 'text-slate-500 dark:text-slate-300' },
+                  ].map((card) => (
+                    <div key={card.label} className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
+                      <p className={`text-2xl font-bold ${card.cls}`}>{card.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <table className="w-full text-sm" style={{ minWidth: '780px' }}>
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                        {['Tenant', 'Unit', 'Bill Month', 'Due Date', 'Outstanding', 'Penalty', 'Status', 'Notes'].map((header) => (
+                          <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {penaltyPreview.rows.map((row) => (
+                        <tr key={row.bill_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{row.tenant_name}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.unit_label}</td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.billing_month}</td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.due_date || '-'}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">PHP {Number(row.outstanding_amount || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">PHP {Number(row.penalty_amount || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${row.eligible ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : row.status === 'already_penalized' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                              {row.eligible ? 'Eligible' : row.status === 'already_penalized' ? 'Applied' : 'Skipped'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{row.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
+          <BillingPeriodLockPanel
+            scope="finance"
+            title="Finance Billing Period Lock"
+            description="Freeze finalized months before collections and audits so bill actions cannot be changed accidentally."
+          />
 
           <RateConfigCard rates={rates} />
 
@@ -663,6 +951,8 @@ export default function FinanceBillManagement() {
         initial={editBill}
         onSave={handleSave}
         saving={saving}
+        isMonthLocked={isMonthLocked}
+        getMonthLock={getMonthLock}
       />
 
       <BulkBillFormModal
@@ -671,6 +961,8 @@ export default function FinanceBillManagement() {
         tenantCount={tenants.length}
         onSave={handleBulkSave}
         saving={saving}
+        isMonthLocked={isMonthLocked}
+        getMonthLock={getMonthLock}
       />
 
       {detailModal.isOpen && (
@@ -679,4 +971,7 @@ export default function FinanceBillManagement() {
     </div>
   )
 }
+
+
+
 

@@ -27,14 +27,28 @@ export default function SAnnouncements() {
   const [filter, setFilter] = useState('all')
   const [deletingAnn, setDeletingAnn] = useState(null)
 
-  if (loading || announcementsLoading) return <DashboardSkeleton />
-
-  const filtered = announcements.filter(a => {
+  const filtered = useMemo(() => announcements.filter(a => {
     const q = search.toLowerCase()
     const matchSearch = !q || a.title.toLowerCase().includes(q) || a.body.toLowerCase().includes(q)
     const matchFilter = filter === 'all' || (filter === 'system' ? (a.isSystemWide || a.createdBy === 'super_admin') : !a.isSystemWide && a.createdBy !== 'super_admin')
     return matchSearch && matchFilter
-  })
+  }), [announcements, filter, search])
+
+  const systemCount = useMemo(() => announcements.filter(a => a.isSystemWide || a.createdBy === 'super_admin').length, [announcements])
+  const localCount = announcements.length - systemCount
+  const activeCount = useMemo(() => announcements.filter((a) => {
+    const status = String(a?.status || '').toLowerCase()
+    if (status && status !== 'published') return false
+
+    const now = Date.now()
+    const startsAt = a?.starts_at ? new Date(a.starts_at).getTime() : null
+    const endsAt = a?.ends_at ? new Date(a.ends_at).getTime() : null
+
+    if (startsAt && !Number.isNaN(startsAt) && now < startsAt) return false
+    if (endsAt && !Number.isNaN(endsAt) && now > endsAt) return false
+
+    return true
+  }).length, [announcements])
 
   const handleSave = async (formData) => {
     try {
@@ -64,21 +78,7 @@ export default function SAnnouncements() {
     }
   }
 
-  const systemCount = announcements.filter(a => a.isSystemWide || a.createdBy === 'super_admin').length
-  const localCount  = announcements.length - systemCount
-  const activeCount = useMemo(() => announcements.filter((a) => {
-    const status = String(a?.status || '').toLowerCase()
-    if (status && status !== 'published') return false
-
-    const now = Date.now()
-    const startsAt = a?.starts_at ? new Date(a.starts_at).getTime() : null
-    const endsAt = a?.ends_at ? new Date(a.ends_at).getTime() : null
-
-    if (startsAt && !Number.isNaN(startsAt) && now < startsAt) return false
-    if (endsAt && !Number.isNaN(endsAt) && now > endsAt) return false
-
-    return true
-  }).length, [announcements])
+  if (loading || announcementsLoading) return <DashboardSkeleton />
 
   return (
     <div className="space-y-6">
