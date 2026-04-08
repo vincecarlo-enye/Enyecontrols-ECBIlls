@@ -11,15 +11,6 @@ npm run dev
 
 Then open http://localhost:5173
 
-## Demo Credentials
-
-| Role             | Email                  | Password   |
-|------------------|------------------------|------------|
-| Admin            | admin@enye.com         | admin123   |
-| Tenant           | tenant@enye.com        | tenant123  |
-| Facility Manager | facility@enye.com      | 123456     |
-| Finance Officer  | finance@example.com    | password   |
-
 ## Project Structure
 
 ```
