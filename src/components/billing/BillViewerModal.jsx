@@ -226,6 +226,9 @@ function normalizeBill(bill) {
   const tax = Number(bill.tax ?? bill.vat ?? bill.tax_amount ?? 0)
   const previousBalance = Number(bill.previous_balance ?? bill.balance_forward ?? 0)
   const paymentsReceived = Number(bill.payments_received ?? bill.amount_paid ?? 0)
+  const adjustments = Array.isArray(bill.adjustments)
+    ? bill.adjustments.filter((item) => item.status === 'applied')
+    : []
   const currentCharges = subtotal + tax
   const grandTotal = Number(
     bill.grand_total ??
@@ -261,6 +264,7 @@ function normalizeBill(bill) {
     previousBalance,
     paymentsReceived,
     grandTotal,
+    adjustments,
   }
 }
 
@@ -836,6 +840,32 @@ function BillContent({ bill }) {
             ))}
           </div>
         </div>
+
+        {d.adjustments.length > 0 && (
+          <div className="rounded-xl border border-teal-200 bg-teal-50/70 dark:border-teal-800/50 dark:bg-teal-900/20 p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-teal-700 dark:text-teal-300 mb-3">
+              Adjusted Bill
+            </p>
+            <div className="space-y-2">
+              {d.adjustments.map((adjustment) => (
+                <div key={adjustment.id} className="text-sm text-teal-800 dark:text-teal-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold capitalize">{String(adjustment.adjustment_type || 'Adjustment').replace(/_/g, ' ')}</span>
+                    <span className="font-mono text-xs">PHP {peso(adjustment.net_difference)}</span>
+                  </div>
+                  <p className="text-xs text-teal-700/80 dark:text-teal-300/80 mt-1">
+                    Original PHP {peso(adjustment.original_total)} to PHP {peso(adjustment.adjusted_total)}
+                  </p>
+                  {adjustment.reason && (
+                    <p className="text-xs text-teal-700/80 dark:text-teal-300/80 mt-1">
+                      Reason: {adjustment.reason}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl p-4 flex items-center justify-between gap-3">
           <div>

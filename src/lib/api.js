@@ -1,10 +1,9 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://192.168.10.74:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://192.168.10.116:8000',
   headers: {
     Accept: 'application/json',
-    'Content-Type': 'application/json',
   },
 })
 
@@ -19,5 +18,23 @@ api.interceptors.request.use((config) => {
 
   return config
 })
+
+export function createFreshRequestConfig(config = {}) {
+  const params = {
+    ...(config.params || {}),
+    _ts: Date.now(),
+  }
+
+  return {
+    ...config,
+    params,
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+      ...(config.headers || {}),
+    },
+  }
+}
 
 export default api

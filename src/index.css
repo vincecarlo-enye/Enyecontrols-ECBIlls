@@ -38,7 +38,10 @@
     @apply bg-slate-900/70 backdrop-blur-xl border border-slate-700/50;
   }
 
-  /* ── Card hover — lifted + stronger glow ──────────────────── */
+    .sidebar-surface {
+    @apply bg-white/95 dark:bg-slate-900/95 border-white/20 dark:border-slate-700/50 shadow-[8px_0_30px_rgba(15,23,42,0.08)] dark:shadow-[8px_0_35px_rgba(0,0,0,0.28)];
+  }
+/* ── Card hover — lifted + stronger glow ──────────────────── */
   .card-hover {
     @apply transition-all duration-300
            hover:shadow-xl hover:-translate-y-1;
@@ -73,7 +76,7 @@
 
   /* ── Section spacing ──────────────────────────────────────── */
   .section-gap {
-    @apply space-y-5 sm:space-y-6;
+    @apply space-y-6 sm:space-y-7;
   }
 
   /* ── Misc ─────────────────────────────────────────────────── */
@@ -81,13 +84,23 @@
     @apply bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent;
   }
   .sidebar-link {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150;
   }
   .sidebar-link-active {
     @apply bg-blue-600 text-white shadow-lg shadow-blue-500/25;
   }
   .sidebar-link-inactive {
     @apply text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-800 dark:hover:text-slate-200;
+  }
+
+  .modern-scroll-strip {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+  }
+
+  .modern-scroll-strip::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -157,3 +170,6 @@
   .no-print { display: none !important; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+
+

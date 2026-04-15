@@ -1,12 +1,15 @@
-import api from '@/lib/api'
+import api, { createFreshRequestConfig } from '@/lib/api'
 
 export async function fetchAdminBills(params = {}) {
-  const res = await api.get('/api/admin/bills', {
-    params: {
-      paginate: 1,
-      ...params,
-    },
-  })
+  const res = await api.get(
+    '/api/admin/bills',
+    createFreshRequestConfig({
+      params: {
+        paginate: 1,
+        ...params,
+      },
+    })
+  )
   return res.data
 }
 

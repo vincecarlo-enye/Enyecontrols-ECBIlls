@@ -71,9 +71,13 @@ export function useMeterOverviewData() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadMeterOverview = useCallback(async () => {
+  const loadMeterOverview = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
 
       const [metersRes, unitsRes] = await Promise.all([
@@ -89,7 +93,9 @@ export function useMeterOverviewData() {
       setError(err?.response?.data?.message || 'Failed to load meter overview.')
       setMeters([])
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

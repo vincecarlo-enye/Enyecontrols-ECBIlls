@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Receipt, Users, Building2, BarChart3,
@@ -8,10 +7,12 @@ import {
   UserCog, Megaphone, Siren, Bell, CalendarClock, Download, HeartPulse, Eye,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import ecbillsLogo from '@/assets/ecbills_logo.png'
 
 const adminNavItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/admin/billing', label: 'Billing', icon: Receipt },
+  { path: '/admin/bill-adjustments', label: 'Bill Adjustments', icon: Receipt },
   { path: '/admin/tenants', label: 'Tenants', icon: Users },
   { path: '/admin/units', label: 'Units', icon: Building2 },
   { path: '/admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
@@ -30,6 +31,7 @@ const adminNavItems = [
 const superAdminNavItems = [
   { path: '/super-admin', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/super-admin/billing', label: 'Billing', icon: Receipt },
+  { path: '/super-admin/bill-adjustments', label: 'Bill Adjustments', icon: Receipt },
   { path: '/super-admin/tenants', label: 'Tenants', icon: Users },
   { path: '/super-admin/units', label: 'Units', icon: Building2 },
   { path: '/super-admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
@@ -61,6 +63,7 @@ const tenantNavItems = [
 const financeNavItems = [
   { path: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/finance/billing', label: 'Billing Management', icon: Send },
+  { path: '/finance/bill-adjustments', label: 'Bill Adjustments', icon: Receipt },
   { path: '/finance/payment-review', label: 'Payment Review', icon: CheckSquare },
   { path: '/finance/billing-tickets', label: 'Billing Tickets', icon: Ticket },
   { path: '/finance/reports', label: 'Financial Reports', icon: BarChart3 },
@@ -82,8 +85,7 @@ const facilityNavItems = [
   { path: '/facility/notifications', label: 'Notifications', icon: Bell },
 ]
 
-export default function Sidebar({ mobileOpen, onMobileClose }) {
-  const [collapsed, setCollapsed] = useState(false)
+export default function Sidebar({ mobileOpen, onMobileClose, collapsed = false, onToggleCollapse }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -115,21 +117,21 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   return (
     <>
       {mobileOpen && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 lg:hidden" onClick={onMobileClose} />}
-      <aside className={`fixed top-0 left-0 h-screen z-30 flex flex-col glass border-r border-slate-200/60 dark:border-slate-700/50 transition-all duration-300 ease-in-out ${collapsed ? 'w-[72px]' : 'w-[240px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside style={{ contain: 'layout paint style' }} className={`fixed top-0 left-0 h-screen z-30 flex flex-col sidebar-surface overflow-hidden border-r border-slate-200/60 transition-[width,transform] duration-200 ease-out will-change-[width,transform] dark:border-slate-700/50 ${collapsed ? 'w-[72px]' : 'w-[240px]'} ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div onClick={() => navigate('/')} className={`flex items-center h-16 px-4 border-b cursor-pointer transition-colors ${isSuperAdmin ? 'border-violet-200/60 dark:border-violet-700/40 bg-gradient-to-r from-violet-50/50 to-indigo-50/50 dark:from-violet-900/10 dark:to-indigo-900/10' : 'border-slate-200/60 dark:border-slate-700/50'} ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 ${isSuperAdmin ? 'bg-gradient-to-br from-violet-600 to-indigo-500 shadow-violet-500/30' : 'bg-gradient-to-br from-slate-700 to-slate-300 shadow-blue-500/30'}`}>
-            <img src="/src/assets/enye-logo.png" alt="Enye Logo" className="w-6 h-6" />
-          </div>
+         
+            <img src={ecbillsLogo} alt="ECBills Logo" className={`${collapsed ? 'h-10 w-10' : 'h-11 w-11'} flex-shrink-0 object-cover transition-[width,height] duration-150`} />
+          
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <p className="font-display font-700 text-[15px] text-slate-800 dark:text-white leading-tight">Enyecontrols</p>
+                <p className="font-display font-700 text-[15px] text-slate-800 dark:text-white leading-tight">ECBills</p>
                 {isSuperAdmin && <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white leading-none">SA</span>}
               </div>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider truncate">{portalLabel}</p>
             </div>
           )}
-          <button onClick={(e) => { e.stopPropagation(); onMobileClose() }} className="ml-auto lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+          <button onClick={(e) => { e.stopPropagation(); onMobileClose() }} className="ml-auto lg:hidden text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
         </div>
 
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
@@ -170,10 +172,10 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
         </nav>
 
         <div className="p-3 border-t border-slate-200/60 dark:border-slate-700/50 space-y-2">
-          <button onClick={() => setCollapsed((v) => !v)} className={`w-full hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700 dark:hover:text-slate-200 transition-all ${collapsed ? 'justify-center' : ''}`}>
+          <button onClick={onToggleCollapse} className={`w-full hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700/60 dark:hover:text-slate-200 ${collapsed ? 'justify-center' : ''}`}>
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>Collapse</span></>}
           </button>
-          <button onClick={handleLogout} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700 dark:hover:text-slate-200 transition-all ${collapsed ? 'justify-center' : ''}`}>
+          <button onClick={handleLogout} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700/60 dark:hover:text-slate-200 ${collapsed ? 'justify-center' : ''}`}>
             <X className="w-4 h-4" />
             {!collapsed && <span>Logout</span>}
           </button>
@@ -182,3 +184,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
     </>
   )
 }
+
+
+
+

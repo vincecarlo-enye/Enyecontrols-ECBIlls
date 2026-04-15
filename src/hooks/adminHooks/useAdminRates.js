@@ -16,24 +16,48 @@ function todayIsoDate() {
 }
 
 function normalizeType(type) {
-  if (type === 'electric') return 'electricity'
-  if (type === 'water') return 'water'
-  if (type === 'thermal') return 'thermal'
+  const normalized = String(type || '').toLowerCase()
+  if (normalized === 'electric' || normalized === 'electricity') return 'electricity'
+  if (normalized === 'water') return 'water'
+  if (normalized === 'thermal') return 'thermal'
   return null
+}
+
+function rateSortScore(row = {}) {
+  const activeScore = row?.is_active ? 1 : 0
+  const coversTodayScore = rateWindowCoversDate(row) ? 1 : 0
+  const effectiveFromScore = new Date(row?.effective_from || 0).getTime() || 0
+
+  return [coversTodayScore, activeScore, effectiveFromScore]
+}
+
+function isBetterRate(candidate, current) {
+  if (!current) return true
+
+  const [candidateCovers, candidateActive, candidateFrom] = rateSortScore(candidate)
+  const [currentCovers, currentActive, currentFrom] = rateSortScore(current)
+
+  if (candidateCovers !== currentCovers) return candidateCovers > currentCovers
+  if (candidateActive !== currentActive) return candidateActive > currentActive
+  return candidateFrom > currentFrom
 }
 
 function mapRatesToCardShape(rows = []) {
   const mapped = { ...fallbackRates }
+  const selectedRaw = {}
 
   rows.forEach((row) => {
     const key = normalizeType(row.type)
-    if (!key || mapped[key].id) return
+    if (!key) return
+    if (!isBetterRate(row, selectedRaw[key])) return
+
+    selectedRaw[key] = row
 
     mapped[key] = {
       id: row.id,
       rate: Number(row.price_per_unit || 0),
       unit: row.unit_measure ? `/${row.unit_measure}` : fallbackRates[key].unit,
-      completeness: row.price_per_unit ? 100 : 0,
+      completeness: Number(row.price_per_unit || 0) > 0 ? 100 : 0,
       raw: row,
     }
   })
@@ -59,8 +83,12 @@ export function useAdminRates() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const loadRates = useCallback(async () => {
-    setLoading(true)
+  const loadRates = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
 
     try {
@@ -71,7 +99,9 @@ export function useAdminRates() {
       setError(err?.response?.data?.message || 'Failed to load rates.')
       setRawRates([])
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

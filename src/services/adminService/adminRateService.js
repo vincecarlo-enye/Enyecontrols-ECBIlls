@@ -1,8 +1,8 @@
-import api from "../../lib/api";
+import api, { createFreshRequestConfig } from "../../lib/api";
 
 
 export async function fetchAdminRates() {
-    const res = await api.get('/api/super-admin/rates')
+    const res = await api.get('/api/rates', createFreshRequestConfig())
     return res.data
 }
 

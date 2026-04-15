@@ -1,6 +1,11 @@
-import api from '../../lib/api'
+import api, { createFreshRequestConfig } from '../../lib/api'
 
-export async function getTenantDashboard() {
-  const { data } = await api.get('/api/tenant/dashboard')
+export async function getTenantDashboard(unit = 'all') {
+  const { data } = await api.get(
+    '/api/tenant/dashboard',
+    createFreshRequestConfig({
+      params: { unit },
+    })
+  )
   return data?.data ?? null
 }

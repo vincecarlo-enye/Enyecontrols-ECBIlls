@@ -341,12 +341,15 @@ const ECBILLS_SCOPE_KEYWORDS = [
   'ecbills',
   'billing',
   'bill',
+  'transaction',
+  'transactions',
   'tenant',
   'unit',
   'meter',
   'usage',
   'consumption',
   'payment',
+  'payments',
   'receipt',
   'rate',
   'announcement',
@@ -486,6 +489,10 @@ export function isEcbillsScopedQuestion(question = '', pageContext = {}) {
 
   if (looksLikeCreationRequest) {
     return false
+  }
+
+  if (pageContext?.page) {
+    return true
   }
 
   if (mentionsEcbillsScope || isPageExplain) {

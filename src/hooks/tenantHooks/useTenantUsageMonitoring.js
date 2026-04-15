@@ -20,11 +20,14 @@ export function useTenantUsageMonitoring() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const refreshUsage = useCallback(async (unitFilter = 'all') => {
+  const refreshUsage = useCallback(async (unitFilter = 'all', options = {}) => {
     const nextUnit = unitFilter || 'all'
+    const { silent = false } = options
 
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
       setRequestedUnit(nextUnit)
 
@@ -50,7 +53,9 @@ export function useTenantUsageMonitoring() {
       setLiveUsageAvailable(false)
       setUsageMessage('')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

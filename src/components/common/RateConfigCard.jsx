@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Edit3, Check, X, Zap, Flame, Droplets, Lock } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useRateHistory } from '@/hooks/common/useRateHistory'
+import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
 import RateHistoryPanel from '@/components/common/RateHistoryPanel'
 
 const config = {
@@ -104,17 +105,25 @@ function RateCard({ type, rate, unit, completeness, canEdit, onSave }) {
 export default function RateConfigCard({ rates: propRates, onSaveRate, onSaveAllRates }) {
   const { can } = usePermissions()
   const { history, loading } = useRateHistory()
+  const {
+    rates: loadedRates,
+    loading: ratesLoading,
+    saveRate,
+    saveAllRates,
+  } = useAdminRates()
   const canEdit = can('rates:edit')
-  const rates = propRates || fallbackRates
+  const rates = propRates || loadedRates || fallbackRates
 
   const handleSave = async (type, newRate) => {
     if (onSaveRate) return onSaveRate(type, newRate)
-    return { success: false, message: 'Save rate function is not connected.' }
+    if (canEdit) return saveRate(type, { rate: newRate, unit: rates?.[type]?.unit })
+    return { success: false, message: 'Only Super Admin can edit billing rates.' }
   }
 
   const handleSaveAll = async () => {
     if (onSaveAllRates) return onSaveAllRates(rates)
-    return { success: false, message: 'Save all rates function is not connected.' }
+    if (canEdit) return saveAllRates(rates)
+    return { success: false, message: 'Only Super Admin can edit billing rates.' }
   }
 
   return (
@@ -140,7 +149,7 @@ export default function RateConfigCard({ rates: propRates, onSaveRate, onSaveAll
       </div>
 
       <div className="mt-4">
-        <RateHistoryPanel history={history} loading={loading} compact />
+        <RateHistoryPanel history={history} loading={loading || (!propRates && ratesLoading)} compact />
       </div>
     </div>
   )

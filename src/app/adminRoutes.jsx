@@ -25,6 +25,7 @@ const NotificationsPage = lazy(() => import('@/pages/common/Notifications'))
 const ActivityLogsPage = lazy(() => import('@/pages/common/ActivityLogs'))
 const OperationalExportsPage = lazy(() => import('@/pages/common/OperationalExports'))
 const GlobalSearchPage = lazy(() => import('@/pages/common/GlobalSearch'))
+const BillAdjustmentsPage = lazy(() => import('@/pages/common/BillAdjustments'))
 const MeterManagement = lazy(() => import('@/pages/superadmin/MeterManagement'))
 const UserManagement = lazy(() => import('@/pages/superadmin/UserManagement'))
 const BillingRates = lazy(() => import('@/pages/superadmin/BillingRates'))
@@ -49,6 +50,7 @@ export function adminRoutes() {
       <Route path="owner-portal" element={<AdminOwnerPortal />} />
       <Route path="system-health" element={<AdminSystemHealth />} />
       <Route path="operational-exports" element={<OperationalExportsPage />} />
+      <Route path="bill-adjustments" element={<BillAdjustmentsPage />} />
       <Route path="settings" element={<AdminSettings />} />
       <Route path="tenant-reports" element={<AdminTenantReports />} />
       <Route path="anomalies" element={<AdminAnomalies />} />

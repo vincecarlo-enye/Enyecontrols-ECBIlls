@@ -6,7 +6,7 @@ import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 import api from '@/lib/api'
 
-const FINANCE_STATUSES = ['all', 'assigned', 'awaiting_tenant', 'investigating', 'resolved', 'adjusted', 'rejected']
+const FINANCE_STATUSES = ['all', 'assigned', 'awaiting_tenant', 'investigating', 'refund_pending', 'resolved', 'adjusted', 'rejected']
 
 function formatDate(value) {
   if (!value) return ''
@@ -28,6 +28,7 @@ function buildTimeline(row) {
       by: entry.by || 'System',
       date: formatDate(entry.date),
       note: entry.note || '',
+      metadata: entry.metadata || {},
     }))
   }
 
@@ -151,7 +152,7 @@ export default function FinanceBillingTickets() {
     )
   }
 
-  const handleAction = async (id, action, note) => {
+  const handleAction = async (id, action, payload) => {
     const endpointMap = {
       investigate: 'investigate',
       respond: 'respond',
@@ -164,13 +165,17 @@ export default function FinanceBillingTickets() {
 
     try {
       setActing(true)
-      await api.post(`/api/finance/billing-concerns/${id}/${endpoint}`, { note })
+      const requestPayload = action === 'adjust' && typeof payload === 'object'
+        ? payload
+        : { note: payload }
+
+      await api.post(`/api/finance/billing-concerns/${id}/${endpoint}`, requestPayload)
       await loadConcerns()
       addToast({
         investigate: 'Investigation started.',
         respond: 'Response sent to tenant.',
         resolve: 'Ticket resolved.',
-        adjust: 'Bill adjustment recorded.',
+        adjust: 'Bill adjustment request submitted.',
       }[action], 'success')
       return true
     } catch (err) {
@@ -302,7 +307,7 @@ export default function FinanceBillingTickets() {
                           <button onClick={() => quickAction(concern, 'resolve')} disabled={acting} className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors" title="Resolve">
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
-                          <button onClick={() => quickAction(concern, 'adjust')} disabled={acting} className="p-2 rounded-lg text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors" title="Adjust Bill">
+                          <button onClick={() => openDetail(concern)} disabled={acting} className="p-2 rounded-lg text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors" title="Open adjustment/refund form">
                             <DollarSign className="w-4 h-4" />
                           </button>
                         </>
@@ -326,3 +331,5 @@ export default function FinanceBillingTickets() {
     </div>
   )
 }
+
+

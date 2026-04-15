@@ -1,7 +1,7 @@
-import api from '@/lib/api'
+import api, { createFreshRequestConfig } from '@/lib/api'
 
 export async function fetchFacilityMonitoring() {
-  const response = await api.get('/api/facility/monitoring')
+  const response = await api.get('/api/facility/monitoring', createFreshRequestConfig())
   return response.data
 }
 

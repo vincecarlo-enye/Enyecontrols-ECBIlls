@@ -12,9 +12,13 @@ export function useAdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
 
       const [unitsRes, tenantsRes, billsRes, concernsRes] = await Promise.all([
@@ -31,7 +35,9 @@ export function useAdminDashboard() {
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load dashboard data.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

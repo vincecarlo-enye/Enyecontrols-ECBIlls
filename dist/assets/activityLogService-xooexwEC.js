@@ -1,0 +1,1 @@
+import{n as i}from"./index-SrZpqNgu.js";async function n(t={}){return(await i.get("/api/activity-logs",{params:{paginate:1,...t}})).data}async function c(t,a){return(await i.get(`/api/activity-logs/timeline/${t}/${a}`)).data}export{c as a,n as f};

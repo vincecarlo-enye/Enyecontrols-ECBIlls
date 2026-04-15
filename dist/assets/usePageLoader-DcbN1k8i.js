@@ -1,1 +1,0 @@
-import{r as e}from"./index-DCMs2mDx.js";function o(){const[t,r]=e.useState(!0);return e.useEffect(()=>{const a=window.requestAnimationFrame(()=>r(!1));return()=>window.cancelAnimationFrame(a)},[]),t}export{o as u};

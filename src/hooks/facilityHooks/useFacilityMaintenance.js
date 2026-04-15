@@ -11,8 +11,12 @@ export function useFacilityMaintenance() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const loadTickets = useCallback(async () => {
-    setLoading(true)
+  const loadTickets = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
 
     try {
@@ -23,7 +27,9 @@ export function useFacilityMaintenance() {
       setTickets([])
       setError(err?.response?.data?.message || err?.message || 'Failed to load maintenance tickets.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

@@ -13,8 +13,12 @@ export function useFacilityConsumption() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadConsumption = useCallback(async () => {
-    setLoading(true)
+  const loadConsumption = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
 
     try {
@@ -36,7 +40,9 @@ export function useFacilityConsumption() {
       setAnomalies([])
       setError(err?.response?.data?.message || err?.message || 'Failed to load facility consumption.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

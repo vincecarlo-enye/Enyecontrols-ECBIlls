@@ -23,7 +23,7 @@ export default function AnnouncementCard({ ann, canEdit, canDelete, onEdit, onDe
   const systemWide = isSystemAnnouncement(ann)
 
   return (
-    <div className={`relative p-4 rounded-xl border ${tc.bg} ${tc.border} group transition-all`}>
+    <div className={`relative min-w-0 rounded-xl border p-3 ${tc.bg} ${tc.border} group transition-all sm:p-4`}>
       {systemWide && (
         <div className="flex items-center gap-1 mb-2">
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white">
@@ -31,26 +31,26 @@ export default function AnnouncementCard({ ann, canEdit, canDelete, onEdit, onDe
           </span>
         </div>
       )}
-      <div className="flex items-start gap-3">
+      <div className="flex min-w-0 items-start gap-3">
         <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${tc.bg}`}>
           <Icon className={`w-4 h-4 ${tc.icon_cls}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
-            <p className="font-semibold text-sm text-slate-800 dark:text-white leading-snug">{ann.title}</p>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <p className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-800 dark:text-white">{ann.title}</p>
+            <div className="flex flex-wrap items-center gap-1.5 sm:flex-shrink-0">
               {ann.priority && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${PRIORITY_BADGE[ann.priority]}`}>{ann.priority}</span>
               )}
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${tc.badge}`}>{ann.type}</span>
             </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{ann.body}</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">{ann.date} · {ann.author}</p>
+          <p className="mt-1 break-words text-xs leading-relaxed text-slate-500 dark:text-slate-400">{ann.body}</p>
+          <p className="mt-2 break-words text-[10px] text-slate-400 dark:text-slate-500">{ann.date} · {ann.author}</p>
         </div>
       </div>
       {(canEdit || canDelete) && (
-        <div className="absolute top-3 right-3 hidden group-hover:flex gap-1">
+        <div className="mt-3 flex justify-end gap-1 sm:absolute sm:right-3 sm:top-3 sm:mt-0 sm:hidden sm:group-hover:flex">
           {canEdit && (
             <button onClick={() => onEdit(ann)} className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-500 hover:text-blue-500 transition-colors shadow-sm"><Pencil className="w-3 h-3"/></button>
           )}
@@ -62,3 +62,4 @@ export default function AnnouncementCard({ ann, canEdit, canDelete, onEdit, onDe
     </div>
   )
 }
+

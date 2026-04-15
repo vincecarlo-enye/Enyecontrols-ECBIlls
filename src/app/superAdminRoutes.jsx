@@ -23,6 +23,7 @@ const NotificationsPage = lazy(() => import('@/pages/common/Notifications'))
 const ActivityLogsPage = lazy(() => import('@/pages/common/ActivityLogs'))
 const OperationalExportsPage = lazy(() => import('@/pages/common/OperationalExports'))
 const GlobalSearchPage = lazy(() => import('@/pages/common/GlobalSearch'))
+const BillAdjustmentsPage = lazy(() => import('@/pages/common/BillAdjustments'))
 
 export function superAdminRoutes() {
   return (
@@ -38,6 +39,7 @@ export function superAdminRoutes() {
       <Route path="owner-portal" element={<AdminOwnerPortal />} />
       <Route path="system-health" element={<AdminSystemHealth />} />
       <Route path="operational-exports" element={<OperationalExportsPage />} />
+      <Route path="bill-adjustments" element={<BillAdjustmentsPage />} />
       <Route path="tenant-reports" element={<AdminTenantReports />} />
       <Route path="anomalies" element={<AdminAnomalies />} />
       <Route path="activity-logs" element={<ActivityLogsPage />} />

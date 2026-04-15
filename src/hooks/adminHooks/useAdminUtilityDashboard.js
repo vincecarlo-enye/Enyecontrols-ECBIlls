@@ -64,9 +64,13 @@ export function useAdminUtilityDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadUtilityDashboard = useCallback(async () => {
+  const loadUtilityDashboard = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
 
       const [summaryRes, dailyRes] = await Promise.all([
@@ -99,7 +103,9 @@ export function useAdminUtilityDashboard() {
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load utility data.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

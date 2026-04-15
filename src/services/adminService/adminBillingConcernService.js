@@ -1,7 +1,7 @@
-import api from "../../lib/api"
+import api, { createFreshRequestConfig } from "../../lib/api"
 
 export async function fetchAdminBillingConcerns() {
-  const res = await api.get('/api/admin/billing-concerns')
+  const res = await api.get('/api/admin/billing-concerns', createFreshRequestConfig())
   return res.data
 }
 

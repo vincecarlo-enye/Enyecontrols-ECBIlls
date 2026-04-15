@@ -1,12 +1,12 @@
-import api from '@/lib/api'
+import api, { createFreshRequestConfig } from '@/lib/api'
 
 export async function fetchAdminAnomalies(params = {}) {
-  const response = await api.get('/api/admin/anomalies', { params })
+  const response = await api.get('/api/admin/anomalies', createFreshRequestConfig({ params }))
   return response.data
 }
 
 export async function fetchAdminAnomalySummary() {
-  const response = await api.get('/api/admin/anomalies/summary')
+  const response = await api.get('/api/admin/anomalies/summary', createFreshRequestConfig())
   return response.data
 }
 

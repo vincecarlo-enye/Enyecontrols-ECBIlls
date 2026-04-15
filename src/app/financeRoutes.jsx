@@ -18,6 +18,7 @@ const NotificationsPage = lazy(() => import('@/pages/common/Notifications'))
 const ActivityLogsPage = lazy(() => import('@/pages/common/ActivityLogs'))
 const OperationalExportsPage = lazy(() => import('@/pages/common/OperationalExports'))
 const GlobalSearchPage = lazy(() => import('@/pages/common/GlobalSearch'))
+const BillAdjustmentsPage = lazy(() => import('@/pages/common/BillAdjustments'))
 
 export function financeRoutes() {
   return (
@@ -35,6 +36,7 @@ export function financeRoutes() {
       <Route path="billing-tickets" element={<FinanceBillingTickets />} />
       <Route path="reports" element={<FinanceReports />} />
       <Route path="operational-exports" element={<OperationalExportsPage />} />
+      <Route path="bill-adjustments" element={<BillAdjustmentsPage />} />
       <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
       <Route path="search" element={<GlobalSearchPage />} />

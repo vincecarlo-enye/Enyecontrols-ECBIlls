@@ -130,7 +130,7 @@ function MessageBubble({ message }) {
 function SuggestionChip({ text, onClick }) {
   return (
     <button
-      onClick={() => onClick(text)}
+      onClick={() => onClick(text, { bypassScopeCheck: true, source: 'suggestion' })}
       className="px-3 py-1.5 rounded-full text-[11px] font-medium border border-violet-200 dark:border-violet-700/50 text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors text-left leading-tight"
     >
       {text}
@@ -290,6 +290,8 @@ export default function AIAssistant() {
     const requestId = historyRequestIdRef.current + 1
     historyRequestIdRef.current = requestId
     setHasLoadedHistory(false)
+    setShowSuggestions(false)
+    setMessages([])
 
     let cancelled = false
 
@@ -309,7 +311,7 @@ export default function AIAssistant() {
               time: message.time || formatTime(),
             }))
           )
-          setShowSuggestions(false)
+          setShowSuggestions(true)
         } else {
           setMessages([
             {
@@ -510,7 +512,7 @@ export default function AIAssistant() {
     })
   }, [])
 
-  const sendMessage = useCallback(async (text) => {
+  const sendMessage = useCallback(async (text, options = {}) => {
     const content = (text || inputValue).trim()
     if (!content || isTyping || isAnimatingReply || !hasLoadedHistory) return
 
@@ -527,7 +529,7 @@ export default function AIAssistant() {
     setIsTyping(true)
     stopAllAudio()
 
-    if (!isEcbillsScopedQuestion(content, pageContext)) {
+    if (!options.bypassScopeCheck && !isEcbillsScopedQuestion(content, pageContext)) {
       const aiMsg = {
         id: Date.now() + 1,
         role: 'assistant',
@@ -843,7 +845,7 @@ export default function AIAssistant() {
               </div>
             )}
 
-            {showSuggestions && messages.length <= 1 && !isTyping && !isAnimatingReply && hasLoadedHistory && (
+            {showSuggestions && !isTyping && !isAnimatingReply && hasLoadedHistory && (
               <div className="pt-1">
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1">Suggested</p>
                 <div className="flex flex-wrap gap-1.5">

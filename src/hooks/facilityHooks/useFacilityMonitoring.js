@@ -6,6 +6,7 @@ import {
   fetchFacilityMonitoring,
   rejectFacilityReading,
 } from '@/services/facilityService/facilityMonitoringService'
+import { DASHBOARD_READ_REFRESH_MS } from '@/constants/liveData'
 
 const EMPTY_ANOMALY = {
   title: 'No anomaly detected',
@@ -72,7 +73,7 @@ export function useFacilityMonitoring() {
   useEffect(() => {
     const timer = setInterval(() => {
       loadMonitoring({ silent: true })
-    }, 30000)
+    }, DASHBOARD_READ_REFRESH_MS)
 
     return () => clearInterval(timer)
   }, [loadMonitoring])

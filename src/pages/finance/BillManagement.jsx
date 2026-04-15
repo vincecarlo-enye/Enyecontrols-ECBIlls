@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import {
   FileText, Plus, Send, Edit2, Trash2, Search,
   Eye, CheckCircle2, X, Zap, Droplets, Flame,
-  LayoutList, Settings2, Filter,
+  LayoutList, Settings2, Filter, AlertTriangle, History, BadgeDollarSign,
 } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { BillingSkeleton } from '@/components/skeletons'
@@ -28,6 +28,72 @@ const UTIL_ICONS = {
   electricity: Zap,
   water: Droplets,
   thermal: Flame,
+}
+
+const ADJUSTMENT_TYPES = [
+  ['billing_error', 'Billing Error'],
+  ['meter_reading_correction', 'Meter Reading Correction'],
+  ['utility_rate_correction', 'Utility Rate Correction'],
+  ['discount_waiver', 'Discount / Waiver'],
+  ['penalty_removal', 'Penalty Removal'],
+  ['manual_correction', 'Manual Correction'],
+  ['other', 'Other'],
+]
+
+function formatPeso(value) {
+  return `PHP ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatAdjustmentLabel(item) {
+  const workflow = item?.workflow_type && item.workflow_type !== 'direct_adjustment' ? item.workflow_type : item?.adjustment_type
+  return String(workflow || 'adjustment').replace(/_/g, ' ')
+}
+
+function summarizeBulkGenerationResult(result) {
+  if (result?.success) return result?.message || 'Bulk bill generation completed.'
+
+  const summary = Array.isArray(result?.data?.failure_summary) ? result.data.failure_summary : []
+  const topFailure = summary[0]
+  if (topFailure?.message) {
+    return `${result?.message || 'Bulk bill generation failed.'} ${topFailure.count ? `Most common reason: ${topFailure.count} tenant(s) - ` : ''}${topFailure.message}`
+  }
+
+  const failedRows = Array.isArray(result?.data?.results)
+    ? result.data.results.filter((row) => !row?.success)
+    : []
+  const firstFailure = failedRows[0]
+  if (firstFailure?.message) {
+    return `${result?.message || 'Bulk bill generation failed.'} First blocker: ${firstFailure.message}`
+  }
+
+  return result?.message || 'Failed to generate bills in bulk.'
+}
+
+function getBillItems(bill) {
+  const rawItems = Array.isArray(bill?.raw?.items) ? bill.raw.items : []
+  if (rawItems.length > 0) {
+    return rawItems.map((item) => ({
+      id: item.id,
+      label: item.description || item.type || `Line #${item.id}`,
+      type: item.type || 'line_item',
+      amount: Number(item.amount || 0),
+      previousReading: item.previous_reading,
+      currentReading: item.current_reading,
+      consumption: item.consumption,
+    }))
+  }
+
+  return Object.entries(bill?.breakdown || {})
+    .filter(([, amount]) => Number(amount || 0) !== 0)
+    .map(([key, amount]) => ({
+      id: null,
+      label: key,
+      type: key,
+      amount: Number(amount || 0),
+      previousReading: null,
+      currentReading: null,
+      consumption: null,
+    }))
 }
 
 function BillFormModal({ open, onClose, tenants, initial, onSave, saving, isMonthLocked, getMonthLock }) {
@@ -271,6 +337,8 @@ function BillDetailModal({ bill, onClose }) {
               })}
             </div>
           </div>
+
+          <AdjustmentHistoryPanel bill={bill} />
         </div>
       </div>
     </div>,
@@ -278,6 +346,378 @@ function BillDetailModal({ bill, onClose }) {
   )
 }
 
+function AdjustmentHistoryPanel({ bill }) {
+  const rows = Array.isArray(bill?.adjustments) ? bill.adjustments : []
+
+  return (
+    <div className="rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
+        <History className="w-4 h-4 text-slate-400" />
+        <p className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">Adjustment History</p>
+      </div>
+      {rows.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-slate-400">No bill adjustments recorded yet.</div>
+      ) : (
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {rows.map((item) => (
+            <div key={item.id} className="px-4 py-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold text-slate-700 dark:text-slate-200">
+                  {formatAdjustmentLabel(item)}
+                </p>
+                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${item.status === 'applied' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300' : item.status === 'pending_approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                  {String(item.status || '').replace(/_/g, ' ')}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {formatPeso(item.original_total)} to {formatPeso(item.adjusted_total)} ({formatPeso(item.net_difference)})
+                {item.ledger_entry ? <span className="ml-1">Ledger: {String(item.ledger_entry.entry_type || '').replace(/_/g, ' ')}</span> : null}
+              </p>
+              {item.reason && <p className="mt-1 text-xs text-slate-400">{item.reason}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BillAdjustmentModal({ open, bill, onClose, onSave, saving }) {
+  const [adjustmentType, setAdjustmentType] = useState('manual_correction')
+  const [method, setMethod] = useState('line_items')
+  const [direction, setDirection] = useState('subtract')
+  const [amount, setAmount] = useState('')
+  const [targetTotal, setTargetTotal] = useState('')
+  const [workflowType, setWorkflowType] = useState('credit')
+  const [settlementMethod, setSettlementMethod] = useState('apply_next_bill')
+  const [correctedTotal, setCorrectedTotal] = useState('')
+  const [reason, setReason] = useState('')
+  const [internalNotes, setInternalNotes] = useState('')
+  const [otherExplanation, setOtherExplanation] = useState('')
+  const [lineAdjustments, setLineAdjustments] = useState({})
+  const [confirmed, setConfirmed] = useState(false)
+
+  const billItems = useMemo(() => getBillItems(bill), [bill])
+  const isPaidBill = bill?.status === 'paid'
+
+  useEffect(() => {
+    if (!open) return
+    setAdjustmentType('manual_correction')
+    setMethod('line_items')
+    setDirection('subtract')
+    setAmount('')
+    setTargetTotal('')
+    setWorkflowType('credit')
+    setSettlementMethod('apply_next_bill')
+    setCorrectedTotal('')
+    setReason('')
+    setInternalNotes('')
+    setOtherExplanation('')
+    setLineAdjustments({})
+    setConfirmed(false)
+  }, [open, bill?.id])
+
+  useEffect(() => {
+    if (!isPaidBill) return
+    if (workflowType === 'credit') setSettlementMethod('apply_next_bill')
+    if (workflowType === 'refund') setSettlementMethod('refund_manual')
+    if (workflowType === 'additional_charge') setSettlementMethod('add_next_bill')
+    if (workflowType === 'critical_error') setSettlementMethod('reopen_bill')
+  }, [isPaidBill, workflowType])
+
+  const netDifference = useMemo(() => {
+    if (isPaidBill) {
+      if (workflowType === 'critical_error') return 0
+      if (correctedTotal === '') return 0
+      return Number(correctedTotal || 0) - Number(bill?.amount || 0)
+    }
+
+    if (method === 'fixed_amount') {
+      const value = Math.abs(Number(amount || 0))
+      return direction === 'add' ? value : -value
+    }
+
+    if (method === 'replace_total') {
+      return Number(targetTotal || 0) - Number(bill?.amount || 0)
+    }
+
+    return billItems.reduce((sum, item) => sum + Number(lineAdjustments[item.id || item.label] || 0), 0)
+  }, [amount, bill?.amount, billItems, correctedTotal, direction, isPaidBill, lineAdjustments, method, targetTotal, workflowType])
+
+  const adjustedTotal = Number(bill?.amount || 0) + netDifference
+  const requiresApproval = isPaidBill || Math.abs(netDifference) > 5000
+  const paidWorkflowDirectionValid =
+    !isPaidBill ||
+    workflowType === 'critical_error' ||
+    (['credit', 'refund'].includes(workflowType) && netDifference < 0) ||
+    (workflowType === 'additional_charge' && netDifference > 0)
+  const canSubmit = bill && reason.trim() && paidWorkflowDirectionValid && adjustedTotal >= 0 && (workflowType === 'critical_error' || netDifference !== 0) && (adjustmentType !== 'other' || otherExplanation.trim()) && confirmed
+
+  if (!open || !bill) return null
+
+  const buildPayload = (action) => {
+    if (isPaidBill) {
+      return {
+        action: action === 'apply' ? 'submit' : action,
+        adjustment_type: adjustmentType,
+        method: 'replace_total',
+        workflow_type: workflowType,
+        settlement_method: settlementMethod,
+        corrected_total: workflowType === 'critical_error' ? Number(bill.amount || 0) : Number(correctedTotal || 0),
+        target_total: workflowType === 'critical_error' ? Number(bill.amount || 0) : Number(correctedTotal || 0),
+        line_items: [],
+        reason,
+        internal_notes: internalNotes,
+        other_explanation: otherExplanation,
+      }
+    }
+
+    return {
+      action,
+      adjustment_type: adjustmentType,
+      method,
+      workflow_type: 'direct_adjustment',
+      direction,
+      amount: method === 'fixed_amount' ? Number(amount || 0) : undefined,
+      target_total: method === 'replace_total' ? Number(targetTotal || 0) : undefined,
+      line_items: method === 'line_items'
+        ? billItems.map((item) => ({
+            bill_item_id: item.id,
+            label: item.label,
+            adjustment_amount: Number(lineAdjustments[item.id || item.label] || 0),
+          })).filter((item) => item.adjustment_amount !== 0)
+        : [],
+      reason,
+      internal_notes: internalNotes,
+      other_explanation: otherExplanation,
+    }
+  }
+
+  const handleSave = async (action) => {
+    const result = await onSave(bill.id, buildPayload(action))
+    if (result?.success) onClose()
+  }
+
+  const workflowCards = [
+    { value: 'credit', title: 'Credit Balance', body: 'Tenant paid too much. Create credit and apply it to the next bill.' },
+    { value: 'refund', title: 'Refund Record', body: 'Tenant paid too much but Finance will process refund manually.' },
+    { value: 'additional_charge', title: 'Additional Charge', body: 'Tenant paid too little. Add the balance to the next bill.' },
+    { value: 'critical_error', title: 'Critical Error', body: 'Approval-only action for reopening or voiding payment records.' },
+  ]
+
+  return createPortal(
+    <div className="fixed inset-0 z-[350] flex items-center justify-center p-3 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-6xl max-h-[94vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h3 className="font-semibold text-[16px] text-slate-800 dark:text-white flex items-center gap-2">
+              <BadgeDollarSign className="w-5 h-5 text-teal-500" />
+              {isPaidBill ? 'Paid Bill Adjustment Workflow' : 'Adjust Bill'}
+            </h3>
+            <p className="text-xs text-slate-400 font-mono">Bill #{bill.id} - {bill.tenant} - {bill.unit}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+            {[
+              ['Bill ID', bill.id],
+              ['Tenant', bill.tenant],
+              ['Unit', bill.unit],
+              ['Period', bill.billingPeriod || bill.month],
+              ['Due Date', bill.dueDate],
+              ['Status', bill.status],
+              ['Original Total', formatPeso(bill.amount)],
+              ['Payment Status', isPaidBill ? 'Fully paid - direct edits locked' : bill.status === 'payment_submitted' ? 'Payment submitted' : 'Open'],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{label}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{value || '-'}</p>
+              </div>
+            ))}
+          </div>
+
+          {isPaidBill && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300 flex gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>This bill is already paid. Direct editing is disabled. Use a separate adjustment record so overpayment becomes credit/refund and underpayment becomes a next-bill charge.</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.65fr] gap-5">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Reason Category</label>
+                  <select value={adjustmentType} onChange={(e) => setAdjustmentType(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none">
+                    {ADJUSTMENT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
+                {!isPaidBill && (
+                  <div>
+                    <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Method</label>
+                    <select value={method} onChange={(e) => setMethod(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none">
+                      <option value="line_items">Adjust per line item</option>
+                      <option value="fixed_amount">Add/Subtract fixed amount</option>
+                      <option value="replace_total">Replace total amount</option>
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Approval Rule</label>
+                  <div className={`px-3 py-2.5 rounded-xl border text-sm font-semibold ${requiresApproval ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300' : 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800/50 dark:bg-teal-900/20 dark:text-teal-300'}`}>
+                    {requiresApproval ? 'Approval required' : 'Finance can apply'}
+                  </div>
+                </div>
+              </div>
+
+              {adjustmentType === 'other' && (
+                <input value={otherExplanation} onChange={(e) => setOtherExplanation(e.target.value)} placeholder="Explain the Other adjustment type..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none" />
+              )}
+
+              {isPaidBill ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {workflowCards.map((card) => (
+                      <button
+                        key={card.value}
+                        type="button"
+                        onClick={() => setWorkflowType(card.value)}
+                        className={`text-left rounded-2xl border p-4 transition-all ${workflowType === card.value ? 'border-teal-400 bg-teal-50 text-teal-800 dark:border-teal-500/60 dark:bg-teal-900/20 dark:text-teal-200' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300'}`}
+                      >
+                        <p className="text-sm font-bold">{card.title}</p>
+                        <p className="mt-1 text-xs opacity-80">{card.body}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {workflowType !== 'critical_error' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Correct Amount</label>
+                        <input type="number" step="0.01" value={correctedTotal} onChange={(e) => setCorrectedTotal(e.target.value)} placeholder="Correct bill amount" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Settlement</label>
+                        <select value={settlementMethod} onChange={(e) => setSettlementMethod(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none">
+                          {workflowType === 'credit' && <option value="apply_next_bill">Apply credit to next bill</option>}
+                          {workflowType === 'refund' && <option value="refund_manual">Manual refund record</option>}
+                          {workflowType === 'additional_charge' && <option value="add_next_bill">Add charge to next bill</option>}
+
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-mono uppercase text-slate-400 mb-1.5 block">Critical Action</label>
+                      <select value={settlementMethod} onChange={(e) => setSettlementMethod(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none">
+                        <option value="reopen_bill">Reopen bill after approval</option>
+                        <option value="void_payment_reopen_bill">Void verified payment and reopen bill after approval</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {!paidWorkflowDirectionValid && (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-300">
+                      Credit/refund needs a lower corrected amount. Additional charge needs a higher corrected amount.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {method === 'line_items' && (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <table className="w-full text-sm" style={{ minWidth: '720px' }}>
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-slate-800/50">
+                            {['Label', 'Original Amount', 'Adjustment', 'New Amount', 'Meter Summary'].map((header) => (
+                              <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left">{header}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {billItems.map((item) => {
+                            const key = item.id || item.label
+                            const adjustment = Number(lineAdjustments[key] || 0)
+                            return (
+                              <tr key={key}>
+                                <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{item.label}</td>
+                                <td className="px-4 py-3 font-mono text-slate-500">{formatPeso(item.amount)}</td>
+                                <td className="px-4 py-3">
+                                  <input type="number" step="0.01" value={lineAdjustments[key] || ''} onChange={(e) => setLineAdjustments((prev) => ({ ...prev, [key]: e.target.value }))} placeholder="0.00" className="w-32 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none" />
+                                </td>
+                                <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{formatPeso(item.amount + adjustment)}</td>
+                                <td className="px-4 py-3 text-xs text-slate-400">{item.previousReading || item.currentReading ? `${item.previousReading || '-'} to ${item.currentReading || '-'} (${item.consumption || 0})` : '-'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {method === 'fixed_amount' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select value={direction} onChange={(e) => setDirection(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none">
+                        <option value="subtract">Subtract / Credit tenant</option>
+                        <option value="add">Add charge</option>
+                      </select>
+                      <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Fixed amount" className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none" />
+                    </div>
+                  )}
+
+                  {method === 'replace_total' && (
+                    <input type="number" step="0.01" value={targetTotal} onChange={(e) => setTargetTotal(e.target.value)} placeholder="New grand total" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none" />
+                  )}
+                </>
+              )}
+
+              <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Required reason / tenant-visible justification..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none resize-none" />
+              <textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} rows={2} placeholder="Internal notes for audit trail..." className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 outline-none resize-none" />
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
+                <p className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-3">Before / After Preview</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-400">Original</span><span className="font-semibold text-slate-700 dark:text-slate-200">{formatPeso(bill.amount)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Difference</span><span className={`font-semibold ${netDifference < 0 ? 'text-teal-600' : 'text-amber-600'}`}>{formatPeso(netDifference)}</span></div>
+                  <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700"><span className="text-slate-400">Correct / New Total</span><span className="font-bold text-slate-900 dark:text-white">{formatPeso(adjustedTotal)}</span></div>
+                </div>
+                {isPaidBill && (
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    {netDifference < 0 ? 'Result: credit/refund ledger will be created. Original paid bill remains traceable.' : netDifference > 0 ? 'Result: additional charge ledger will be created for the next bill.' : 'Result: approval-only critical correction. No direct edit until reviewed.'}
+                  </p>
+                )}
+                <p className="mt-3 text-xs text-slate-400">Timestamp preview: {new Date().toLocaleString()}</p>
+              </div>
+
+              <AdjustmentHistoryPanel bill={bill} />
+
+              <label className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5" />
+                <span>{isPaidBill ? 'This paid bill will stay locked. The correction will be logged and processed through approval, ledger, refund, or reopen workflow.' : 'You are about to adjust a finalized bill. This action will be logged and may be visible to authorized users.'}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-5 py-4 flex flex-col sm:flex-row justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Cancel</button>
+          <button onClick={() => handleSave('draft')} disabled={saving || !reason.trim()} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-50">Save Draft</button>
+          <button onClick={() => handleSave(requiresApproval ? 'submit' : 'apply')} disabled={!canSubmit || saving} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+            {requiresApproval ? 'Submit for Approval' : 'Apply Adjustment'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
 export default function FinanceBillManagement() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -298,6 +738,7 @@ export default function FinanceBillManagement() {
     regenerateBill,
     publishBill,
     removeBill,
+    adjustBill,
     draftBills,
     publishedBills,
     submittedBills,
@@ -326,6 +767,7 @@ export default function FinanceBillManagement() {
   const formModal = useModalState()
   const bulkFormModal = useModalState()
   const detailModal = useModalState()
+  const adjustmentModal = useModalState()
 
   useEffect(() => {
     const navbarSearchItem = location.state?.navbarSearchItem
@@ -429,12 +871,7 @@ export default function FinanceBillManagement() {
       billingMonth,
     })
 
-    addToast(
-      result?.success
-        ? result?.message || 'Bulk bill generation completed.'
-        : result?.message || 'Failed to generate bills in bulk.',
-      result?.success ? 'success' : 'error'
-    )
+    addToast(summarizeBulkGenerationResult(result), result?.success ? 'success' : 'error')
 
     return result
   }
@@ -465,6 +902,17 @@ export default function FinanceBillManagement() {
         : result?.message || 'No bill-ready tenants found for the selected month.',
       result?.success ? 'success' : 'error'
     )
+  }
+
+  const handleAdjustBill = async (billId, payload) => {
+    const result = await adjustBill(billId, payload)
+    addToast(
+      result?.success
+        ? result?.message || 'Bill adjustment saved.'
+        : result?.message || 'Failed to save bill adjustment.',
+      result?.success ? 'success' : 'error'
+    )
+    return result
   }
 
   const handlePenaltyPreview = async () => {
@@ -796,7 +1244,17 @@ export default function FinanceBillManagement() {
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.month}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {bill.amount.toLocaleString()}</td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{bill.dueDate}</td>
-                      <td className="px-4 py-3"><BillStatusBadge status={bill.status} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <BillStatusBadge status={bill.status} />
+                          {bill.hasAdjustment && (
+                            <span className="px-2 py-0.5 rounded-md bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 text-[10px] font-semibold">Adjusted</span>
+                          )}
+                          {bill.hasPendingAdjustment && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[10px] font-semibold">Pending Adjustment</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           {bill.status === 'draft' && (
@@ -821,6 +1279,15 @@ export default function FinanceBillManagement() {
                             <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg whitespace-nowrap">
                               <CheckCircle2 className="w-3 h-3" /> Needs Review
                             </span>
+                          )}
+                          {!['draft'].includes(bill.status) && (
+                            <button
+                              onClick={() => adjustmentModal.open(bill)}
+                              disabled={saving}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 transition-all whitespace-nowrap"
+                            >
+                              <BadgeDollarSign className="w-3 h-3" /> {bill.status === 'paid' ? 'Workflow' : 'Adjust'}
+                            </button>
                           )}
                           {bill.status === 'paid' && (
                             <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg whitespace-nowrap">
@@ -926,14 +1393,34 @@ export default function FinanceBillManagement() {
                       <td className="px-4 py-3 font-mono tabular-nums text-cyan-600 dark:text-cyan-400">PHP {Number(bill.breakdown?.water || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 font-mono tabular-nums text-rose-600 dark:text-rose-400">PHP {Number(bill.breakdown?.thermal || 0).toLocaleString()}</td>
                       <td className="px-4 py-3 font-semibold tabular-nums text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {bill.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3"><BillStatusBadge status={bill.status} /></td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => detailModal.open(bill)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
-                        >
-                          <Eye className="w-3 h-3" /> View
-                        </button>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <BillStatusBadge status={bill.status} />
+                          {bill.hasAdjustment && (
+                            <span className="px-2 py-0.5 rounded-md bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 text-[10px] font-semibold">Adjusted</span>
+                          )}
+                          {bill.hasPendingAdjustment && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[10px] font-semibold">Pending Adjustment</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => detailModal.open(bill)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
+                          >
+                            <Eye className="w-3 h-3" /> View
+                          </button>
+                          {!['draft'].includes(bill.status) && (
+                            <button
+                              onClick={() => adjustmentModal.open(bill)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 hover:bg-teal-100 transition-all"
+                            >
+                              <BadgeDollarSign className="w-3 h-3" /> {bill.status === 'paid' ? 'Workflow' : 'Adjust'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -968,9 +1455,22 @@ export default function FinanceBillManagement() {
       {detailModal.isOpen && (
         <BillDetailModal bill={detailModal.selectedItem} onClose={detailModal.close} />
       )}
+
+      <BillAdjustmentModal
+        open={adjustmentModal.isOpen}
+        bill={adjustmentModal.selectedItem}
+        onClose={adjustmentModal.close}
+        onSave={handleAdjustBill}
+        saving={saving}
+      />
     </div>
   )
 }
+
+
+
+
+
 
 
 

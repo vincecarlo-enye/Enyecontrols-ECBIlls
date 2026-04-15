@@ -81,10 +81,10 @@ export default function SAnnouncements() {
   if (loading || announcementsLoading) return <DashboardSkeleton />
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">Announcements</h2>
             <span className="flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-violet-600 to-indigo-600 text-white">
               <Shield className="w-2.5 h-2.5 mr-1"/>Super Admin
@@ -93,13 +93,13 @@ export default function SAnnouncements() {
           <p className="text-sm text-slate-500 dark:text-slate-400">Create system-wide and local announcements for all roles</p>
         </div>
         <button onClick={() => { setEditingAnn(null); setShowModal(true) }} disabled={submitting}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-60">
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">
           <Plus className="w-4 h-4"/>New Announcement
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <div className="p-4 rounded-2xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50">
           <div className="flex items-center gap-2 mb-2"><Globe className="w-4 h-4 text-violet-500"/><p className="text-xs text-violet-500 font-semibold uppercase tracking-wider">System-wide</p></div>
           <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">{systemCount}</p>
@@ -121,7 +121,7 @@ export default function SAnnouncements() {
           <input type="text" placeholder="Search announcements..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"/>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {[{ v: 'all', l: 'All' }, { v: 'system', l: 'System-wide' }, { v: 'local', l: 'Local' }].map(f => (
             <button key={f.v} onClick={() => setFilter(f.v)}
               className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${filter === f.v ? 'bg-violet-600 text-white border-violet-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'}`}>
@@ -139,7 +139,7 @@ export default function SAnnouncements() {
           <p className="text-sm text-slate-400 mt-1">Click New Announcement to post one</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {filtered.map(ann => (
             <AnnouncementCard key={ann.id} ann={ann}
               canEdit={canEditAnnouncement(ann)}
@@ -168,3 +168,4 @@ export default function SAnnouncements() {
     </div>
   )
 }
+

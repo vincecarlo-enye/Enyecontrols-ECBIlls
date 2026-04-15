@@ -79,8 +79,8 @@ export default function AnnouncementPanel() {
 
   return (
     <>
-      <div className="glass rounded-2xl p-5 shadow-lg animate-in h-[440px] flex flex-col">
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass min-w-0 rounded-2xl p-4 shadow-lg animate-in min-h-[360px] max-h-[70vh] flex flex-col sm:p-5 lg:h-[440px]">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-display font-700 text-[16px] text-slate-800 dark:text-white">
               Announcements
@@ -88,7 +88,7 @@ export default function AnnouncementPanel() {
             <p className="text-xs text-slate-400 mt-0.5">Building notices &amp; alerts</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {systemWideCount > 0 && (
               <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-[10px] font-bold">
                 <Globe className="w-2.5 h-2.5" />
@@ -129,7 +129,7 @@ export default function AnnouncementPanel() {
           </div>
         )}
 
-        <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+        <div className="min-w-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {visibleAnnouncements.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-8">
               <p className="text-sm text-slate-400">No announcements at this time.</p>
@@ -179,3 +179,4 @@ export default function AnnouncementPanel() {
     </>
   )
 }
+

@@ -37,6 +37,7 @@ function buildTimeline(concern = {}, tenant = null) {
       role: safeText(entry?.role, 'admin'),
       date: formatTimelineDate(entry?.date),
       note: safeText(entry?.note, ''),
+      metadata: entry?.metadata || {},
     }))
   }
 

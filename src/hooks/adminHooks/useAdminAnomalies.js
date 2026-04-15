@@ -10,8 +10,12 @@ export function useAdminAnomalies() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const loadAnomalies = useCallback(async () => {
-    setLoading(true)
+  const loadAnomalies = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
     try {
       const listRes = await fetchAdminAnomalies()
@@ -20,7 +24,9 @@ export function useAdminAnomalies() {
       setAnomalies([])
       setError(err?.response?.data?.message || err?.message || 'Failed to load admin anomalies.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

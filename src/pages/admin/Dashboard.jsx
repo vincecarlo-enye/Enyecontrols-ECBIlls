@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect } from 'react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import UtilityCard from '@/components/common/UtilityCard'
@@ -7,6 +7,8 @@ import BillsTable from '@/components/billing/BillsTable'
 import AnnouncementPanel from '@/components/common/AnnouncementPanel'
 import DashboardCard from '@/components/ui/DashboardCard'
 import ChartCard from '@/components/ui/ChartCard'
+import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
+import PageSection, { PageHeader } from '@/components/layout/PageSection'
 import { BarChart2, TrendingUp, Building2, Users, AlertTriangle, Siren, ShieldAlert, CheckCircle2, Activity } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
@@ -15,6 +17,7 @@ import { useAdminDashboard } from '@/hooks/adminHooks/useAdminDashboard'
 import { useAdminAnomalies } from '@/hooks/adminHooks/useAdminAnomalies'
 import { deleteAdminBill, fetchAdminBill } from '../../services/adminService/adminBillingService'
 import { useAdminUtilityDashboard } from '../../hooks/adminHooks/useAdminUtilityDashboard'
+import { DASHBOARD_READ_REFRESH_MS } from '@/constants/liveData'
 
 const MemoCharts = memo(function Charts({
   electricityDaily,
@@ -26,7 +29,7 @@ const MemoCharts = memo(function Charts({
     <>
       <div>
         <h2 className="section-title mb-3">Daily Usage Trends</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4 min-w-0">
           <ChartCard
             title="Electricity Daily Usage"
             subtitle="kWh - last 7 days"
@@ -85,6 +88,13 @@ const MemoCharts = memo(function Charts({
   )
 })
 
+function buildUtilityBars(rows = []) {
+  return (Array.isArray(rows) ? rows : []).slice(-7).map((row, index) => ({
+    label: row?.day || `D${index + 1}`,
+    value: Number(row?.usage ?? 0),
+  }))
+}
+
 function SuperAdminAnomalySummary({ summary, loading, error }) {
   const cards = [
     {
@@ -126,8 +136,8 @@ function SuperAdminAnomalySummary({ summary, loading, error }) {
   ]
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+    <section className="min-w-0 space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="section-title">Anomaly Overview</h2>
           <p className="text-sm text-slate-400 mt-0.5">Executive summary for anomaly monitoring across facilities.</p>
@@ -186,13 +196,25 @@ export default function Dashboard() {
     daily,
     trends,
     loading: utilityLoading,
+    refreshUtilities,
   } = useAdminUtilityDashboard()
 
   const {
     summary: anomalySummary,
     loading: anomalyLoading,
     error: anomalyError,
+    reload: reloadAnomalies,
   } = useAdminAnomalies()
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshDashboard({ silent: true })
+      refreshUtilities({ silent: true })
+      reloadAnomalies({ silent: true })
+    }, DASHBOARD_READ_REFRESH_MS)
+
+    return () => window.clearInterval(timer)
+  }, [refreshDashboard, refreshUtilities, reloadAnomalies])
 
   const handleViewBill = async (bill) => {
     try {
@@ -250,7 +272,17 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="section-gap animate-in">
+    <div className="section-gap animate-in min-w-0">
+      <PageSection>
+        <PageHeader
+          title={user?.role === 'super_admin' ? 'Executive Dashboard' : 'Admin Dashboard'}
+          subtitle={user?.role === 'super_admin'
+            ? 'System-wide billing, utility, and anomaly overview.'
+            : 'Operational billing, usage, and tenant overview.'}
+          icon={user?.role === 'super_admin' ? ShieldAlert : BarChart2}
+        />
+      </PageSection>
+
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 flex items-center gap-2">
           <AlertTriangle className="w-4 h-4" />
@@ -258,20 +290,17 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {kpi.map((card, i) => (
-          <DashboardCard
-            key={card.title}
-            icon={card.icon}
-            title={card.title}
-            value={card.value}
-            sub={card.sub}
-            gradient={card.gradient}
-            glow={card.glow}
-            className={`stagger-${i + 1} animate-in`}
-          />
-        ))}
-      </div>
+      <SummaryCardStrip
+        stretch
+        cards={kpi.map((card) => ({
+          title: card.title,
+          value: card.value,
+          sub: card.sub,
+          icon: card.icon,
+          gradient: card.gradient,
+          glow: card.glow,
+        }))}
+      />
 
       {user?.role === 'super_admin' && (
         <>
@@ -284,34 +313,42 @@ export default function Dashboard() {
         </>
       )}
 
-      <div>
-        <h2 className="section-title mb-3">Utility Consumption</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <UtilityCard type="electric" {...utilityStats.electric} />
-          <UtilityCard type="thermal" {...utilityStats.thermal} />
-          <UtilityCard type="water" {...utilityStats.water} />
+      <PageSection>
+        <div>
+          <h2 className="section-title mb-3">Utility Consumption</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+            <UtilityCard type="electric" {...utilityStats.electric} bars={buildUtilityBars(daily.electric)} />
+            <UtilityCard type="thermal" {...utilityStats.thermal} bars={buildUtilityBars(daily.thermal)} />
+            <UtilityCard type="water" {...utilityStats.water} bars={buildUtilityBars(daily.water)} />
+          </div>
         </div>
-      </div>
+      </PageSection>
 
-      <MemoCharts
-        electricityDaily={daily.electric}
-        waterDaily={daily.water}
-        thermalDaily={daily.thermal}
-        trends={{
-          electricity: trends.electric,
-          water: trends.water,
-          thermal: trends.thermal,
-          electricityBadge: trends.electricBadge,
-          waterBadge: trends.waterBadge,
-          thermalBadge: trends.thermalBadge,
-        }}
-      />
+      <PageSection>
+        <MemoCharts
+          electricityDaily={daily.electric}
+          waterDaily={daily.water}
+          thermalDaily={daily.thermal}
+          trends={{
+            electricity: trends.electric,
+            water: trends.water,
+            thermal: trends.thermal,
+            electricityBadge: trends.electricBadge,
+            waterBadge: trends.waterBadge,
+            thermalBadge: trends.thermalBadge,
+          }}
+        />
+      </PageSection>
 
-      <BillsTable
-        bills={bills}
-        onView={handleViewBill}
-        onDelete={handleDeleteBill}
-      />
+      <PageSection padded={false}>
+        <BillsTable
+          bills={bills}
+          onView={handleViewBill}
+          onDelete={handleDeleteBill}
+        />
+      </PageSection>
     </div>
   )
 }
+
+

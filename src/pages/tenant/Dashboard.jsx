@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Zap,
+  CalendarClock,
   Droplets,
   Flame,
   Receipt,
-  CalendarClock,
   Upload,
+  Zap,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
@@ -17,14 +17,18 @@ import BillViewerModal from '@/components/billing/BillViewerModal'
 import ReceiptUploadModal from '@/components/billing/ReceiptUploadModal'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import UnitFilterBar from '@/components/common/UnitFilterBar'
-import TenantUtilityRates from '@/pages/tenant/UtilityRates'
-import DashboardCard from '@/components/ui/DashboardCard'
+import UtilityCard from '@/components/common/UtilityCard'
+import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
+import PageSection, { PageHeader } from '@/components/layout/PageSection'
 import { useBills } from '@/components/billing/hooks/useBills'
+import { useTenantDashboardData } from '@/hooks/tenantHooks/useTenantDashboardData'
 import { useTenantUsageMonitoring } from '@/hooks/tenantHooks/useTenantUsageMonitoring'
+import TenantUtilityRates from '@/pages/tenant/UtilityRates'
+import { DASHBOARD_READ_REFRESH_MS } from '@/constants/liveData'
 
 function formatPeso(value) {
   const amount = Number(value || 0)
-  return `₱${amount.toLocaleString()}`
+  return `PHP ${amount.toLocaleString()}`
 }
 
 function formatReadableDate(value) {
@@ -67,15 +71,15 @@ function average(values = []) {
 function getBillingPeriod(bill) {
   const raw = bill?.raw ?? {}
 
-  if (raw?.billing_start && raw?.billing_end) {
+  if (raw.billing_start && raw.billing_end) {
     return `${formatReadableDate(raw.billing_start)} to ${formatReadableDate(raw.billing_end)}`
   }
 
-  if (raw?.billing_end) {
+  if (raw.billing_end) {
     return formatReadableDate(raw.billing_end)
   }
 
-  return bill?.billingPeriod || bill?.dueDate || '—'
+  return bill?.billingPeriod || bill?.dueDate || '-'
 }
 
 function getBillForViewer(bill) {
@@ -84,10 +88,7 @@ function getBillForViewer(bill) {
   return {
     ...(bill.raw || {}),
     ...bill,
-    unit:
-      bill?.raw?.unit ||
-      bill?.unit ||
-      '—',
+    unit: bill?.raw?.unit || bill?.unit || '-',
     amount: Number(bill?.amount || 0),
     due_date: bill?.raw?.due_date || bill?.dueDate,
     dueDate: bill?.dueDate,
@@ -95,6 +96,74 @@ function getBillForViewer(bill) {
     items: bill?.raw?.items || bill?.raw?.bill_items || [],
     breakdown: bill?.breakdown || {},
   }
+}
+
+function PredictionCard({ label, value, sub, icon: Icon, tone }) {
+  return (
+    <div className="relative min-w-0 overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 shadow-md dark:border-slate-700/50 dark:bg-slate-900 sm:p-5">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${tone}`} />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+            {label}
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-800 dark:text-white">
+            {value}
+          </p>
+          <p className="mt-2 text-xs text-slate-400">
+            {sub}
+          </p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${tone} shadow-lg`}>
+          <Icon className="h-4 w-4 text-white" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function buildUsageBars(rows = [], key) {
+  return (Array.isArray(rows) ? rows : []).slice(-7).map((row, index) => ({
+    label: row?.day || `D${index + 1}`,
+    value: Number(row?.[key] ?? 0),
+  }))
+}
+
+function buildRawBars(rows = [], utilityKey) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((entry) => String(entry?.utility || '').toLowerCase() === String(utilityKey || '').toLowerCase())
+    .slice(0, 7)
+    .reverse()
+    .map((entry, index) => ({
+      label: String(entry?.time_label || `P${index + 1}`),
+      value: Number(entry?.reading_value ?? 0),
+    }))
+}
+
+function formatSnapshotCaption(snapshot) {
+  if (!snapshot?.captured_at) {
+    return 'Waiting for live raw capture'
+  }
+
+  const date = new Date(snapshot.captured_at)
+  if (Number.isNaN(date.getTime())) {
+    return 'Latest capture available'
+  }
+
+  return `Latest capture ${date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  })}`
+}
+
+function formatSnapshotSource(snapshot) {
+  const parts = [snapshot?.meter_name, snapshot?.page_name].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : 'Assigned meter source'
+}
+
+function hasLiveSnapshot(snapshot) {
+  return Boolean(snapshot?.captured_at && snapshot?.watch_name)
 }
 
 export default function TenantDashboard() {
@@ -106,17 +175,25 @@ export default function TenantDashboard() {
     bills,
     loading: billsLoading,
     submitPaymentReceipt,
+    refreshBills,
   } = useBills()
   const {
     summary: usageSummary,
+    daily: usageDaily,
     loading: usageLoading,
     refreshUsage,
   } = useTenantUsageMonitoring()
+  const {
+    rawSnapshots,
+    loading: rawLoading,
+    refreshDashboard,
+  } = useTenantDashboardData(selectedUnit)
 
   const [viewBill, setViewBill] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [payBill, setPayBill] = useState(null)
   const [payModalOpen, setPayModalOpen] = useState(false)
+
   const tenantUnits = useMemo(() => {
     return Array.from(
       new Set(
@@ -131,6 +208,26 @@ export default function TenantDashboard() {
   useEffect(() => {
     refreshUsage(selectedUnit)
   }, [refreshUsage, selectedUnit])
+
+  useEffect(() => {
+    const rawInterval = window.setInterval(() => {
+      refreshDashboard(selectedUnit, { silent: true })
+    }, DASHBOARD_READ_REFRESH_MS)
+
+    const usageInterval = window.setInterval(() => {
+      refreshUsage(selectedUnit, { silent: true })
+    }, DASHBOARD_READ_REFRESH_MS)
+
+    const billsInterval = window.setInterval(() => {
+      refreshBills({ silent: true })
+    }, DASHBOARD_READ_REFRESH_MS)
+
+    return () => {
+      window.clearInterval(rawInterval)
+      window.clearInterval(usageInterval)
+      window.clearInterval(billsInterval)
+    }
+  }, [refreshBills, refreshDashboard, refreshUsage, selectedUnit])
 
   const visibleBills = useMemo(() => getVisibleBills(bills), [bills])
 
@@ -176,7 +273,7 @@ export default function TenantDashboard() {
       return acc
     }, {
       electric: { consumption: 0, unit: 'kWh' },
-      water: { consumption: 0, unit: 'm³' },
+      water: { consumption: 0, unit: 'm3' },
       thermal: { consumption: 0, unit: 'kBTU' },
     })
   }, [currentBill, latestBillsByUnit, selectedUnit])
@@ -225,13 +322,15 @@ export default function TenantDashboard() {
     }
   }, [unitBills])
 
-  if (pageLoading || billsLoading || usageLoading) {
+  if (pageLoading || billsLoading || usageLoading || rawLoading) {
     return <TenantDashboardSkeleton />
   }
 
   const electric = usageSummary?.electric || selectedSummary?.electric || {}
   const water = usageSummary?.water || selectedSummary?.water || {}
   const thermal = usageSummary?.thermal || selectedSummary?.thermal || {}
+  const rawCurrent = rawSnapshots?.current || {}
+  const rawHistory = Array.isArray(rawSnapshots?.history) ? rawSnapshots.history : []
 
   const unitLabel = selectedUnit === 'all'
     ? tenantUnits.length > 1
@@ -243,43 +342,43 @@ export default function TenantDashboard() {
 
   const stats = [
     {
-      label: 'Current Bill',
-      value: currentBillValue > 0 ? formatPeso(currentBillValue) : '—',
-      sub: currentDueLabel ? `Due ${currentDueLabel}` : '',
+      title: 'Current Bill',
+      value: currentBillValue > 0 ? formatPeso(currentBillValue) : '-',
+      subtitle: currentDueLabel ? `Due ${currentDueLabel}` : '',
       icon: Receipt,
-      grad: 'from-blue-500 to-blue-600',
+      gradient: 'from-blue-500 to-blue-600',
       glow: 'shadow-blue-500/20',
     },
     {
-      label: 'Electricity',
+      title: 'Electricity',
       value: `${Number(electric.consumption || 0).toLocaleString()} ${electric.unit || 'kWh'}`,
-      sub: 'This billing period',
+      subtitle: 'This billing period',
       icon: Zap,
-      grad: 'from-amber-500 to-amber-600',
+      gradient: 'from-amber-500 to-amber-600',
       glow: 'shadow-amber-500/20',
     },
     {
-      label: 'Water',
-      value: `${Number(water.consumption || 0).toLocaleString()} ${water.unit || 'm³'}`,
-      sub: 'This billing period',
+      title: 'Water',
+      value: `${Number(water.consumption || 0).toLocaleString()} ${water.unit || 'm3'}`,
+      subtitle: 'This billing period',
       icon: Droplets,
-      grad: 'from-cyan-500 to-cyan-600',
+      gradient: 'from-cyan-500 to-cyan-600',
       glow: 'shadow-cyan-500/20',
     },
     {
-      label: 'Thermal',
+      title: 'Thermal',
       value: `${Number(thermal.consumption || 0).toLocaleString()} ${thermal.unit || 'BTU'}`,
-      sub: 'This billing period',
+      subtitle: 'This billing period',
       icon: Flame,
-      grad: 'from-rose-500 to-rose-600',
+      gradient: 'from-rose-500 to-rose-600',
       glow: 'shadow-rose-500/20',
     },
     {
-      label: 'Due Date',
-      value: currentBill?.dueDate || '—',
-      sub: currentBill?.status === 'published' ? 'Payment due' : 'Latest bill status',
+      title: 'Due Date',
+      value: currentBill?.dueDate || '-',
+      subtitle: currentBill?.status === 'published' ? 'Payment due' : 'Latest bill status',
       icon: CalendarClock,
-      grad: 'from-indigo-500 to-indigo-600',
+      gradient: 'from-indigo-500 to-indigo-600',
       glow: 'shadow-indigo-500/20',
     },
   ]
@@ -303,7 +402,7 @@ export default function TenantDashboard() {
         notes: receiptData.note,
         proof_image: receiptData.proofImageFile,
       })
-      addToast('Payment receipt submitted! Awaiting Finance review.', 'success')
+      addToast('Payment receipt submitted. Awaiting Finance review.', 'success')
       setPayModalOpen(false)
       setPayBill(null)
     } catch (err) {
@@ -317,175 +416,312 @@ export default function TenantDashboard() {
   }
 
   return (
-    <div className="section-gap animate-in">
-      <div>
-        <h1 className="page-title">
-          Welcome back, {user?.name?.split(' ')[0] || 'Tenant'}
-        </h1>
-        <p className="muted-text mt-0.5">
-          {user?.tenant?.unit?.building_name || user?.company || 'Your account'} · Here's your billing summary · {unitLabel}
-        </p>
-      </div>
+    <div className="section-gap animate-in min-w-0">
+      <PageSection>
+        <PageHeader
+          title={`Welcome back, ${user?.name?.split(' ')[0] || 'Tenant'}`}
+          subtitle={`${user?.tenant?.unit?.building_name || user?.company || 'Your account'} · Billing summary for ${unitLabel}`}
+        />
+      </PageSection>
 
-      <UnitFilterBar />
+      <PageSection
+        title="Unit Scope"
+        description="Switch between your assigned units without losing your current billing and usage context."
+      >
+        <UnitFilterBar />
+      </PageSection>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {stats.map((item, index) => (
-          <DashboardCard
-            key={item.label}
-            icon={item.icon}
-            title={item.label}
-            value={item.value}
-            sub={item.sub}
-            gradient={item.grad}
-            glow={item.glow}
-            className={`stagger-${index + 1} animate-in`}
+      <PageSection
+        title="Current Snapshot"
+        description="Your latest approved consumption and bill status for the selected unit."
+      >
+        <SummaryCardStrip cards={stats} />
+      </PageSection>
+
+      <PageSection
+        title="Utility Consumption"
+        description="Detailed electric, water, and thermal usage for the current billing window."
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <UtilityCard
+            type="electric"
+            usage={electric.consumption || 0}
+            unit={electric.unit || 'kWh'}
+            estimatedCost={Number(currentBill?.breakdown?.electricity || currentBill?.breakdown?.electric || 0)}
+            trend={prediction.nextElectric > 0 ? ((Number(electric.consumption || 0) - prediction.nextElectric) / prediction.nextElectric) * 100 : 0}
+            bars={buildUsageBars(usageDaily, 'electric')}
           />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {[
-          {
-            label: 'Predicted Next Bill',
-            value: prediction.nextBill > 0 ? formatPeso(prediction.nextBill) : '-',
-            sub: `Estimate based on recent ${unitLabel.toLowerCase()} bills`,
-            icon: Receipt,
-            tone: 'from-violet-500 to-indigo-600',
-          },
-          {
-            label: 'Expected Next Electric Usage',
-            value: `${prediction.nextElectric.toLocaleString()} kWh`,
-            sub: 'Average recent billed electric consumption',
-            icon: Zap,
-            tone: 'from-amber-500 to-orange-600',
-          },
-          {
-            label: "Expected Next Month's Water",
-            value: `${prediction.nextWater.toLocaleString()} m3`,
-            sub: 'Average recent billed water consumption',
-            icon: Droplets,
-            tone: 'from-cyan-500 to-blue-600',
-          },
-          {
-            label: 'Expected Next Thermal Usage',
-            value: `${prediction.nextThermal.toLocaleString()} kBTU`,
-            sub: 'Average recent billed thermal consumption',
-            icon: Flame,
-            tone: 'from-rose-500 to-pink-600',
-          },
-        ].map((item) => {
-          const Icon = item.icon
-          return (
-            <div
-              key={item.label}
-              className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white dark:bg-slate-900 shadow-md p-5"
-            >
-              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${item.tone}`} />
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                    {item.label}
-                  </p>
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white mt-2">
-                    {item.value}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-2">
-                    {item.sub}
-                  </p>
-                </div>
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.tone} flex items-center justify-center shadow-lg`}>
-                  <Icon className="w-4 h-4 text-white" />
-                </div>
+          <UtilityCard
+            type="water"
+            usage={water.consumption || 0}
+            unit={water.unit || 'm3'}
+            estimatedCost={Number(currentBill?.breakdown?.water || 0)}
+            trend={prediction.nextWater > 0 ? ((Number(water.consumption || 0) - prediction.nextWater) / prediction.nextWater) * 100 : 0}
+            bars={buildUsageBars(usageDaily, 'water')}
+          />
+          <UtilityCard
+            type="thermal"
+            usage={thermal.consumption || 0}
+            unit={thermal.unit || 'BTU'}
+            estimatedCost={Number(currentBill?.breakdown?.thermal || 0)}
+            trend={prediction.nextThermal > 0 ? ((Number(thermal.consumption || 0) - prediction.nextThermal) / prediction.nextThermal) * 100 : 0}
+            bars={buildUsageBars(usageDaily, 'thermal')}
+          />
+        </div>
+      </PageSection>
+
+      <PageSection
+        title="Live Raw Meter Readings"
+        description="Today-only raw Omni register history captured from your assigned meters."
+      >
+        {!rawSnapshots?.available ? (
+          <div className="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+            {rawSnapshots?.message || 'No raw meter snapshots available yet for today.'}
+          </div>
+        ) : (
+          <div className="section-gap">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <UtilityCard
+                type="electric"
+                usage={rawCurrent?.electric?.reading_value || 0}
+                unit={rawCurrent?.electric?.unit || 'kWh'}
+                estimatedCost={0}
+                trend={0}
+                bars={buildRawBars(rawHistory, 'electric')}
+                showCost={false}
+                showTrend={false}
+                infoText={formatSnapshotCaption(rawCurrent?.electric)}
+                detailText={formatSnapshotSource(rawCurrent?.electric)}
+                badgeText={hasLiveSnapshot(rawCurrent?.electric) ? 'Live' : 'No Data'}
+                badgeVariant={hasLiveSnapshot(rawCurrent?.electric) ? 'live' : 'warning'}
+              />
+              <UtilityCard
+                type="water"
+                usage={rawCurrent?.water?.reading_value || 0}
+                unit={rawCurrent?.water?.unit || 'm3'}
+                estimatedCost={0}
+                trend={0}
+                bars={buildRawBars(rawHistory, 'water')}
+                showCost={false}
+                showTrend={false}
+                infoText={hasLiveSnapshot(rawCurrent?.water) ? formatSnapshotCaption(rawCurrent?.water) : 'No live water data captured yet'}
+                detailText={formatSnapshotSource(rawCurrent?.water)}
+                badgeText={hasLiveSnapshot(rawCurrent?.water) ? 'Live' : 'No Data'}
+                badgeVariant={hasLiveSnapshot(rawCurrent?.water) ? 'live' : 'warning'}
+              />
+              <UtilityCard
+                type="thermal"
+                usage={rawCurrent?.thermal?.reading_value || 0}
+                unit={rawCurrent?.thermal?.unit || 'kBTU'}
+                estimatedCost={0}
+                trend={0}
+                bars={buildRawBars(rawHistory, 'thermal')}
+                showCost={false}
+                showTrend={false}
+                infoText={formatSnapshotCaption(rawCurrent?.thermal)}
+                detailText={formatSnapshotSource(rawCurrent?.thermal)}
+                badgeText={hasLiveSnapshot(rawCurrent?.thermal) ? 'Live' : 'No Data'}
+                badgeVariant={hasLiveSnapshot(rawCurrent?.thermal) ? 'live' : 'warning'}
+              />
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/50 dark:bg-slate-900">
+              <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+                <h2 className="text-[15px] font-semibold text-slate-800 dark:text-white">
+                  Raw Snapshot History Today
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Latest 120 raw captures for the selected unit scope
+                </p>
+              </div>
+              <div className="max-h-[28rem] overflow-auto">
+                <table className="w-full text-sm" style={{ minWidth: '640px' }}>
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40">
+                      {['Time', 'Utility', 'Meter', 'Page', 'Reading', 'Unit'].map((col) => (
+                        <th
+                          key={col}
+                          className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-mono uppercase tracking-wider text-slate-400"
+                        >
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rawHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                          No raw history captured yet today.
+                        </td>
+                      </tr>
+                    ) : (
+                      rawHistory.map((entry, index) => (
+                        <tr
+                          key={`${entry.watch_name}-${entry.captured_at}-${index}`}
+                          className="table-row-hover border-b border-slate-100 last:border-0 dark:border-slate-700/30"
+                        >
+                          <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-slate-500">
+                            {entry.time_label}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">
+                            {entry.utility_label}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            {entry.meter_name || entry.watch_name}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                            {entry.page_name || '-'}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-800 dark:text-white">
+                            {Number(entry.reading_value || 0).toLocaleString()}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-slate-500">
+                            {entry.unit}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )
-        })}
-      </div>
-
-      <TenantUtilityRates />
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">
-              My Recent Bills
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">{unitLabel} billing history</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" style={{ minWidth: '480px' }}>
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
-                  {['Unit', 'Month', 'Period', 'Amount', 'Status', ''].map((col) => (
-                    <th
-                      key={col}
-                      className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 py-3 whitespace-nowrap"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentBills.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">
-                      No recent bills found.
-                    </td>
+        )}
+      </PageSection>
+
+      <PageSection
+        title="Expected Next Billing Cycle"
+        description="Forecast based on your most recent billed usage history."
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <PredictionCard
+            label="Predicted Next Bill"
+            value={prediction.nextBill > 0 ? formatPeso(prediction.nextBill) : '-'}
+            sub={`Estimate based on recent ${unitLabel.toLowerCase()} bills`}
+            icon={Receipt}
+            tone="from-violet-500 to-indigo-600"
+          />
+          <PredictionCard
+            label="Expected Next Electric Usage"
+            value={`${prediction.nextElectric.toLocaleString()} kWh`}
+            sub="Average recent billed electric consumption"
+            icon={Zap}
+            tone="from-amber-500 to-orange-600"
+          />
+          <PredictionCard
+            label="Expected Next Water Usage"
+            value={`${prediction.nextWater.toLocaleString()} m3`}
+            sub="Average recent billed water consumption"
+            icon={Droplets}
+            tone="from-cyan-500 to-blue-600"
+          />
+          <PredictionCard
+            label="Expected Next Thermal Usage"
+            value={`${prediction.nextThermal.toLocaleString()} kBTU`}
+            sub="Average recent billed thermal consumption"
+            icon={Flame}
+            tone="from-rose-500 to-pink-600"
+          />
+        </div>
+      </PageSection>
+
+      <PageSection
+        title="Current Utility Rates"
+        description="Reference view of the active utility rates applied to your billing."
+      >
+        <TenantUtilityRates />
+      </PageSection>
+
+      <PageSection
+        title="Bills And Notices"
+        description="Review recent bills, open details, and upload proof of payment for published bills."
+      >
+        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-5">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/50 dark:bg-slate-900 xl:col-span-3">
+            <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <h2 className="text-[15px] font-semibold text-slate-800 dark:text-white">
+                My Recent Bills
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {unitLabel} billing history
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" style={{ minWidth: '480px' }}>
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40">
+                    {['Unit', 'Month', 'Period', 'Amount', 'Status', ''].map((col) => (
+                      <th
+                        key={col}
+                        className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-mono uppercase tracking-wider text-slate-400"
+                      >
+                        {col}
+                      </th>
+                    ))}
                   </tr>
-                ) : (
-                  recentBills.map((bill) => (
-                    <tr
-                      key={bill.id}
-                      className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 table-row-hover"
-                    >
-                      <td className="px-4 py-3.5 text-xs font-mono text-blue-600 dark:text-blue-400">
-                        {bill.unit}
-                      </td>
-                      <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-white whitespace-nowrap">
-                        {bill.month}
-                      </td>
-                      <td className="px-4 py-3.5 font-mono text-xs text-slate-500 whitespace-nowrap">
-                        {getBillingPeriod(bill)}
-                      </td>
-                      <td className="px-4 py-3.5 font-semibold text-slate-800 dark:text-white whitespace-nowrap">
-                        {formatPeso(bill.amount)}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <BillStatusBadge status={bill.status} />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => openBill(bill)}
-                            className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            title="View Bill"
-                          >
-                            <Receipt className="w-4 h-4" />
-                          </button>
-                          {bill.status === 'published' && (
-                            <button
-                              onClick={() => openPayModal(bill)}
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-semibold hover:opacity-90 transition-all"
-                              title="Upload Receipt"
-                            >
-                              <Upload className="w-3 h-3" /> Pay
-                            </button>
-                          )}
-                        </div>
+                </thead>
+                <tbody>
+                  {recentBills.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                        No recent bills found.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    recentBills.map((bill) => (
+                      <tr
+                        key={bill.id}
+                        className="table-row-hover border-b border-slate-100 last:border-0 dark:border-slate-700/30"
+                      >
+                        <td className="px-4 py-3.5 text-xs font-mono text-blue-600 dark:text-blue-400">
+                          {bill.unit}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 font-medium text-slate-800 dark:text-white">
+                          {bill.month}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-slate-500">
+                          {getBillingPeriod(bill)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 font-semibold text-slate-800 dark:text-white">
+                          {formatPeso(bill.amount)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <BillStatusBadge status={bill.status} />
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openBill(bill)}
+                              className="rounded-lg p-1.5 text-blue-500 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              title="View Bill"
+                            >
+                              <Receipt className="h-4 w-4" />
+                            </button>
+                            {bill.status === 'published' && (
+                              <button
+                                onClick={() => openPayModal(bill)}
+                                className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2 py-1 text-xs font-semibold text-white transition-all hover:opacity-90"
+                                title="Upload Receipt"
+                              >
+                                <Upload className="h-3 w-3" /> Pay
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="xl:col-span-2">
+            <AnnouncementPanel />
           </div>
         </div>
-
-        <div className="lg:col-span-2">
-          <AnnouncementPanel />
-        </div>
-      </div>
+      </PageSection>
 
       <BillViewerModal
         bill={viewBill}
@@ -501,3 +737,5 @@ export default function TenantDashboard() {
     </div>
   )
 }
+
+

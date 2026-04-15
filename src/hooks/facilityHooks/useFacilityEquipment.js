@@ -6,8 +6,12 @@ export function useFacilityEquipment() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadEquipment = useCallback(async () => {
-    setLoading(true)
+  const loadEquipment = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
+    if (!silent) {
+      setLoading(true)
+    }
     setError('')
 
     try {
@@ -18,7 +22,9 @@ export function useFacilityEquipment() {
       setMeters([])
       setError(err?.response?.data?.message || err?.message || 'Failed to load equipment data.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

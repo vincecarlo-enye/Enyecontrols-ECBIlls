@@ -26,8 +26,13 @@ const CustomTooltip = ({ active, payload, label, unit, color }) => {
 }
 
 export default function DailyUsageChart({ title, data, dataKey, unit, color, gradientId, trend }) {
-  const avg = (data.reduce((s, d) => s + d[dataKey], 0) / data.length).toFixed(1)
-  const max = Math.max(...data.map(d => d[dataKey]))
+  const safeData = Array.isArray(data) ? data : []
+  const values = safeData
+    .map((entry) => Number(entry?.[dataKey] ?? 0))
+    .filter((value) => Number.isFinite(value))
+  const avg = values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length) : 0
+  const max = values.length ? Math.max(...values) : 0
+  const latest = values.length ? values[values.length - 1] : 0
   const isPositive = trend > 0
   const TrendIcon = isPositive ? TrendingUp : TrendingDown
 
@@ -41,9 +46,12 @@ export default function DailyUsageChart({ title, data, dataKey, unit, color, gra
         </div>
         <div className="text-right">
           <p className="text-xl font-display font-700 text-slate-800 dark:text-white">
-            {avg} <span className="text-sm font-mono font-normal text-slate-400">{unit}</span>
+            {latest.toLocaleString(undefined, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 1,
+            })} <span className="text-sm font-mono font-normal text-slate-400">{unit}</span>
           </p>
-          <p className="text-xs text-slate-400">avg/day</p>
+          <p className="text-xs text-slate-400">latest day</p>
         </div>
       </div>
 
@@ -54,13 +62,22 @@ export default function DailyUsageChart({ title, data, dataKey, unit, color, gra
           <span className="text-xs font-medium" style={{ color }}>{Math.abs(trend)}% vs last week</span>
         </div>
         <div className="text-xs text-slate-400">
-          Peak: <span className="font-semibold text-slate-600 dark:text-slate-300">{max} {unit}</span>
+          7d avg: <span className="font-semibold text-slate-600 dark:text-slate-300">{avg.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+          })} {unit}</span>
+        </div>
+        <div className="text-xs text-slate-400">
+          Peak: <span className="font-semibold text-slate-600 dark:text-slate-300">{max.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+          })} {unit}</span>
         </div>
       </div>
 
       {/* Chart */}
       <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+        <AreaChart data={safeData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={color} stopOpacity={0.25} />

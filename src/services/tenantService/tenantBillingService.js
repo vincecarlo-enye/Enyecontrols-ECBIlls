@@ -1,7 +1,7 @@
-import api from "../../lib/api"
+import api, { createFreshRequestConfig } from "../../lib/api"
 
 export async function fetchTenantBills() {
-  const res = await api.get('/api/tenant/bills')
+  const res = await api.get('/api/tenant/bills', createFreshRequestConfig())
   return res.data
 }
 
@@ -39,5 +39,9 @@ export async function submitTenantBillPayment(billId, payload) {
     },
   })
 
+  return res.data
+}
+export async function confirmTenantRefundReceived(adjustmentId, payload = {}) {
+  const res = await api.patch(`/api/tenant/bill-adjustments/${adjustmentId}/refund/confirm`, payload)
   return res.data
 }

@@ -8,9 +8,13 @@ export function useAdminTenants() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const loadTenants = useCallback(async () => {
+  const loadTenants = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
 
       const [tenantsRes, usersRes] = await Promise.all([
@@ -23,7 +27,9 @@ export function useAdminTenants() {
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load tenants.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 

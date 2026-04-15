@@ -29,6 +29,8 @@ function safeText(value, fallback = '') {
 export default function ConcernDetails({ concern, isOpen, onClose, role, onAction }) {
   const [note, setNote] = useState('')
   const [activeAction, setActiveAction] = useState(null)
+  const [adjustmentType, setAdjustmentType] = useState('credit')
+  const [adjustmentAmount, setAdjustmentAmount] = useState('')
 
   if (!isOpen || !concern) return null
 
@@ -38,10 +40,20 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
   const timeline = Array.isArray(concern?.timeline) ? concern.timeline : []
 
   const handleAction = async (action) => {
-    const result = await onAction(concern.id, action, note.trim())
+    const payload = action === 'adjust'
+      ? {
+          note: note.trim(),
+          adjustment_type: adjustmentType,
+          amount: adjustmentAmount,
+        }
+      : note.trim()
+
+    const result = await onAction(concern.id, action, payload)
     if (result === false) return
 
     setNote('')
+    setAdjustmentType('credit')
+    setAdjustmentAmount('')
     setActiveAction(null)
     onClose()
   }
@@ -153,11 +165,46 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
                 {noteLabel}
               </p>
+              {activeAction === 'adjust' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+                      Adjustment Type
+                    </label>
+                    <select
+                      value={adjustmentType}
+                      onChange={(e) => setAdjustmentType(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400"
+                    >
+                      <option value="credit">Credit to next bill / Deduction</option>
+                      <option value="refund">Refund to GCash</option>
+                      <option value="charge">Additional Charge</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+                      {adjustmentType === 'refund' ? 'Refund Amount' : adjustmentType === 'charge' ? 'Additional Amount' : 'Credit / Deduction Amount'}
+                    </label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={adjustmentAmount}
+                      onChange={(e) => setAdjustmentAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-300">
+                    For paid bills: credit applies to next bill, refund becomes GCash refund pending, and additional charge applies to next bill. For unpaid bills: this adjusts the current bill.
+                  </div>
+                </div>
+              )}
               <textarea
                 rows={3}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Enter your note here..."
+                placeholder={activeAction === 'adjust' ? 'Required reason for this billing adjustment...' : 'Enter your note here...'}
                 className="w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 resize-none"
               />
               <div className="flex gap-2">
@@ -281,3 +328,4 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
     document.body
   )
 }
+

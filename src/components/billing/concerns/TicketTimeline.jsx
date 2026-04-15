@@ -29,6 +29,27 @@ function safeText(value, fallback = '') {
   return fallback
 }
 
+function formatPeso(value) {
+  const amount = Number(value || 0)
+  return `PHP ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function getAdjustmentSummary(metadata = {}) {
+  const rawType = safeText(metadata?.workflow_type && metadata.workflow_type !== 'direct_adjustment' ? metadata.workflow_type : metadata?.adjustment_type)
+  const type = rawType === 'additional_charge' ? 'charge' : rawType
+  const displayAmount = Number(metadata?.display_amount || Math.abs(Number(metadata?.adjustment_amount || 0)))
+  const newBillAmount = Number(metadata?.new_bill_amount || 0)
+
+  if (!type || !displayAmount) return null
+
+  const direction = type === 'refund' ? 'Refund to GCash' : type === 'credit' ? 'Deduction/Credit' : 'Additional Charge'
+  const parts = [`${direction}: ${formatPeso(displayAmount)}`]
+  if (newBillAmount) parts.push(`New bill total: ${formatPeso(newBillAmount)}`)
+  if (metadata?.bill_id) parts.push(`Bill #${metadata.bill_id}`)
+
+  return parts.join(' | ')
+}
+
 export default function TicketTimeline({ timeline = [] }) {
   const rows = Array.isArray(timeline)
     ? timeline.map((entry, idx) => ({
@@ -38,6 +59,7 @@ export default function TicketTimeline({ timeline = [] }) {
         by: safeText(entry?.by, 'System'),
         date: safeText(entry?.date, ''),
         note: safeText(entry?.note, ''),
+        adjustmentSummary: getAdjustmentSummary(entry?.metadata || {}),
       }))
     : []
 
@@ -64,8 +86,13 @@ export default function TicketTimeline({ timeline = [] }) {
                 {entry.action}
               </p>
               <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                {entry.by} · {entry.date}
+                {entry.by} - {entry.date}
               </p>
+              {entry.adjustmentSummary && (
+                <p className="mt-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20 rounded-lg px-3 py-2 border border-teal-100 dark:border-teal-700/40">
+                  {entry.adjustmentSummary}
+                </p>
+              )}
               {entry.note && (
                 <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-100 dark:border-slate-700/50">
                   {entry.note}
@@ -78,3 +105,5 @@ export default function TicketTimeline({ timeline = [] }) {
     </div>
   )
 }
+
+

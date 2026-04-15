@@ -1,7 +1,7 @@
-import api from '@/lib/api'
+import api, { createFreshRequestConfig } from '@/lib/api'
 
 export async function fetchFinanceBills() {
-  const res = await api.get('/api/finance/bills')
+  const res = await api.get('/api/finance/bills', createFreshRequestConfig())
   return res.data
 }
 
@@ -42,6 +42,21 @@ export async function updateFinanceBillStatus(id, status) {
 
 export async function deleteFinanceBill(id) {
   const res = await api.delete(`/api/finance/bills/${id}`)
+  return res.data
+}
+
+export async function createFinanceBillAdjustment(billId, payload) {
+  const res = await api.post(`/api/finance/bills/${billId}/adjustments`, payload)
+  return res.data
+}
+
+export async function fetchFinanceBillAdjustments(params = {}) {
+  const res = await api.get('/api/finance/bill-adjustments', { params })
+  return res.data
+}
+
+export async function submitFinanceBillAdjustment(id) {
+  const res = await api.patch(`/api/finance/bill-adjustments/${id}/submit`)
   return res.data
 }
 

@@ -96,6 +96,32 @@ function normalizeBill(raw = {}) {
     raw?.breakdown ||
     normalizeBreakdown(raw?.items || raw?.bill_items || [])
 
+  const adjustments = Array.isArray(raw?.adjustments) ? raw.adjustments : []
+  const pendingRefunds = adjustments
+    .filter((item) => {
+      const ledger = item?.ledger_entry || item?.ledgerEntry
+      const refund = ledger?.metadata?.refund || {}
+      return item?.status === 'applied'
+        && ledger?.entry_type === 'refund'
+        && ledger?.status === 'refund_pending'
+        && refund?.reference_no
+        && !refund?.tenant_confirmation
+    })
+    .map((item) => {
+      const ledger = item?.ledger_entry || item?.ledgerEntry || {}
+      const refund = ledger?.metadata?.refund || {}
+      return {
+        adjustmentId: item.id,
+        ledgerId: ledger.id,
+        amount: toNumber(refund.amount ?? ledger.amount ?? Math.abs(Number(item?.net_difference || 0))),
+        referenceNo: refund.reference_no || '',
+        method: refund.method || 'gcash',
+        refundedAt: refund.refunded_at || '',
+        proofImage: refund.proof_image || '',
+        notes: refund.notes || '',
+      }
+    })
+
   return {
     id: raw?.id,
 
@@ -124,6 +150,11 @@ function normalizeBill(raw = {}) {
     billingPeriod,
     amount: toNumber(raw?.amount ?? raw?.total_amount ?? raw?.subtotal ?? 0),
     status: statusMap[statusRaw] || statusRaw || 'published',
+    adjustments,
+    pendingRefunds,
+    hasPendingRefundConfirmation: pendingRefunds.length > 0,
+    hasAdjustment: adjustments.some((item) => item.status === 'applied'),
+    hasPendingAdjustment: adjustments.some((item) => item.status === 'pending_approval'),
     breakdown: {
       electricity: toNumber(breakdown?.electricity ?? breakdown?.electric ?? 0),
       water: toNumber(breakdown?.water ?? 0),
@@ -139,9 +170,13 @@ export function useBills() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  const loadBills = useCallback(async () => {
+  const loadBills = useCallback(async (options = {}) => {
+    const { silent = false } = options
+
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError('')
 
       const res = await fetchTenantBills()
@@ -152,7 +187,9 @@ export function useBills() {
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load bills.')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -211,3 +248,6 @@ export function useBills() {
     submitPaymentReceipt,
   }
 }
+
+
+

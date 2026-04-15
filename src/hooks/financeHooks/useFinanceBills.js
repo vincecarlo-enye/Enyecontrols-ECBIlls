@@ -4,6 +4,7 @@ import {
   fetchFinanceBill,
   fetchFinanceBills,
   fetchFinanceBillingAssistPreview,
+  createFinanceBillAdjustment,
   fetchFinanceTenants,
   fetchSharedRates,
   generateFinanceBill,
@@ -88,6 +89,9 @@ function normalizeBill(row = {}) {
     amount: Number(row?.amount ?? 0),
     status: row?.status || 'draft',
     breakdown: normalizeBreakdown(items),
+    adjustments: Array.isArray(row?.adjustments) ? row.adjustments : [],
+    hasAdjustment: Array.isArray(row?.adjustments) && row.adjustments.some((item) => item.status === 'applied'),
+    hasPendingAdjustment: Array.isArray(row?.adjustments) && row.adjustments.some((item) => item.status === 'pending_approval'),
     receipt: null,
     raw: row,
   }
@@ -347,6 +351,22 @@ export function useFinanceBills() {
     }
   }, [loadData])
 
+  const adjustBill = useCallback(async (billId, payload) => {
+    try {
+      setSaving(true)
+      setError('')
+      const response = await createFinanceBillAdjustment(billId, payload)
+      await loadData()
+      return { success: true, data: response?.data, message: response?.message }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to create bill adjustment.'
+      setError(message)
+      return { success: false, message, errors: err?.response?.data?.errors }
+    } finally {
+      setSaving(false)
+    }
+  }, [loadData])
+
   const getBillById = useCallback(async (id) => {
     const response = await fetchFinanceBill(id)
     return normalizeBill(response?.data || {})
@@ -377,6 +397,7 @@ export function useFinanceBills() {
     regenerateBill,
     publishBill,
     removeBill,
+    adjustBill,
     getBillById,
     draftBills,
     publishedBills,
