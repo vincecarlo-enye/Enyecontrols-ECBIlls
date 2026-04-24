@@ -1,9 +1,19 @@
+import { unwrapCollection } from '@/utils/apiUtils'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   createFacilityMaintenanceTicket,
   fetchFacilityMaintenanceTickets,
   updateFacilityMaintenanceTicketStatus,
 } from '@/services/facilityService/facilityMaintenanceService'
+
+
+function unwrapRecord(payload) {
+  if (!payload || typeof payload !== 'object') return null
+  if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+    return payload.data
+  }
+  return payload
+}
 
 export function useFacilityMaintenance() {
   const [tickets, setTickets] = useState([])
@@ -17,7 +27,7 @@ export function useFacilityMaintenance() {
 
     try {
       const response = await fetchFacilityMaintenanceTickets()
-      const data = Array.isArray(response?.data) ? response.data : []
+      const data = unwrapCollection(response)
       setTickets(data)
     } catch (err) {
       setTickets([])
@@ -35,7 +45,7 @@ export function useFacilityMaintenance() {
     try {
       setSaving(true)
       const response = await createFacilityMaintenanceTicket(payload)
-      const nextTicket = response?.data
+      const nextTicket = unwrapRecord(response)
       if (nextTicket) {
         setTickets((prev) => [nextTicket, ...prev])
       }
@@ -58,7 +68,7 @@ export function useFacilityMaintenance() {
     try {
       setSaving(true)
       const response = await updateFacilityMaintenanceTicketStatus(ticketId, { status })
-      const updated = response?.data
+      const updated = unwrapRecord(response)
       if (updated) {
         setTickets((prev) => prev.map((ticket) => (ticket.ticket_id === updated.ticket_id ? updated : ticket)))
       }

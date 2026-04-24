@@ -1,128 +1,24 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
+  decorateBillWithAdjustmentState,
+  fetchAllAdjustments,
+  summarizeAdjustmentMetrics,
+} from '@/services/financeService/financeAdjustmentService'
+import { normalizeAdminBill } from '@/utils/billing'
+import { useApp } from '@/context/AppContext'
+import { addLocalNotification } from '@/services/notificationService'
+import {
+  deleteAdminBill,
   fetchAdminBill,
   fetchAdminBills,
+  fetchAdminPayments,
+  getAdminBillsSnapshot,
+  getAdminPaymentsSnapshot,
   generateAdminBill,
+  rejectAdminPayment,
   regenerateAdminBill,
+  verifyAdminPayment,
 } from '../../services/adminService/adminBillingService'
-
-function formatShortPeriodDate(value) {
-  if (!value) return '—'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
-
-function formatMonthLabel(value) {
-  if (!value) return '—'
-
-  if (/^\d{4}-\d{2}$/.test(String(value))) {
-    const [year, month] = String(value).split('-')
-    const date = new Date(Number(year), Number(month) - 1, 1)
-
-    if (!Number.isNaN(date.getTime())) {
-      return new Intl.DateTimeFormat('en-US', {
-        month: 'long',
-        year: 'numeric',
-      }).format(date)
-    }
-  }
-
-  const date = new Date(value)
-  if (!Number.isNaN(date.getTime())) {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'long',
-      year: 'numeric',
-    }).format(date)
-  }
-
-  return value
-}
-
-function getTenantName(bill) {
-  if (typeof bill?.tenant === 'string') return bill.tenant
-  return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
-}
-
-function getUnitName(bill) {
-  if (typeof bill?.unit === 'string') return bill.unit
-  return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || '—'
-}
-
-function getBillingStart(bill) {
-  return bill?.billing_start || bill?.billingstart || bill?.period_start || bill?.periodstart || null
-}
-
-function getBillingEnd(bill) {
-  return bill?.billing_end || bill?.billingend || bill?.period_end || bill?.periodend || null
-}
-
-function getBillingMonthRaw(bill) {
-  return bill?.billing_month || bill?.billingmonth || bill?.month || null
-}
-
-function getBillingPeriod(bill) {
-  const billingStart = getBillingStart(bill)
-  const billingEnd = getBillingEnd(bill)
-
-  if (billingStart && billingEnd) {
-    return `${formatShortPeriodDate(billingStart)} - ${formatShortPeriodDate(billingEnd)}`
-  }
-
-  if (billingEnd) {
-    return formatShortPeriodDate(billingEnd)
-  }
-
-  return bill?.billing_period || bill?.billingPeriod || '—'
-}
-
-function getAmountValue(bill) {
-  return Number(
-    bill?.grand_total ??
-    bill?.grandtotal ??
-    bill?.total_amount ??
-    bill?.totalamount ??
-    bill?.amount ??
-    0
-  )
-}
-
-function getDueDateValue(bill) {
-  return bill?.due_date || bill?.duedate || bill?.dueDate || null
-}
-
-function normalizeBill(bill) {
-  const tenant = getTenantName(bill)
-  const unit = getUnitName(bill)
-  const billingMonthRaw = getBillingMonthRaw(bill)
-  const billingStart = getBillingStart(bill)
-  const billingEnd = getBillingEnd(bill)
-  const billingPeriod = getBillingPeriod(bill)
-  const amount = getAmountValue(bill)
-  const dueDate = getDueDateValue(bill)
-
-  return {
-    id: String(bill?.id ?? ''),
-    tenant,
-    unit,
-    month: billingMonthRaw ? formatMonthLabel(billingMonthRaw) : billingEnd ? formatMonthLabel(billingEnd) : '—',
-    billingMonth: billingMonthRaw || '—',
-    billingStart,
-    billingEnd,
-    billingPeriod,
-    amount,
-    dueDate,
-    status: bill?.status || 'draft',
-    receipt: bill?.receipt || null,
-    raw: bill,
-  }
-}
 
 const DEFAULT_PER_PAGE = 10
 const DEFAULT_META = {
@@ -134,26 +30,134 @@ const DEFAULT_META = {
   to: 0,
 }
 
-export function useAdminBills() {
-  const [bills, setBills] = useState([])
-  const [loading, setLoading] = useState(true)
+const ACTIONABLE_PAYMENT_STATUSES = new Set([
+  'pending',
+  'submitted',
+  'payment_submitted',
+])
+
+function normalizePaymentStatus(status) {
+  return String(status || '').trim().toLowerCase()
+}
+
+function isActionablePayment(payment) {
+  return ACTIONABLE_PAYMENT_STATUSES.has(normalizePaymentStatus(payment?.status))
+}
+
+function mapLatestPayments(rows = []) {
+  return rows.reduce((acc, payment) => {
+    const key = String(payment?.bill_id || payment?.bill?.id || '')
+    if (!key) return acc
+    const current = acc[key]
+    const currentIsActionable = isActionablePayment(current)
+    const nextIsActionable = isActionablePayment(payment)
+
+    if (
+      !current
+      || (nextIsActionable && !currentIsActionable)
+      || (
+        nextIsActionable === currentIsActionable
+        && new Date(payment?.created_at || 0) > new Date(current?.created_at || 0)
+      )
+    ) {
+      acc[key] = payment
+    }
+    return acc
+  }, {})
+}
+
+function getBillId(value) {
+  return String(
+    value?.id
+    ?? value?.bill_id
+    ?? value?.raw?.id
+    ?? value?.raw?.bill_id
+    ?? value?.bill?.id
+    ?? ''
+  )
+}
+
+function matchPaymentToBill(payments = [], bill = null) {
+  const billId = getBillId(bill)
+  const paymentId = String(bill?.paymentId || bill?.raw?.paymentId || '')
+
+  if (!billId && !paymentId) return null
+
+  return payments.find((payment) => (
+    isActionablePayment(payment)
+    && (
+      (paymentId && String(payment?.id || '') === paymentId)
+      || String(payment?.bill_id || payment?.bill?.id || '') === billId
+    )
+  )) || null
+}
+
+export function useAdminBills(options = {}) {
+  const { loadAdjustmentsOnInit = true } = options
+  const { addToast } = useApp()
+  const initialBillsSnapshot = getAdminBillsSnapshot({
+    page: 1,
+    per_page: DEFAULT_PER_PAGE,
+  })
+  const initialPaymentsSnapshot = getAdminPaymentsSnapshot()
+  const initialRawBills = Array.isArray(initialBillsSnapshot?.data) ? initialBillsSnapshot.data : []
+  const initialPaymentMap = mapLatestPayments(Array.isArray(initialPaymentsSnapshot?.data) ? initialPaymentsSnapshot.data : [])
+  const initialBills = initialRawBills.length > 0
+    ? initialRawBills.map((bill) => normalizeAdminBill(bill, initialPaymentMap[String(bill?.id || '')] || null))
+    : []
+  const [bills, setBills] = useState(initialBills)
+  const [adjustments, setAdjustments] = useState([])
+  const [loading, setLoading] = useState(initialBills.length === 0)
+  const [adjustmentsLoading, setAdjustmentsLoading] = useState(loadAdjustmentsOnInit)
   const [error, setError] = useState('')
   const [selectedBill, setSelectedBill] = useState(null)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
-  const [meta, setMeta] = useState(DEFAULT_META)
+  const [meta, setMeta] = useState(initialBillsSnapshot?.meta || DEFAULT_META)
+  const adjustmentsRef = useRef([])
+
+  useEffect(() => {
+    adjustmentsRef.current = adjustments
+  }, [adjustments])
+
+  const hydrateAdjustments = useCallback(async () => {
+    try {
+      setAdjustmentsLoading(true)
+      const loadedAdjustments = await fetchAllAdjustments()
+      setAdjustments(loadedAdjustments)
+      setBills((currentBills) =>
+        currentBills.map((bill) => decorateBillWithAdjustmentState(bill, loadedAdjustments))
+      )
+      return loadedAdjustments
+    } catch {
+      setAdjustments([])
+      return []
+    } finally {
+      setAdjustmentsLoading(false)
+    }
+  }, [])
 
   const loadBills = useCallback(async (nextPage = page, nextPerPage = perPage) => {
     setLoading(true)
     setError('')
 
     try {
-      const data = await fetchAdminBills({
-        page: nextPage,
-        per_page: nextPerPage,
-      })
-      const list = Array.isArray(data?.data) ? data.data.map(normalizeBill) : []
-      setBills(list)
+      const [data, paymentsData] = await Promise.all([
+        fetchAdminBills({
+          page: nextPage,
+          per_page: nextPerPage,
+        }),
+        fetchAdminPayments(),
+      ])
+      const rawBills = Array.isArray(data?.data) ? data.data : []
+      const paymentMap = mapLatestPayments(Array.isArray(paymentsData?.data) ? paymentsData.data : [])
+      const list = rawBills.length > 0
+        ? rawBills.map((bill) => normalizeAdminBill(bill, paymentMap[String(bill?.id || '')] || null))
+        : []
+      const decoratedBills = adjustmentsRef.current.length > 0
+        ? list.map((bill) => decorateBillWithAdjustmentState(bill, adjustmentsRef.current))
+        : list
+      setBills(decoratedBills)
       setMeta(data?.meta || {
         ...DEFAULT_META,
         current_page: nextPage,
@@ -172,6 +176,23 @@ export function useAdminBills() {
     loadBills(page, perPage)
   }, [loadBills, page, perPage])
 
+  useEffect(() => {
+    if (!loadAdjustmentsOnInit) {
+      setAdjustmentsLoading(false)
+      return
+    }
+
+    hydrateAdjustments()
+  }, [hydrateAdjustments, loadAdjustmentsOnInit])
+
+  const ensureAdjustmentsLoaded = useCallback(async () => {
+    if (adjustments.length > 0 || adjustmentsLoading) {
+      return adjustments
+    }
+
+    return hydrateAdjustments()
+  }, [adjustments, adjustmentsLoading, hydrateAdjustments])
+
   const loadBillDetail = useCallback(async (id) => {
     try {
       const data = await fetchAdminBill(id)
@@ -183,6 +204,92 @@ export function useAdminBills() {
     }
   }, [])
 
+  const loadPaymentReviewBill = useCallback(async (billId) => {
+    const targetBill = bills.find((bill) => String(bill.id) === String(billId) || String(bill.paymentId) === String(billId))
+
+    if (!targetBill) return null
+    if (targetBill.receipt && targetBill.paymentId) return targetBill
+
+    try {
+      const paymentsData = await fetchAdminPayments()
+      const payments = Array.isArray(paymentsData?.data) ? paymentsData.data : []
+      const matchedPayment = matchPaymentToBill(payments, targetBill)
+
+      if (!matchedPayment) return targetBill
+
+      return normalizeAdminBill(targetBill.raw || targetBill, matchedPayment)
+    } catch {
+      return targetBill
+    }
+  }, [bills])
+
+  const resolvePendingPaymentRecord = useCallback(async (billOrPaymentId) => {
+    const targetBill = bills.find((bill) => String(bill.id) === String(billOrPaymentId) || String(bill.paymentId) === String(billOrPaymentId))
+
+    if (!targetBill) {
+      try {
+        const paymentsData = await fetchAdminPayments()
+        const payments = Array.isArray(paymentsData?.data) ? paymentsData.data : []
+        const matchedPayment = payments.find((payment) => isActionablePayment(payment) && String(payment?.id || '') === String(billOrPaymentId))
+
+        if (!matchedPayment) {
+          return {
+            targetBill: null,
+            payment: null,
+          }
+        }
+
+        const matchedBill = bills.find((bill) => String(bill.id) === String(matchedPayment?.bill_id || matchedPayment?.bill?.id || '')) || null
+
+        return {
+          targetBill: matchedBill,
+          payment: matchedPayment,
+        }
+      } catch {
+        return {
+          targetBill: null,
+          payment: null,
+        }
+      }
+    }
+
+    try {
+      const paymentsData = await fetchAdminPayments()
+      const payments = Array.isArray(paymentsData?.data) ? paymentsData.data : []
+      const matchedPayment = matchPaymentToBill(payments, targetBill)
+
+      return {
+        targetBill,
+        payment: matchedPayment || (targetBill.paymentId ? { id: targetBill.paymentId } : null),
+      }
+    } catch {
+      return {
+        targetBill,
+        payment: targetBill.paymentId ? { id: targetBill.paymentId } : null,
+      }
+    }
+  }, [bills])
+
+  const notifyBillGenerated = useCallback(async (billData, billingMonth) => {
+    const billId = billData?.id || billData?.bill_id || null
+    const monthLabel = String(billingMonth || billData?.billing_month || '').trim()
+
+    try {
+      await addLocalNotification({
+        title: 'Bill generated',
+        message: monthLabel
+          ? `A new bill${billId ? ` (#${billId})` : ''} was created for ${monthLabel}.`
+          : `A new bill${billId ? ` (#${billId})` : ''} was created.`,
+        target_roles: ['admin', 'super_admin', 'finance'],
+        entity_type: 'bill',
+        entity_id: billId,
+        preferenceKey: 'billGenerated',
+      })
+    } catch {
+      // Keep bill generation successful even if notification creation fails.
+    }
+  }, [])
+
   const createBill = useCallback(
     async ({ tenantid, billingmonth }) => {
       try {
@@ -190,6 +297,7 @@ export function useAdminBills() {
           tenantid,
           billingmonth,
         })
+        await notifyBillGenerated(data?.data, billingmonth)
         setPage(1)
         await loadBills(1, perPage)
 
@@ -206,7 +314,7 @@ export function useAdminBills() {
         }
       }
     },
-    [loadBills, perPage]
+    [loadBills, notifyBillGenerated, perPage]
   )
 
   const regenerateBill = useCallback(
@@ -239,6 +347,22 @@ export function useAdminBills() {
     [loadBills, page, perPage]
   )
 
+  const deleteBill = useCallback(async (id) => {
+    try {
+      await deleteAdminBill(id)
+      await loadBills(page, perPage)
+      return {
+        success: true,
+        message: 'Bill deleted successfully.',
+      }
+    } catch (err) {
+      return {
+        success: false,
+        message: err?.response?.data?.message || 'Failed to delete bill.',
+      }
+    }
+  }, [loadBills, page, perPage])
+
   const paidBills = useMemo(
     () => bills.filter((bill) => bill.status === 'paid'),
     [bills]
@@ -268,24 +392,97 @@ export function useAdminBills() {
     () => paidBills.reduce((sum, bill) => sum + Number(bill.amount || 0), 0),
     [paidBills]
   )
+  const adjustmentMetrics = useMemo(
+    () => summarizeAdjustmentMetrics(adjustments),
+    [adjustments]
+  )
+
+  const notifyTenantPaymentUpdate = useCallback(async (bill, outcome) => {
+    const tenant = bill?.raw?.tenant
+    const tenantName = bill?.tenant || tenant?.name || 'Tenant'
+    const dueAmount = Number(bill?.amount || 0).toLocaleString()
+    const title = outcome === 'approved' ? 'Payment approved' : 'Payment rejected'
+    const message = outcome === 'approved'
+      ? `Your payment for bill ${bill?.id} (${tenantName}) worth PHP ${dueAmount} has been verified.`
+      : `Your payment for bill ${bill?.id} (${tenantName}) worth PHP ${dueAmount} was rejected. Please review and resubmit your receipt.`
+
+    try {
+      await addLocalNotification({
+        title,
+        message,
+        recipient_tenant_id: bill?.raw?.tenant_id ?? tenant?.id ?? null,
+        recipient_user_id: tenant?.user_id ?? tenant?.userId ?? null,
+        entity_type: 'payment',
+        entity_id: bill?.paymentId || bill?.id || null,
+      })
+    } catch {
+      // Keep billing action successful even if notification creation fails.
+    }
+  }, [])
 
   const approvePayment = useCallback(async (billId) => {
-    return {
-      success: false,
-      message: `Approve payment endpoint is not connected yet for bill ${billId}.`,
+    try {
+      const { targetBill, payment } = await resolvePendingPaymentRecord(billId)
+      const paymentId = payment?.id || null
+
+      if (!paymentId) {
+        addToast('Payment record not found for this bill.', 'error')
+        return {
+          success: false,
+          message: 'Payment record not found for this bill.',
+        }
+      }
+
+        const response = await verifyAdminPayment(paymentId)
+      await notifyTenantPaymentUpdate(targetBill, 'approved')
+      await ensureAdjustmentsLoaded()
+      await loadBills(page, perPage)
+      addToast(response?.message || 'Payment approved successfully.', 'success')
+      return {
+        success: true,
+        data: response?.data,
+        message: response?.message || 'Payment approved successfully.',
+      }
+    } catch (err) {
+      addToast(err?.response?.data?.message || 'Failed to approve payment.', 'error')
+      return {
+        success: false,
+        message: err?.response?.data?.message || 'Failed to approve payment.',
+      }
     }
-  }, [])
+  }, [addToast, loadBills, notifyTenantPaymentUpdate, page, perPage, resolvePendingPaymentRecord])
 
   const rejectPayment = useCallback(async (billId) => {
-    return {
-      success: false,
-      message: `Reject payment endpoint is not connected yet for bill ${billId}.`,
-    }
-  }, [])
+    try {
+      const { targetBill, payment } = await resolvePendingPaymentRecord(billId)
+      const paymentId = payment?.id || null
 
-  const addToast = useCallback((message) => {
-    console.log(message)
-  }, [])
+      if (!paymentId) {
+        addToast('Payment record not found for this bill.', 'error')
+        return {
+          success: false,
+          message: 'Payment record not found for this bill.',
+        }
+      }
+
+      const response = await rejectAdminPayment(paymentId)
+      await notifyTenantPaymentUpdate(targetBill, 'rejected')
+      await ensureAdjustmentsLoaded()
+      await loadBills(page, perPage)
+      addToast(response?.message || 'Payment rejected successfully.', 'error')
+      return {
+        success: true,
+        data: response?.data,
+        message: response?.message || 'Payment rejected successfully.',
+      }
+    } catch (err) {
+      addToast(err?.response?.data?.message || 'Failed to reject payment.', 'error')
+      return {
+        success: false,
+        message: err?.response?.data?.message || 'Failed to reject payment.',
+      }
+    }
+  }, [addToast, loadBills, notifyTenantPaymentUpdate, page, perPage, resolvePendingPaymentRecord])
 
   return {
     bills,
@@ -300,8 +497,10 @@ export function useAdminBills() {
     setPerPage,
     loadBills,
     loadBillDetail,
+    loadPaymentReviewBill,
     createBill,
     regenerateBill,
+    deleteBill,
     approvePayment,
     rejectPayment,
     addToast,
@@ -311,5 +510,9 @@ export function useAdminBills() {
     draftBills,
     overdueBills,
     totalRevenue,
+    adjustments,
+    adjustmentsLoading,
+    adjustmentMetrics,
+    ensureAdjustmentsLoaded,
   }
 }

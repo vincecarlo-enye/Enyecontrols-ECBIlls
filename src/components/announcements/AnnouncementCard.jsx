@@ -2,6 +2,7 @@
  * components/announcements/AnnouncementCard.jsx
  * Shows a single announcement with system-wide badge for SA announcements.
  */
+import { useState } from 'react'
 import { Pencil, Trash2, Globe, AlertTriangle, Info, Bell } from 'lucide-react'
 import { isSystemAnnouncement } from '@/permissions'
 
@@ -21,6 +22,21 @@ export default function AnnouncementCard({ ann, canEdit, canDelete, onEdit, onDe
   const tc = TYPE_CONFIG[ann.type] || TYPE_CONFIG.notice
   const Icon = tc.icon
   const systemWide = isSystemAnnouncement(ann)
+  const [expanded, setExpanded] = useState(false)
+  const body = String(ann.body || '').trim()
+  const previewLineLimit = 4
+  const previewCharLimit = 220
+  const bodyLines = body.split(/\r?\n/)
+  const previewLines = bodyLines.slice(0, previewLineLimit)
+  const joinedPreview = previewLines.join('\n').trimEnd()
+  const previewWasTrimmedByLines = bodyLines.length > previewLineLimit
+  const previewWasTrimmedByChars = joinedPreview.length > previewCharLimit
+  const previewBody = previewWasTrimmedByChars
+    ? `${joinedPreview.slice(0, previewCharLimit).trimEnd()}...`
+    : previewWasTrimmedByLines
+      ? `${joinedPreview}...`
+      : joinedPreview
+  const hasOverflow = previewWasTrimmedByLines || previewWasTrimmedByChars
 
   return (
     <div className={`relative p-4 rounded-xl border ${tc.bg} ${tc.border} group transition-all`}>
@@ -45,7 +61,20 @@ export default function AnnouncementCard({ ann, canEdit, canDelete, onEdit, onDe
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${tc.badge}`}>{ann.type}</span>
             </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{ann.body}</p>
+          <div className="mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-words">
+              {expanded ? body : previewBody}
+            </p>
+            {hasOverflow && (
+              <button
+                type="button"
+                onClick={() => setExpanded((value) => !value)}
+                className="mt-1 text-[11px] font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                {expanded ? 'Show less' : 'Read more'}
+              </button>
+            )}
+          </div>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">{ann.date} · {ann.author}</p>
         </div>
       </div>

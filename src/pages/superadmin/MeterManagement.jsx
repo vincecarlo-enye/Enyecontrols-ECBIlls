@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Zap, Droplets, Flame, Plus, Pencil, Trash2, Search, X, CheckCircle,
   AlertCircle, Shield, Lock,
@@ -383,6 +383,19 @@ export default function MeterManagement() {
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
+  const filtered = useMemo(() => meters.filter((meter) => {
+    const matchType = typeFilter === 'all' || meter.type === typeFilter
+    const q = search.toLowerCase().trim()
+    const matchSearch =
+      !q ||
+      (meter.meterName || '').toLowerCase().includes(q) ||
+      (meter.watchName || '').toLowerCase().includes(q) ||
+      (meter.unitsLabel || meter.unit || '').toLowerCase().includes(q) ||
+      (meter.tenant || '').toLowerCase().includes(q)
+
+    return matchType && matchSearch
+  }), [meters, search, typeFilter])
+
   if ((pageLoading && meters.length === 0) || (loading && meters.length === 0)) return <DashboardSkeleton />
 
   if (!isSuperAdmin) {
@@ -394,19 +407,6 @@ export default function MeterManagement() {
       </div>
     )
   }
-
-  const filtered = meters.filter((meter) => {
-    const matchType = typeFilter === 'all' || meter.type === typeFilter
-    const q = search.toLowerCase()
-    const matchSearch =
-      !q ||
-      (meter.meterName || '').toLowerCase().includes(q) ||
-      (meter.watchName || '').toLowerCase().includes(q) ||
-      (meter.unitsLabel || meter.unit || '').toLowerCase().includes(q) ||
-      (meter.tenant || '').toLowerCase().includes(q)
-
-    return matchType && matchSearch
-  })
 
   const handleSave = async (data) => {
     if (editing) {
@@ -481,7 +481,7 @@ export default function MeterManagement() {
             type="text"
             placeholder="Search by meter, watch, unit, or tenant..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
           />
         </div>
@@ -489,7 +489,7 @@ export default function MeterManagement() {
           {[{ value: 'all', label: 'All' }, ...METER_TYPES.map((item) => ({ value: item.value, label: item.label }))].map((filter) => (
             <button
               key={filter.value}
-              onClick={() => setTypeFilter(filter.value)}
+              onClick={() => { setTypeFilter(filter.value); setPage(1) }}
               className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${
                 typeFilter === filter.value
                   ? 'bg-violet-600 text-white border-violet-600 shadow-sm'

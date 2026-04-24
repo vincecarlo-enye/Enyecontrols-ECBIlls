@@ -5,6 +5,7 @@ import {
 import { CalendarRange, Droplets, Flame, TrendingUp, Zap } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
+import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityConsumption } from '@/hooks/facilityHooks/useFacilityConsumption'
 
 const statusBadge = {
@@ -16,7 +17,7 @@ const statusBadge = {
 const utilityMeta = {
   electricity: { label: 'Electricity', unit: 'kWh', icon: Zap, color: 'from-amber-400 to-orange-500' },
   water: { label: 'Water', unit: 'm3', icon: Droplets, color: 'from-cyan-400 to-blue-500' },
-  thermal: { label: 'Thermal', unit: 'kBTU/h', icon: Flame, color: 'from-rose-400 to-pink-500' },
+  thermal: { label: 'Thermal', unit: 'kBTU', icon: Flame, color: 'from-rose-400 to-pink-500' },
 }
 
 const utilityKeys = ['electricity', 'water', 'thermal']
@@ -165,12 +166,15 @@ export default function Consumption() {
         })}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="font-semibold text-slate-800 dark:text-white">Daily Trend</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {selectedUtility === 'all' ? 'Compare all utilities across the selected month' : `Focused on ${utilityMeta[selectedUtility].label} across the selected month`}
-          </p>
+      <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-slate-800 dark:text-white">Daily Trend</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {selectedUtility === 'all' ? 'Compare all utilities across the selected month' : `Focused on ${utilityMeta[selectedUtility].label} across the selected month`}
+            </p>
+          </div>
+          <ChartExportButton title="Daily Trend" rows={filteredTrendData} />
         </div>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={filteredTrendData}>

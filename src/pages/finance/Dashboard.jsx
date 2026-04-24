@@ -1,7 +1,8 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
 import {
   BarChart, Bar, PieChart, Pie, Cell,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area, ComposedChart, Line, ReferenceLine, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import {
   DollarSign, CreditCard, FileText, CheckCircle2, Clock, Zap, Droplets, Flame,
@@ -9,12 +10,14 @@ import {
 } from 'lucide-react'
 import ChartCard from '@/components/ui/ChartCard'
 import UtilityCard from '@/components/common/UtilityCard'
+import FilterPills from '@/components/common/FilterPills'
 import AnnouncementPanel from '@/components/common/AnnouncementPanel'
 import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import PageSection, { PageHeader } from '@/components/layout/PageSection'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FinanceDashboardSkeleton } from '@/components/skeletons'
-import api from '@/lib/api'
+import { buildUtilityCardMetric } from '@/utils/utilityCards'
+import { fetchFinanceBills, fetchFinancePayments, fetchSharedRates, getFinanceBillsSnapshot, getFinancePaymentsSnapshot, getSharedRatesSnapshot } from '@/services/financeService/financeBillService'
 import {
   CHART_AXIS_TICK,
   CHART_AXIS_TICK_SM,
@@ -27,6 +30,7 @@ import {
 } from '@/components/charts/rechartsTheme.jsx'
 
 const fmt = (n) => `PHP ${Number(n || 0).toLocaleString()}`
+const FINANCE_FILTER_OPTIONS = ['1D', '1M', '1Y']
 
 function formatMonthKey(value) {
   if (!value) return 'Unknown'
@@ -44,16 +48,29 @@ function formatMonthKey(value) {
   return String(value)
 }
 
-function formatDate(value) {
-  if (!value) return ''
+function formatDayKey(value) {
+  if (!value) return 'Unknown'
   const date = new Date(value)
   if (!Number.isNaN(date.getTime())) {
-    return date.toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    })
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
   return String(value)
 }
+
+function formatWeekdayLabel(date) {
+  return date.toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+function formatYearKey(value) {
+  if (!value) return 'Unknown'
+  const date = new Date(value)
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString('en-US', { year: 'numeric' })
+  }
+  const match = String(value).match(/\d{4}/)
+  return match ? match[0] : String(value)
+}
+
 
 function getMonthTimestamp(value) {
   if (!value) return 0
@@ -63,6 +80,96 @@ function getMonthTimestamp(value) {
   }
   const parsed = new Date(`${value} 1`)
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime()
+}
+
+function addMonths(date, months) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1)
+}
+
+function formatMonthLabel(date) {
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
+
+function buildRollingMonthlySeries(rows = [], length = 12, defaults = {}) {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+
+  const sortedRows = rows
+    .slice()
+    .sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
+
+  const latestRow = sortedRows[sortedRows.length - 1]
+  const latestDate = new Date(getMonthTimestamp(latestRow.month))
+
+  if (Number.isNaN(latestDate.getTime())) {
+    return sortedRows.slice(-length)
+  }
+
+  const valueByMonth = new Map(
+    sortedRows.map((row) => [formatMonthLabel(new Date(getMonthTimestamp(row.month))), row])
+  )
+
+  return Array.from({ length }, (_, index) => {
+    const date = addMonths(latestDate, index - (length - 1))
+    const month = formatMonthLabel(date)
+    return {
+      month,
+      ...defaults,
+      ...(valueByMonth.get(month) || {}),
+    }
+  })
+}
+
+function buildRollingDailySeries(rows = [], length = 7, defaults = {}) {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+
+  const sortedRows = rows
+    .slice()
+    .sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
+
+  const latestRow = sortedRows[sortedRows.length - 1]
+  const latestDate = new Date(getMonthTimestamp(latestRow.month))
+
+  if (Number.isNaN(latestDate.getTime())) {
+    return sortedRows.slice(-length)
+  }
+
+  const valueByDay = new Map(
+    sortedRows.map((row) => [formatDayKey(row.month), row])
+  )
+
+  return Array.from({ length }, (_, index) => {
+    const date = new Date(latestDate)
+    date.setDate(latestDate.getDate() + index - (length - 1))
+    const dayKey = formatDayKey(date)
+    return {
+      month: formatWeekdayLabel(date),
+      ...defaults,
+      ...(valueByDay.get(dayKey) || {}),
+      monthLabel: dayKey,
+    }
+  }).map((row) => ({
+    ...row,
+    month: row.month,
+  }))
+}
+
+function computeRangeTrend(rows = [], key) {
+  if (!Array.isArray(rows) || rows.length < 2) return 0
+  const last = Number(rows[rows.length - 1]?.[key] ?? 0)
+  const prev = Number(rows[rows.length - 2]?.[key] ?? 0)
+  if (prev === 0) {
+    if (last === 0) return 0
+    return 100
+  }
+  return Number((((last - prev) / prev) * 100).toFixed(1))
+}
+
+function buildActiveKeySet(rows = [], key = 'month') {
+  return new Set(
+    (Array.isArray(rows) ? rows : [])
+      .map((row) => String(row?.[key] ?? '').trim())
+      .filter(Boolean)
+  )
 }
 
 function normalizeBill(row = {}) {
@@ -82,7 +189,9 @@ function normalizeBill(row = {}) {
     unit: row?.unit?.unit_number || row?.unit?.name || 'N/A',
     amount: Number(row?.amount ?? 0),
     status: String(row?.status || 'draft').toLowerCase(),
+    dayKey: formatDayKey(row?.billing_end || row?.due_date || row?.created_at || ''),
     monthKey: formatMonthKey(row?.billing_month || row?.billing_end || row?.created_at || ''),
+    yearKey: formatYearKey(row?.billing_end || row?.due_date || row?.created_at || ''),
     dueDate: formatDate(row?.due_date || ''),
     breakdown,
   }
@@ -99,20 +208,78 @@ function normalizePayment(row = {}) {
     amount: Number(row?.amount ?? 0),
     status: String(row?.status || 'pending').toLowerCase(),
     date: formatDate(row?.paid_at || row?.verified_at || row?.created_at || ''),
+    dayKey: formatDayKey(row?.paid_at || row?.verified_at || row?.created_at || ''),
     monthKey: formatMonthKey(bill?.billing_month || row?.created_at || ''),
+    yearKey: formatYearKey(row?.paid_at || row?.verified_at || row?.created_at || ''),
     breakdown,
   }
 }
 
 export default function FinanceDashboard() {
   const pageLoading = usePageLoader(800)
-  const [bills, setBills] = useState([])
-  const [payments, setPayments] = useState([])
-  const [loading, setLoading] = useState(true)
+  const initialBillsSnapshot = getFinanceBillsSnapshot()
+  const initialPaymentsSnapshot = getFinancePaymentsSnapshot()
+  const initialRatesSnapshot = getSharedRatesSnapshot()
+  const initialBills = (Array.isArray(initialBillsSnapshot?.data) ? initialBillsSnapshot.data : []).map(normalizeBill)
+  const initialPayments = (Array.isArray(initialPaymentsSnapshot?.data) ? initialPaymentsSnapshot.data : []).map(normalizePayment)
+  const initialBillingRates = {
+    electricity: { rate: 0, unit: '/kWh', completeness: 0 },
+    water: { rate: 0, unit: '/m3', completeness: 0 },
+    thermal: { rate: 0, unit: '/kBTU', completeness: 0 },
+  }
+
+  ;(Array.isArray(initialRatesSnapshot) ? initialRatesSnapshot : initialRatesSnapshot?.data || []).forEach((rate) => {
+    const type = String(rate?.type || '').toLowerCase()
+    const mappedType = type === 'electric' ? 'electricity' : type
+    if (!initialBillingRates[mappedType]) return
+    initialBillingRates[mappedType] = {
+      rate: Number(rate?.price_per_unit ?? 0),
+      unit: mappedType === 'thermal' ? '/kBTU' : `/${rate?.unit_measure || initialBillingRates[mappedType].unit.replace(/^\//, '')}`,
+      completeness: Number(rate?.price_per_unit ?? 0) > 0 ? 100 : 0,
+    }
+  })
+
+  const [bills, setBills] = useState(initialBills)
+  const [payments, setPayments] = useState(initialPayments)
+  const [billingRates, setBillingRates] = useState(initialBillingRates)
+  const [loading, setLoading] = useState(!(initialBills.length || initialPayments.length))
   const [error, setError] = useState('')
-  const [chartRange, setChartRange] = useState('6M')
+  const [chartRange, setChartRange] = useState('1M')
   const [transactionSearch, setTransactionSearch] = useState('')
   const [transactionStatus, setTransactionStatus] = useState('all')
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetchSharedRates()
+      .then((ratesRes) => {
+        if (cancelled) return
+        const rows = Array.isArray(ratesRes) ? ratesRes : ratesRes?.data || []
+        const nextRates = {
+          electricity: { rate: 0, unit: '/kWh', completeness: 0 },
+          water: { rate: 0, unit: '/m3', completeness: 0 },
+          thermal: { rate: 0, unit: '/kBTU', completeness: 0 },
+        }
+
+        rows.forEach((rate) => {
+          const type = String(rate?.type || '').toLowerCase()
+          const mappedType = type === 'electric' ? 'electricity' : type
+          if (!nextRates[mappedType]) return
+          nextRates[mappedType] = {
+            rate: Number(rate?.price_per_unit ?? 0),
+            unit: mappedType === 'thermal' ? '/kBTU' : `/${rate?.unit_measure || nextRates[mappedType].unit.replace(/^\//, '')}`,
+            completeness: Number(rate?.price_per_unit ?? 0) > 0 ? 100 : 0,
+          }
+        })
+
+        setBillingRates(nextRates)
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -120,11 +287,11 @@ export default function FinanceDashboard() {
         setLoading(true)
         setError('')
         const [billsRes, paymentsRes] = await Promise.all([
-          api.get('/api/finance/bills'),
-          api.get('/api/finance/payments'),
+          fetchFinanceBills(),
+          fetchFinancePayments(),
         ])
-        setBills((Array.isArray(billsRes?.data?.data) ? billsRes.data.data : []).map(normalizeBill))
-        setPayments((Array.isArray(paymentsRes?.data?.data) ? paymentsRes.data.data : []).map(normalizePayment))
+        setBills((Array.isArray(billsRes?.data) ? billsRes.data : []).map(normalizeBill))
+        setPayments((Array.isArray(paymentsRes?.data) ? paymentsRes.data : []).map(normalizePayment))
       } catch (err) {
         setBills([])
         setPayments([])
@@ -138,8 +305,12 @@ export default function FinanceDashboard() {
   }, [])
 
   const {
+    dailyRevenue,
     monthlyRevenue,
+    yearlyRevenue,
+    dailyUtilityRevenue,
     utilityRevenue,
+    yearlyUtilityRevenue,
     utilityPie,
     utilityMeters,
     summaryCards,
@@ -148,29 +319,94 @@ export default function FinanceDashboard() {
     totalThermal,
     recentTransactions,
   } = useMemo(() => {
+    const dailyRevenueMap = new Map()
     const monthlyRevenueMap = new Map()
+    const yearlyRevenueMap = new Map()
+    const dailyUtilityRevenueMap = new Map()
     const utilityRevenueMap = new Map()
+    const yearlyUtilityRevenueMap = new Map()
+    const dailyCollectionMap = new Map()
+    const monthlyCollectionMap = new Map()
+    const yearlyCollectionMap = new Map()
 
     for (const bill of bills) {
+      const dayKey = bill.dayKey
       const monthKey = bill.monthKey
+      const yearKey = bill.yearKey
 
+      if (!dailyRevenueMap.has(dayKey)) {
+        dailyRevenueMap.set(dayKey, { month: dayKey, revenue: 0, expenses: 0 })
+      }
       if (!monthlyRevenueMap.has(monthKey)) {
         monthlyRevenueMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0 })
+      }
+      if (!yearlyRevenueMap.has(yearKey)) {
+        yearlyRevenueMap.set(yearKey, { month: yearKey, revenue: 0, expenses: 0 })
+      }
+      if (!dailyUtilityRevenueMap.has(dayKey)) {
+        dailyUtilityRevenueMap.set(dayKey, { month: dayKey, electricity: 0, water: 0, thermal: 0 })
       }
       if (!utilityRevenueMap.has(monthKey)) {
         utilityRevenueMap.set(monthKey, { month: monthKey, electricity: 0, water: 0, thermal: 0 })
       }
+      if (!yearlyUtilityRevenueMap.has(yearKey)) {
+        yearlyUtilityRevenueMap.set(yearKey, { month: yearKey, electricity: 0, water: 0, thermal: 0 })
+      }
 
+      dailyRevenueMap.get(dayKey).revenue += bill.amount
       monthlyRevenueMap.get(monthKey).revenue += bill.amount
+      yearlyRevenueMap.get(yearKey).revenue += bill.amount
 
+      const dailyUtilityRow = dailyUtilityRevenueMap.get(dayKey)
       const utilityRow = utilityRevenueMap.get(monthKey)
+      const yearlyUtilityRow = yearlyUtilityRevenueMap.get(yearKey)
+      dailyUtilityRow.electricity += bill.breakdown.electricity
+      dailyUtilityRow.water += bill.breakdown.water
+      dailyUtilityRow.thermal += bill.breakdown.thermal
       utilityRow.electricity += bill.breakdown.electricity
       utilityRow.water += bill.breakdown.water
       utilityRow.thermal += bill.breakdown.thermal
+      yearlyUtilityRow.electricity += bill.breakdown.electricity
+      yearlyUtilityRow.water += bill.breakdown.water
+      yearlyUtilityRow.thermal += bill.breakdown.thermal
     }
 
-    const monthlyRevenue = Array.from(monthlyRevenueMap.values()).sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
+    for (const payment of payments) {
+      if (payment.status !== 'verified') continue
+
+      const dayKey = payment.dayKey
+      const monthKey = payment.monthKey
+      const yearKey = payment.yearKey
+
+      dailyCollectionMap.set(dayKey, (dailyCollectionMap.get(dayKey) || 0) + payment.amount)
+      monthlyCollectionMap.set(monthKey, (monthlyCollectionMap.get(monthKey) || 0) + payment.amount)
+      yearlyCollectionMap.set(yearKey, (yearlyCollectionMap.get(yearKey) || 0) + payment.amount)
+    }
+
+    const buildRevenueSeries = (revenueMap, collectionMap) => {
+      const keys = new Set([...revenueMap.keys(), ...collectionMap.keys()])
+
+      return Array.from(keys)
+        .map((key) => {
+          const revenue = Number(revenueMap.get(key)?.revenue ?? 0)
+          const collected = Number(collectionMap.get(key) ?? 0)
+
+          return {
+            month: key,
+            revenue,
+            collected,
+            outstanding: Math.max(revenue - collected, 0),
+          }
+        })
+        .sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
+    }
+
+    const dailyRevenue = buildRevenueSeries(dailyRevenueMap, dailyCollectionMap)
+    const monthlyRevenue = buildRevenueSeries(monthlyRevenueMap, monthlyCollectionMap)
+    const yearlyRevenue = buildRevenueSeries(yearlyRevenueMap, yearlyCollectionMap)
+    const dailyUtilityRevenue = Array.from(dailyUtilityRevenueMap.values()).sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
     const utilityRevenue = Array.from(utilityRevenueMap.values()).sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
+    const yearlyUtilityRevenue = Array.from(yearlyUtilityRevenueMap.values()).sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
     const totalElec = utilityRevenue.reduce((sum, row) => sum + row.electricity, 0)
     const totalWater = utilityRevenue.reduce((sum, row) => sum + row.water, 0)
     const totalThermal = utilityRevenue.reduce((sum, row) => sum + row.thermal, 0)
@@ -181,9 +417,9 @@ export default function FinanceDashboard() {
       { name: 'Thermal', value: utilityTotal ? Math.round((totalThermal / utilityTotal) * 100) : 0, color: '#f43f5e' },
     ]
     const utilityMeters = {
-      electric: { usage: totalElec, unit: 'kWh', estimatedCost: totalElec, trend: 4.2 },
-      water: { usage: totalWater, unit: 'm3', estimatedCost: totalWater, trend: 2.3 },
-      thermal: { usage: totalThermal, unit: 'BTU', estimatedCost: totalThermal, trend: 3.1 },
+      electric: buildUtilityCardMetric({ type: 'electricity', usage: totalElec, unit: 'kWh', fallbackEstimatedCost: totalElec, trend: computeRangeTrend(utilityRevenue, 'electricity'), rates: billingRates }),
+      water: buildUtilityCardMetric({ type: 'water', usage: totalWater, unit: 'm3', fallbackEstimatedCost: totalWater, trend: computeRangeTrend(utilityRevenue, 'water'), rates: billingRates }),
+      thermal: buildUtilityCardMetric({ type: 'thermal', usage: totalThermal, unit: 'kBTU', fallbackEstimatedCost: totalThermal, trend: computeRangeTrend(utilityRevenue, 'thermal'), rates: billingRates }),
     }
 
     const totalRevenue = bills.reduce((sum, bill) => sum + bill.amount, 0)
@@ -221,6 +457,9 @@ export default function FinanceDashboard() {
           amount: payment.amount,
           status: payment.status === 'verified' ? 'Paid' : payment.status === 'rejected' ? 'Rejected' : 'Pending',
           date: payment.date,
+          dayKey: payment.dayKey,
+          monthKey: payment.monthKey,
+          yearKey: payment.yearKey,
         }
       })
 
@@ -278,8 +517,12 @@ export default function FinanceDashboard() {
     ]
 
     return {
+      dailyRevenue,
       monthlyRevenue,
+      yearlyRevenue,
+      dailyUtilityRevenue,
       utilityRevenue,
+      yearlyUtilityRevenue,
       utilityPie,
       utilityMeters,
       summaryCards,
@@ -288,19 +531,39 @@ export default function FinanceDashboard() {
       totalThermal,
       recentTransactions,
     }
-  }, [bills, payments])
+  }, [billingRates, bills, payments])
 
-  const rangeLimit = chartRange === '3M' ? 3 : chartRange === '12M' ? 12 : 6
+  const rangedMonthlyRevenue = useMemo(() => {
+    if (chartRange === '1D') {
+      return buildRollingDailySeries(dailyRevenue, 7, {
+        revenue: 0,
+        collected: 0,
+        outstanding: 0,
+      })
+    }
+    if (chartRange === '1Y') return yearlyRevenue
+    return buildRollingMonthlySeries(monthlyRevenue, 12, {
+      revenue: 0,
+      collected: 0,
+      outstanding: 0,
+    })
+  }, [chartRange, dailyRevenue, monthlyRevenue, yearlyRevenue])
 
-  const rangedMonthlyRevenue = useMemo(
-    () => monthlyRevenue.slice(-rangeLimit),
-    [monthlyRevenue, rangeLimit],
-  )
-
-  const rangedUtilityRevenue = useMemo(
-    () => utilityRevenue.slice(-rangeLimit),
-    [utilityRevenue, rangeLimit],
-  )
+  const rangedUtilityRevenue = useMemo(() => {
+    if (chartRange === '1D') {
+      return buildRollingDailySeries(dailyUtilityRevenue, 7, {
+        electricity: 0,
+        water: 0,
+        thermal: 0,
+      })
+    }
+    if (chartRange === '1Y') return yearlyUtilityRevenue
+    return buildRollingMonthlySeries(utilityRevenue, 12, {
+      electricity: 0,
+      water: 0,
+      thermal: 0,
+    })
+  }, [chartRange, dailyUtilityRevenue, utilityRevenue, yearlyUtilityRevenue])
 
   const rangedUtilityPie = useMemo(() => {
     const totals = rangedUtilityRevenue.reduce((acc, row) => ({
@@ -317,20 +580,160 @@ export default function FinanceDashboard() {
     ]
   }, [rangedUtilityRevenue])
 
+  const rangedUtilityMeters = useMemo(() => {
+    const totals = rangedUtilityRevenue.reduce((acc, row) => ({
+      electricity: acc.electricity + Number(row.electricity || 0),
+      water: acc.water + Number(row.water || 0),
+      thermal: acc.thermal + Number(row.thermal || 0),
+    }), { electricity: 0, water: 0, thermal: 0 })
+
+    return {
+      electric: buildUtilityCardMetric({
+        type: 'electricity',
+        usage: totals.electricity,
+        unit: 'kWh',
+        fallbackEstimatedCost: totals.electricity,
+        rates: billingRates,
+        trend: computeRangeTrend(rangedUtilityRevenue, 'electricity'),
+      }),
+      water: buildUtilityCardMetric({
+        type: 'water',
+        usage: totals.water,
+        unit: 'm3',
+        fallbackEstimatedCost: totals.water,
+        rates: billingRates,
+        trend: computeRangeTrend(rangedUtilityRevenue, 'water'),
+      }),
+      thermal: buildUtilityCardMetric({
+        type: 'thermal',
+        usage: totals.thermal,
+        unit: 'kBTU',
+        fallbackEstimatedCost: totals.thermal,
+        rates: billingRates,
+        trend: computeRangeTrend(rangedUtilityRevenue, 'thermal'),
+      }),
+    }
+  }, [billingRates, rangedUtilityRevenue])
+
+  const revenueTrendMeta = useMemo(() => {
+    const totals = rangedMonthlyRevenue.reduce((acc, row) => ({
+      revenue: acc.revenue + Number(row.revenue || 0),
+      collected: acc.collected + Number(row.collected || 0),
+      outstanding: acc.outstanding + Number(row.outstanding || 0),
+    }), { revenue: 0, collected: 0, outstanding: 0 })
+    const target = rangedMonthlyRevenue.length > 0 ? totals.revenue / rangedMonthlyRevenue.length : 0
+    const collectionRate = totals.revenue > 0
+      ? Number(((totals.collected / totals.revenue) * 100).toFixed(1))
+      : 0
+
+    return {
+      ...totals,
+      target,
+      collectionRate,
+      billedTrend: computeRangeTrend(rangedMonthlyRevenue, 'revenue'),
+      collectedTrend: computeRangeTrend(rangedMonthlyRevenue, 'collected'),
+      outstandingTrend: computeRangeTrend(rangedMonthlyRevenue, 'outstanding'),
+    }
+  }, [rangedMonthlyRevenue])
+
+  const activeRangeKeys = useMemo(() => buildActiveKeySet(rangedMonthlyRevenue), [rangedMonthlyRevenue])
+
+  const scopedBills = useMemo(() => {
+    // If no range keys are available (data still loading or no bills), show all bills
+    if (activeRangeKeys.size === 0) return bills
+
+    return bills.filter((bill) => {
+      const key = chartRange === '1D'
+        ? bill.dayKey
+        : chartRange === '1Y'
+          ? bill.yearKey
+          : bill.monthKey
+
+      return activeRangeKeys.has(String(key ?? '').trim())
+    })
+  }, [activeRangeKeys, bills, chartRange])
+
+  const scopedPayments = useMemo(() => {
+    // If no range keys are available (data still loading or no payments), show all payments
+    if (activeRangeKeys.size === 0) return payments
+
+    return payments.filter((payment) => {
+      const key = chartRange === '1D'
+        ? payment.dayKey
+        : chartRange === '1Y'
+          ? payment.yearKey
+          : payment.monthKey
+
+      return activeRangeKeys.has(String(key ?? '').trim())
+    })
+  }, [activeRangeKeys, chartRange, payments])
+
   const filteredTransactions = useMemo(() => {
     const query = transactionSearch.trim().toLowerCase()
 
     return recentTransactions.filter((row) => {
+      const rangeKey = chartRange === '1D'
+        ? row.dayKey
+        : chartRange === '1Y'
+          ? row.yearKey
+          : row.monthKey
       const matchesStatus = transactionStatus === 'all' || row.status.toLowerCase() === transactionStatus
+      const matchesRange = activeRangeKeys.size === 0 || activeRangeKeys.has(String(rangeKey ?? '').trim())
       const haystack = [row.id, row.tenant, row.unit, row.utility, row.date]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
       const matchesSearch = !query || haystack.includes(query)
 
-      return matchesStatus && matchesSearch
+      return matchesStatus && matchesRange && matchesSearch
     })
-  }, [recentTransactions, transactionSearch, transactionStatus])
+  }, [activeRangeKeys, chartRange, recentTransactions, transactionSearch, transactionStatus])
+
+  const billingStatusData = useMemo(() => {
+    const counts = scopedBills.reduce((acc, bill) => {
+      const status = String(bill?.status || '').toLowerCase()
+      if (status === 'paid') acc.paid += 1
+      else if (status === 'partial') acc.partial += 1
+      else if (status === 'payment_submitted' || status === 'submitted') acc.submitted += 1
+      else if (status === 'overdue') acc.overdue += 1
+      else if (['published', 'unpaid', 'pending', 'draft'].includes(status)) acc.open += 1
+      return acc
+    }, {
+      paid: 0,
+      partial: 0,
+      submitted: 0,
+      overdue: 0,
+      open: 0,
+    })
+
+    return [
+      { name: 'Paid', value: counts.paid, color: '#10b981' },
+      { name: 'Partial', value: counts.partial, color: '#3b82f6' },
+      { name: 'Submitted', value: counts.submitted, color: '#f59e0b' },
+      { name: 'Overdue', value: counts.overdue, color: '#f43f5e' },
+      { name: 'Open', value: counts.open, color: '#8b5cf6' },
+    ]
+  }, [scopedBills])
+
+  const paymentReviewStatusData = useMemo(() => {
+    const counts = scopedPayments.reduce((acc, payment) => {
+      const status = String(payment?.status || '').toLowerCase()
+      if (status === 'verified') acc.verified += 1
+      else if (status === 'rejected') acc.rejected += 1
+      else acc.pending += 1
+      return acc
+    }, {
+      pending: 0,
+      verified: 0,
+      rejected: 0,
+    })
+
+    return [
+      { name: 'Pending', value: counts.pending, color: '#f59e0b' },
+      { name: 'Verified', value: counts.verified, color: '#10b981' },
+      { name: 'Rejected', value: counts.rejected, color: '#ef4444' },
+    ]
+  }, [scopedPayments])
 
   const loadingState = (pageLoading && bills.length === 0 && payments.length === 0) || (loading && bills.length === 0 && payments.length === 0 && !error)
   if (loadingState) return <FinanceDashboardSkeleton />
@@ -356,9 +759,12 @@ export default function FinanceDashboard() {
         subtitle="Revenue analytics, billing insights and financial performance"
         icon={BarChart3}
         actions={(
-          <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
-            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            <FilterPills options={FINANCE_FILTER_OPTIONS} value={chartRange} onChange={setChartRange} />
+            <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
+              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
+            </div>
           </div>
         )}
       />
@@ -370,9 +776,9 @@ export default function FinanceDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 mb-4">
-        <UtilityCard type="electric" {...utilityMeters.electric} />
-        <UtilityCard type="thermal" {...utilityMeters.thermal} />
-        <UtilityCard type="water" {...utilityMeters.water} />
+        <UtilityCard type="electric" {...rangedUtilityMeters.electric} />
+        <UtilityCard type="thermal" {...rangedUtilityMeters.thermal} />
+        <UtilityCard type="water" {...rangedUtilityMeters.water} />
       </div>
 
       <SummaryCardStrip
@@ -383,48 +789,120 @@ export default function FinanceDashboard() {
       />
 
       <ChartCard
-      className="mb-4"
-        title="Monthly Revenue Trend"
-        subtitle="Total generated bill value per month"
+        className="mb-4"
+        title="Revenue Trend"
+        exportable
+        exportRows={rangedMonthlyRevenue}
+        subtitle={
+          chartRange === '1D'
+            ? 'Billed vs collected by day, with remaining collection gap'
+            : chartRange === '1Y'
+              ? 'Billed vs collected by year, with remaining collection gap'
+              : 'Billed vs collected by month, with remaining collection gap'
+        }
         action={<Activity className="w-4 h-4 text-blue-500" />}
-        badge={<span className="flex items-center gap-3 text-[11px]"><span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400"><span className="inline-block h-1.5 w-3 rounded-full bg-blue-500" />Revenue</span></span>}
+        badge={(
+          <span className="flex items-center gap-3 text-[11px]">
+            <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+              <span className="inline-block h-1.5 w-3 rounded-full bg-blue-500" />
+              Billed
+            </span>
+            <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+              <span className="inline-block h-1.5 w-3 rounded-full bg-emerald-500" />
+              Collected
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+              <span className="inline-block h-1.5 w-3 rounded-full bg-amber-500" />
+              Gap
+            </span>
+          </span>
+        )}
         badgeCls=""
       >
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {['3M', '6M', '12M'].map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setChartRange(option)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                chartRange === option
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'
-              }`}
-            >
-              {option}
-            </button>
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            {
+              label: 'Billed',
+              value: fmt(revenueTrendMeta.revenue),
+              note: `${revenueTrendMeta.billedTrend >= 0 ? '+' : ''}${revenueTrendMeta.billedTrend}% vs previous`,
+              tone: 'text-blue-600 dark:text-blue-400',
+              bg: 'bg-blue-50 dark:bg-blue-900/20',
+            },
+            {
+              label: 'Collected',
+              value: fmt(revenueTrendMeta.collected),
+              note: `${revenueTrendMeta.collectedTrend >= 0 ? '+' : ''}${revenueTrendMeta.collectedTrend}% vs previous`,
+              tone: 'text-emerald-600 dark:text-emerald-400',
+              bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+            },
+            {
+              label: 'Collection Gap',
+              value: fmt(revenueTrendMeta.outstanding),
+              note: `${revenueTrendMeta.outstandingTrend >= 0 ? '+' : ''}${revenueTrendMeta.outstandingTrend}% vs previous`,
+              tone: 'text-amber-600 dark:text-amber-400',
+              bg: 'bg-amber-50 dark:bg-amber-900/20',
+            },
+            {
+              label: 'Collection Rate',
+              value: `${revenueTrendMeta.collectionRate}%`,
+              note: `Avg billed target ${fmt(revenueTrendMeta.target)}`,
+              tone: 'text-violet-600 dark:text-violet-400',
+              bg: 'bg-violet-50 dark:bg-violet-900/20',
+            },
+          ].map(({ label, value, note, tone, bg }) => (
+            <div key={label} className={`rounded-xl px-4 py-3 ${bg}`}>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{label}</p>
+              <p className={`mt-1 text-sm font-bold ${tone}`}>{value}</p>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{note}</p>
+            </div>
           ))}
         </div>
         <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={rangedMonthlyRevenue} margin={CHART_MARGIN_STANDARD}>
+          <ComposedChart data={rangedMonthlyRevenue} margin={CHART_MARGIN_STANDARD}>
             <defs>
               <linearGradient id="gradRev" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
                 <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="gradCollected" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.18} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
             <XAxis dataKey="month" tick={CHART_AXIS_TICK_SM} />
             <YAxis tick={CHART_AXIS_TICK_SM} tickFormatter={formatCompactChartCurrency} />
             <Tooltip content={<ThemedChartTooltip formatter={(value, name) => [formatChartCurrency(value), name]} />} />
-            <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradRev)" dot={false} name="Revenue" />
-          </AreaChart>
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <ReferenceLine
+              y={revenueTrendMeta.target}
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+              ifOverflow="extendDomain"
+              label={{ value: 'Avg target', position: 'insideTopRight', fill: '#94a3b8', fontSize: 11 }}
+            />
+            <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} name="Billed" barSize={24} />
+            <Area type="monotone" dataKey="collected" stroke="#10b981" strokeWidth={2.5} fill="url(#gradCollected)" dot={false} name="Collected" />
+            <Line type="monotone" dataKey="outstanding" stroke="#f59e0b" strokeWidth={2} dot={false} name="Collection Gap" />
+          </ComposedChart>
         </ResponsiveContainer>
       </ChartCard>
 
       <div className="grid gap-4 lg:grid-cols-5 mb-4">
-        <ChartCard className="lg:col-span-3" title="Utility Revenue Breakdown" subtitle="Monthly income by utility type" action={<BarChart3 className="w-4 h-4 text-slate-400" />}>
+        <ChartCard
+          className="lg:col-span-3"
+          title="Utility Revenue Breakdown"
+          exportable
+          exportRows={rangedUtilityRevenue}
+          subtitle={
+            chartRange === '1D'
+              ? 'Daily income by utility type'
+              : chartRange === '1Y'
+                ? 'Yearly income by utility type'
+                : 'Monthly income by utility type'
+          }
+          action={<BarChart3 className="w-4 h-4 text-slate-400" />}
+        >
           <div className="mb-4 grid grid-cols-3 gap-2">
             {[
               { label: 'Electricity', value: totalElec, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', icon: Zap },
@@ -452,7 +930,7 @@ export default function FinanceDashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard className="lg:col-span-2 " title="Revenue Distribution" subtitle="Utility contribution percentage" action={<PieIcon className="w-4 h-4 text-slate-400" />}>
+        <ChartCard className="lg:col-span-2 " title="Revenue Distribution" subtitle="Utility contribution percentage" action={<PieIcon className="w-4 h-4 text-slate-400" />} exportable exportRows={rangedUtilityPie}>
           <div className="flex flex-1 flex-col items-center justify-center">
             <ResponsiveContainer width="100%" height={190}>
               <PieChart>
@@ -479,6 +957,49 @@ export default function FinanceDashboard() {
               ))}
             </div>
           </div>
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 mb-4">
+        <ChartCard
+          className="overflow-visible"
+          title="Billing Status"
+          exportable
+          exportRows={billingStatusData}
+          subtitle="Current receivables and settlement distribution"
+          action={<FileText className="w-4 h-4 text-slate-400" />}
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={billingStatusData} layout="vertical" margin={CHART_MARGIN_STANDARD}>
+              <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
+              <XAxis type="number" tick={CHART_AXIS_TICK} allowDecimals={false} />
+              <YAxis dataKey="name" type="category" tick={CHART_AXIS_TICK} width={90} />
+              <Tooltip allowEscapeViewBox={{ x: false, y: false }} reverseDirection={{ x: true, y: false }} content={<ThemedChartTooltip constrainToViewBox formatter={(value, name) => [formatChartNumber(value), name]} />} />
+              <Bar dataKey="value" radius={[0, 8, 8, 0]} name="Bills">
+                {billingStatusData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard
+          title="Payment Review Status"
+          exportable
+          exportRows={paymentReviewStatusData}
+          subtitle="Receipt review workload and outcomes"
+          action={<CreditCard className="w-4 h-4 text-slate-400" />}
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={paymentReviewStatusData} margin={CHART_MARGIN_STANDARD}>
+              <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
+              <XAxis dataKey="name" tick={CHART_AXIS_TICK} />
+              <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} />
+              <Tooltip content={<ThemedChartTooltip formatter={(value, name) => [formatChartNumber(value), name]} />} />
+              <Bar dataKey="value" radius={[8, 8, 0, 0]} name="Payments">
+                {paymentReviewStatusData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </ChartCard>
       </div>
 

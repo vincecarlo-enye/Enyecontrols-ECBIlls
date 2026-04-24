@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Zap, Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-
-
+import GridBackground from '@/components/common/GridBackground'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -46,12 +45,13 @@ export default function LoginPage() {
     setLoading(false)
   }
 
-
   const fillDemo = (d) => { setEmail(d.email); setPassword(d.password); setError('') }
 
   return (
-    <div className="min-h-screen mesh-bg dark:bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center overflow-hidden p-4">
+      <GridBackground />
+
+      <div className="relative z-10 w-full max-w-md">
 
         {/* Brand */}
         <div className="text-center mb-8">

@@ -1,3 +1,4 @@
+import { unwrapPayload } from '@/utils/apiUtils'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   approveFacilityReading,
@@ -6,12 +7,14 @@ import {
   fetchFacilityMonitoring,
   rejectFacilityReading,
 } from '@/services/facilityService/facilityMonitoringService'
+import { DASHBOARD_READ_REFRESH_MS } from '@/constants/liveData'
 
 const EMPTY_ANOMALY = {
   title: 'No anomaly detected',
   message: 'No recent floor usage data is available yet.',
   severity: 'normal',
 }
+
 
 export function useFacilityMonitoring() {
   const [liveData, setLiveData] = useState([])
@@ -37,7 +40,7 @@ export function useFacilityMonitoring() {
 
     try {
       const response = await fetchFacilityMonitoring()
-      const data = response?.data || {}
+      const data = unwrapPayload(response)
 
       setLiveData(Array.isArray(data.live_data) ? data.live_data : [])
       setCurrentLoad(Number(data.current_load || 0))
@@ -72,7 +75,7 @@ export function useFacilityMonitoring() {
   useEffect(() => {
     const timer = setInterval(() => {
       loadMonitoring({ silent: true })
-    }, 30000)
+    }, DASHBOARD_READ_REFRESH_MS)
 
     return () => clearInterval(timer)
   }, [loadMonitoring])

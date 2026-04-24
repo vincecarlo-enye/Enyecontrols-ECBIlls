@@ -50,8 +50,30 @@ export const ThemedChartTooltip = memo(function ThemedChartTooltip({
   label,
   formatter,
   isDark = false,
+  constrainToViewBox = false,
+  coordinate,
+  viewBox,
+  estimatedWidth = 170,
 }) {
   if (!active || !payload?.length) return null
+
+  let tooltipTransform = undefined
+
+  if (constrainToViewBox && coordinate && viewBox) {
+    const pointerX = Number(coordinate?.x ?? 0)
+    const chartLeft = Number(viewBox?.x ?? 0)
+    const chartRight = chartLeft + Number(viewBox?.width ?? 0)
+    const halfWidth = estimatedWidth / 2
+    const edgePadding = 12
+
+    if (pointerX - halfWidth <= chartLeft + edgePadding) {
+      tooltipTransform = 'translateX(0)'
+    } else if (pointerX + halfWidth >= chartRight - edgePadding) {
+      tooltipTransform = 'translateX(calc(-100% + 12px))'
+    } else {
+      tooltipTransform = 'translateX(-50%)'
+    }
+  }
 
   return (
     <div
@@ -61,6 +83,7 @@ export const ThemedChartTooltip = memo(function ThemedChartTooltip({
           ? 'border-cyan-400/20 bg-slate-950 text-slate-100'
           : 'border-slate-200 bg-white text-slate-900',
       ].join(' ')}
+      style={tooltipTransform ? { transform: tooltipTransform } : undefined}
     >
       {label ? (
         <div className={`mb-1 text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>

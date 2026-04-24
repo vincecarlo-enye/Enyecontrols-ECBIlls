@@ -1,12 +1,17 @@
-import { createPortal } from 'react-dom'
+﻿import { createPortal } from 'react-dom'
 import { X, CheckCircle2, XCircle, Calendar, Hash, FileImage, User, Zap, Droplets, Flame } from 'lucide-react'
 import BillStatusBadge from './BillStatusBadge'
 
-export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, onReject }) {
+export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, onReject, readOnly = false, readOnlyMessage = '' }) {
   if (!isOpen || !bill) return null
 
-  const receipt = bill.receipt
-  if (!receipt) return null
+  const receipt = bill.receipt || {
+    referenceNumber: '-',
+    paymentDate: 'N/A',
+    submittedBy: bill?.tenant || 'Tenant',
+    note: '',
+    receiptImage: '',
+  }
 
   const utilityCls = {
     electricity: 'text-amber-600 dark:text-amber-400',
@@ -17,11 +22,13 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
   const utilityIcons = { electricity: Zap, water: Droplets, thermal: Flame }
 
   const handleApprove = async () => {
+    if (readOnly || typeof onApprove !== 'function') return
     const result = await onApprove(bill.paymentId || bill.id)
     if (result?.success) onClose()
   }
 
   const handleReject = async () => {
+    if (readOnly || typeof onReject !== 'function') return
     const result = await onReject(bill.paymentId || bill.id)
     if (result?.success) onClose()
   }
@@ -29,7 +36,7 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ maxHeight: '90svh' }}>
+      <div className="relative flex h-[90svh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-indigo-600 to-blue-500">
           <div>
             <h2 className="text-white font-semibold text-sm">Payment Review</h2>
@@ -40,13 +47,13 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
           </button>
         </div>
 
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(90svh - 140px)' }}>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div className="p-6 space-y-5">
             <div className="flex items-start gap-3 flex-wrap">
               <BillStatusBadge status={bill.status} />
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-white">{bill.tenant}</p>
-                <p className="text-xs text-slate-400">Unit {bill.unit} � {bill.month}</p>
+                <p className="text-xs text-slate-400">Unit {bill.unit} · {bill.month}</p>
               </div>
             </div>
 
@@ -104,6 +111,11 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
                   </div>
                 )}
               </div>
+              {!bill.receipt && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                  Receipt details are not available for this payment yet.
+                </p>
+              )}
             </div>
 
             <div>
@@ -111,8 +123,8 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
                 <FileImage className="w-3 h-3" /> Receipt Image
               </p>
               {receipt.receiptImage ? (
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800">
-                  <img src={receipt.receiptImage} alt="Payment receipt" className="w-full max-h-64 object-contain p-2" />
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 p-2 dark:bg-slate-800">
+                  <img src={receipt.receiptImage} alt="Payment receipt" className="block h-auto w-full rounded-lg object-contain" />
                 </div>
               ) : (
                 <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-8 text-center">
@@ -124,19 +136,27 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
           </div>
         </div>
 
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
-          <button
-            onClick={handleReject}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-all"
-          >
-            <XCircle className="w-4 h-4" /> Reject Payment
-          </button>
-          <button
-            onClick={handleApprove}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/25 transition-all"
-          >
-            <CheckCircle2 className="w-4 h-4" /> Approve Payment
-          </button>
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+          {readOnly ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+              {readOnlyMessage || 'This payment submission is view-only on this page. Finance handles approval and rejection.'}
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <button
+                onClick={handleReject}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-all"
+              >
+                <XCircle className="w-4 h-4" /> Reject Payment
+              </button>
+              <button
+                onClick={handleApprove}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/25 transition-all"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Approve Payment
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>,

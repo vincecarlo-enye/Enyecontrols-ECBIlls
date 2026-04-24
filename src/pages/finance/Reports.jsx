@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -8,9 +9,10 @@ import {
 } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
-import api from '@/lib/api'
+import { fetchFinanceBills, fetchFinancePayments } from '@/services/financeService/financeBillService'
 import PageActionBar from '@/components/common/PageActionBar'
-import { downloadCsv, printElement } from '@/utils/reporting'
+import ChartExportButton from '@/components/common/ChartExportButton'
+import { exportTableCsv, printElement } from '@/utils/reporting'
 
 const TOOLTIP_STYLE = {
   borderRadius: 12,
@@ -47,18 +49,6 @@ function formatMonthKey(value) {
   return String(value)
 }
 
-function formatDate(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (!Number.isNaN(date.getTime())) {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-  return String(value)
-}
 
 function normalizeBill(row = {}) {
   const items = Array.isArray(row?.items) ? row.items : []
@@ -136,12 +126,12 @@ export default function FinanceReports() {
         setLoading(true)
         setError('')
         const [billsRes, paymentsRes] = await Promise.all([
-          api.get('/api/finance/bills'),
-          api.get('/api/finance/payments'),
+          fetchFinanceBills(),
+          fetchFinancePayments(),
         ])
 
-        setBills((Array.isArray(billsRes?.data?.data) ? billsRes.data.data : []).map(normalizeBill))
-        setPayments((Array.isArray(paymentsRes?.data?.data) ? paymentsRes.data.data : []).map(normalizePayment))
+        setBills((Array.isArray(billsRes?.data) ? billsRes.data : []).map(normalizeBill))
+        setPayments((Array.isArray(paymentsRes?.data) ? paymentsRes.data : []).map(normalizePayment))
       } catch (err) {
         setBills([])
         setPayments([])
@@ -296,7 +286,7 @@ export default function FinanceReports() {
   }
 
   const handleExport = () => {
-    downloadCsv(`finance-reports-${range.toLowerCase()}.csv`, filteredTransactions.map((row) => ({
+    exportTableCsv(`finance-reports-${range.toLowerCase()}.csv`, filteredTransactions.map((row) => ({
       invoice_id: row.id,
       tenant: row.tenant,
       unit: row.unit,
@@ -380,7 +370,7 @@ export default function FinanceReports() {
         ))}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+      <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
           <div>
             <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white flex items-center gap-2">
@@ -389,6 +379,7 @@ export default function FinanceReports() {
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">Revenue, collected payments and expenses</p>
           </div>
+          <ChartExportButton title="Monthly Revenue Report" rows={rangedMonthly} />
         </div>
           <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={rangedMonthly} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
@@ -414,13 +405,16 @@ export default function FinanceReports() {
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
-          <div className="mb-4">
-            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-slate-400" />
-              Utility Revenue Breakdown
-            </h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">Monthly revenue by utility type</p>
+        <div data-chart-export-panel="true" className="lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-slate-400" />
+                Utility Revenue Breakdown
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">Monthly revenue by utility type</p>
+            </div>
+            <ChartExportButton title="Utility Revenue Breakdown" rows={rangedUtilityByMonth} />
           </div>
           <div className="grid grid-cols-3 gap-2 mb-4">
             {[
@@ -449,10 +443,13 @@ export default function FinanceReports() {
           </ResponsiveContainer>
         </div>
 
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm flex flex-col">
-          <div className="mb-4">
-            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Revenue Distribution</h2>
-            <p className="text-[11px] text-slate-400 mt-0.5">Utility contribution %</p>
+        <div data-chart-export-panel="true" className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm flex flex-col">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Revenue Distribution</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">Utility contribution %</p>
+            </div>
+            <ChartExportButton title="Revenue Distribution" rows={rangedUtilityPie} />
           </div>
           <div className="flex-1 flex flex-col items-center justify-center">
             <ResponsiveContainer width="100%" height={160}>
@@ -642,5 +639,3 @@ export default function FinanceReports() {
     </div>
   )
 }
-
-

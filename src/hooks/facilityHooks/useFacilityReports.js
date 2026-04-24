@@ -1,5 +1,7 @@
+import { unwrapPayload } from '@/utils/apiUtils'
 import { useCallback, useEffect, useState } from 'react'
 import { fetchFacilityReports } from '@/services/facilityService/facilityReportsService'
+
 
 export function useFacilityReports() {
   const [reportTypes, setReportTypes] = useState([])
@@ -24,7 +26,7 @@ export function useFacilityReports() {
 
     try {
       const response = await fetchFacilityReports()
-      const data = response?.data || {}
+      const data = unwrapPayload(response)
       setReportTypes(Array.isArray(data.report_types) ? data.report_types : [])
       setDailyEnergy(Array.isArray(data.daily_energy) ? data.daily_energy : [])
       setMonthlyWater(Array.isArray(data.monthly_water) ? data.monthly_water : [])

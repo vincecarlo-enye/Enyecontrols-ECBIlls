@@ -1,13 +1,16 @@
+import { formatNumber } from '@/utils/filterUtils'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Activity, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock, Calculator, Download, Search } from 'lucide-react'
+import { Activity, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock, Calculator, Download, Printer, Search } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
+import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityMonitoring } from '@/hooks/facilityHooks/useFacilityMonitoring'
 import { useApp } from '@/context/AppContext'
+import { printElement } from '@/utils/reporting'
 
 const statusColor = {
   normal: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -31,7 +34,18 @@ const utilityLabel = {
 const utilityUnit = {
   electricity: 'kWh',
   water: 'm3',
-  thermal: 'kBTU/h',
+  thermal: 'kBTU',
+}
+
+const utilityLineColor = {
+  electricity: '#f59e0b',
+  water: '#06b6d4',
+  thermal: '#f43f5e',
+}
+
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
 }
 
 function formatUpdatedAt(value) {
@@ -66,12 +80,90 @@ function formatStatus(status) {
   return String(status || 'unknown').replaceAll('_', ' ')
 }
 
-function formatNumber(value, fractionDigits = 2) {
-  return Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: fractionDigits,
+function formatTrendTime(value, index) {
+  if (!value) return `Point ${index + 1}`
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(11, 16) || String(value)
+  }
+
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
   })
 }
+
+function normalizeLiveTrendRows(rows = []) {
+  return rows.map((row, index) => ({
+    time:
+      row?.time ??
+      row?.label ??
+      formatTrendTime(row?.recorded_at ?? row?.timestamp ?? row?.datetime, index),
+    electricity: toNumber(row?.electricity ?? row?.electric ?? row?.elec),
+    water: toNumber(row?.water),
+    thermal: toNumber(row?.thermal),
+  }))
+}
+
+function buildLiveTrendFromUtilityMaps(source = {}, labelKey = 'time') {
+  const electricityRows = Array.isArray(source?.electricity) ? source.electricity : (Array.isArray(source?.electric) ? source.electric : [])
+  const waterRows = Array.isArray(source?.water) ? source.water : []
+  const thermalRows = Array.isArray(source?.thermal) ? source.thermal : []
+  const maxLength = Math.max(electricityRows.length, waterRows.length, thermalRows.length)
+
+  return Array.from({ length: maxLength }).map((_, index) => ({
+    time:
+      electricityRows[index]?.[labelKey] ??
+      electricityRows[index]?.label ??
+      waterRows[index]?.[labelKey] ??
+      waterRows[index]?.label ??
+      thermalRows[index]?.[labelKey] ??
+      thermalRows[index]?.label ??
+      `Point ${index + 1}`,
+    electricity: toNumber(electricityRows[index]?.usage ?? electricityRows[index]?.value ?? electricityRows[index]?.total),
+    water: toNumber(waterRows[index]?.usage ?? waterRows[index]?.value ?? waterRows[index]?.total),
+    thermal: toNumber(thermalRows[index]?.usage ?? thermalRows[index]?.value ?? thermalRows[index]?.total),
+  }))
+}
+
+function buildLiveTrendFromReadingRows(rows = []) {
+  const grouped = new Map()
+
+  rows.forEach((reading) => {
+    const type = String(reading?.type || '').toLowerCase()
+    if (!['electricity', 'water', 'thermal'].includes(type)) return
+
+    const recordedAt = reading?.recorded_at ?? reading?.timestamp ?? reading?.datetime
+    const bucketKey = String(recordedAt || '').slice(0, 16) || String(reading?.id || '')
+    if (!bucketKey) return
+
+    if (!grouped.has(bucketKey)) {
+      grouped.set(bucketKey, {
+        sortKey: recordedAt || bucketKey,
+        time: formatTrendTime(recordedAt, grouped.size),
+        electricity: 0,
+        water: 0,
+        thermal: 0,
+      })
+    }
+
+    const bucket = grouped.get(bucketKey)
+    bucket[type] += toNumber(
+      reading?.usage_value ??
+      reading?.manual_usage_delta ??
+      reading?.latest_usage ??
+      reading?.value
+    )
+  })
+
+  return Array.from(grouped.values())
+    .sort((a, b) => new Date(a.sortKey || 0) - new Date(b.sortKey || 0))
+    .slice(-12)
+    .map(({ sortKey, ...row }) => row)
+}
+
+
 
 function csvEscape(value) {
   const text = String(value ?? '')
@@ -113,6 +205,7 @@ function renderUtilityCell(entry) {
 export default function Monitoring() {
   const pageLoading = usePageLoader(700)
   const { addToast } = useApp()
+  const auditPrintRef = useRef(null)
   const {
     liveData,
     currentLoad,
@@ -142,6 +235,39 @@ export default function Monitoring() {
 
   const loadingState = (pageLoading && liveData.length === 0 && floorData.length === 0 && pendingReadings.length === 0 && actualReadings.length === 0)
     || (loading && liveData.length === 0 && floorData.length === 0 && pendingReadings.length === 0 && actualReadings.length === 0 && !error)
+  const liveUsageTrend = useMemo(() => {
+    if (Array.isArray(liveData) && liveData.length > 0) {
+      const firstRow = liveData[0] || {}
+
+      if (
+        'electricity' in firstRow ||
+        'electric' in firstRow ||
+        'water' in firstRow ||
+        'thermal' in firstRow
+      ) {
+        return normalizeLiveTrendRows(liveData)
+      }
+
+      const groupedByType = liveData.reduce((acc, row) => {
+        const type = String(row?.type || row?.utility || row?.name || '').toLowerCase()
+        if (['electricity', 'electric'].includes(type)) acc.electricity.push(row)
+        if (type === 'water') acc.water.push(row)
+        if (type === 'thermal') acc.thermal.push(row)
+        return acc
+      }, { electricity: [], water: [], thermal: [] })
+
+      if (groupedByType.electricity.length || groupedByType.water.length || groupedByType.thermal.length) {
+        return buildLiveTrendFromUtilityMaps(groupedByType)
+      }
+    }
+
+    return buildLiveTrendFromReadingRows(actualReadings)
+  }, [actualReadings, liveData])
+  const latestTrendPoint = liveUsageTrend[liveUsageTrend.length - 1] || {
+    electricity: 0,
+    water: 0,
+    thermal: 0,
+  }
   const average = useMemo(() => {
     if (!floorData.length) return 0
     return floorData.reduce((sum, row) => sum + Number(row?.[selected] || 0), 0) / floorData.length
@@ -378,6 +504,15 @@ export default function Monitoring() {
     URL.revokeObjectURL(url)
   }
 
+  const handlePrintAudit = () => {
+    printElement({
+      title: 'Facility Reading Audit Trail',
+      subtitle: 'Filtered grouped meter reading audit',
+      element: auditPrintRef.current,
+      mode: 'full',
+    })
+  }
+
   if (loadingState) return <FacilityPageSkeleton />
 
   return (
@@ -423,25 +558,34 @@ export default function Monitoring() {
         ))}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+      <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="font-semibold text-slate-800 dark:text-white">Live Usage Trend</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Relative usage activity index based on today's readings</p>
+            <p className="text-xs text-slate-400 mt-0.5">Live Omni-backed utility usage for electricity, water, and thermal</p>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-400">Current Index:</span>
-            <span className="font-bold text-slate-800 dark:text-white">{Math.round(currentLoad)}%</span>
-            {trend > 0 ? <TrendingUp className="w-4 h-4 text-rose-500" /> : <TrendingDown className="w-4 h-4 text-emerald-500" />}
+          <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
+            <ChartExportButton title="Live Usage Trend" rows={liveUsageTrend} />
+            {['electricity', 'water', 'thermal'].map((utility) => (
+              <div key={utility} className="flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: utilityLineColor[utility] }} />
+                <span className="text-slate-500 dark:text-slate-400">{utilityLabel[utility]}</span>
+                <span className="font-semibold text-slate-800 dark:text-white">
+                  {formatNumber(latestTrendPoint[utility])} {utilityUnit[utility]}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
         <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={liveData}>
+          <LineChart data={liveUsageTrend}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
             <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} unit="%" />
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
             <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-            <Line type="monotone" dataKey="load" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3 }} name="Usage Index %" />
+            <Line type="monotone" dataKey="electricity" stroke={utilityLineColor.electricity} strokeWidth={2.5} dot={{ r: 3 }} name={`Electricity (${utilityUnit.electricity})`} />
+            <Line type="monotone" dataKey="water" stroke={utilityLineColor.water} strokeWidth={2.5} dot={{ r: 3 }} name={`Water (${utilityUnit.water})`} />
+            <Line type="monotone" dataKey="thermal" stroke={utilityLineColor.thermal} strokeWidth={2.5} dot={{ r: 3 }} name={`Thermal (${utilityUnit.thermal})`} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -521,7 +665,7 @@ export default function Monitoring() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
+      <div ref={auditPrintRef} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-200/70 dark:border-slate-700/50 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-semibold text-slate-800 dark:text-white">Actual Reading Audit Trail</h2>
@@ -538,7 +682,8 @@ export default function Monitoring() {
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
-            <button type="button" onClick={handleExportCsv} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"><Download className="w-4 h-4" /> Export CSV</button>
+            <button type="button" onClick={handlePrintAudit} aria-label="Print monitoring audit" title="Print monitoring audit" className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span></button>
+            <button type="button" onClick={handleExportCsv} aria-label="Export monitoring audit as CSV" title="Export monitoring audit as CSV" className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"><Download className="w-4 h-4" /> <span className="hidden sm:inline">Export CSV</span></button>
           </div>
         </div>
         <div className="px-5 py-3 bg-blue-50/70 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-b border-slate-200/70 dark:border-slate-700/50 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -640,5 +785,3 @@ export default function Monitoring() {
     </div>
   )
 }
-
-

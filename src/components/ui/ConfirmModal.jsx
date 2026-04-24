@@ -14,7 +14,7 @@ export default function ConfirmModal({ isOpen, title, message, confirmLabel = 'C
   if (!isOpen) return null
 
 return createPortal(
-  <div className="fixed inset-0 z-[100] flex items-center justify-center">
+  <div className="fixed inset-0 z-[520] flex items-center justify-center px-4">
     {/* Backdrop */}
     <div
       className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fadeInBg"

@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchAdminAnomalies,
+  getAdminAnomaliesSnapshot,
   updateAdminAnomaly,
 } from '@/services/adminService/adminAnomalyService'
 
 export function useAdminAnomalies() {
-  const [anomalies, setAnomalies] = useState([])
-  const [loading, setLoading] = useState(true)
+  const initialSnapshot = getAdminAnomaliesSnapshot()
+  const hasInitialSnapshot = initialSnapshot != null
+  const initialAnomalies = Array.isArray(initialSnapshot?.data) ? initialSnapshot.data : []
+  const [anomalies, setAnomalies] = useState(initialAnomalies)
+  const [loading, setLoading] = useState(!hasInitialSnapshot)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const loadAnomalies = useCallback(async () => {
-    setLoading(true)
+    setLoading((current) => current || !hasInitialSnapshot)
     setError('')
     try {
       const listRes = await fetchAdminAnomalies()
@@ -22,7 +26,7 @@ export function useAdminAnomalies() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [hasInitialSnapshot])
 
   useEffect(() => {
     loadAnomalies()

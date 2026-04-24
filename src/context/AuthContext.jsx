@@ -1,109 +1,162 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { can, canModifyUser } from '@/permissions'
-import INITIAL_MOCK_USERS from '@/data/users.json'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import api from '../lib/api'
+import { buildCacheKey, getCachedResource, invalidateCache } from '@/lib/requestCache'
 
 const AuthContext = createContext()
+let restoreUserPromise = null
+let restoreUserToken = null
+const AUTH_USER_CACHE_PREFIX = 'auth:user'
+const AUTH_USER_STORAGE_KEY = 'sb_auth_user'
+const AUTH_TOKEN_STORAGE_KEY = 'auth_token'
+const AUTH_USER_REFRESHED_AT_KEY = 'sb_auth_user_refreshed_at'
+const AUTH_USER_TTL = 300000
 
-function getInitials(name = '') {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
+function readStoredUser() {
+  try {
+    const saved = localStorage.getItem(AUTH_USER_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : null
+  } catch {
+    return null
+  }
+}
+
+function isStoredUserFresh() {
+  try {
+    const refreshedAt = Number(localStorage.getItem(AUTH_USER_REFRESHED_AT_KEY) || 0)
+    return refreshedAt > 0 && Date.now() - refreshedAt < AUTH_USER_TTL
+  } catch {
+    return false
+  }
+}
+
+function fetchRestoredUser(savedToken) {
+  if (restoreUserPromise && restoreUserToken === savedToken) {
+    return restoreUserPromise
+  }
+
+  restoreUserToken = savedToken
+  restoreUserPromise = getCachedResource(
+    buildCacheKey(AUTH_USER_CACHE_PREFIX, { token: savedToken }),
+    async () => {
+      const response = await api.get('/api/user')
+      return response.data
+    },
+    {
+      ttl: AUTH_USER_TTL,
+      persist: true,
+    }
+  )
+    .finally(() => {
+      window.setTimeout(() => {
+        if (restoreUserToken === savedToken) {
+          restoreUserPromise = null
+          restoreUserToken = null
+        }
+      }, 1000)
+    })
+
+  return restoreUserPromise
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try {
-      const s = localStorage.getItem('sb_auth_user')
-      return s ? JSON.parse(s) : null
-    } catch {
-      return null
-    }
-  })
-
-  const [users, setUsers] = useState(() => {
-    try {
-      const s = localStorage.getItem('sb_users_list')
-      return s ? JSON.parse(s) : INITIAL_MOCK_USERS
-    } catch {
-      return INITIAL_MOCK_USERS
-    }
-  })
-
-  const [token, setToken] = useState(() => localStorage.getItem('auth_token'))
-  const [loading, setLoading] = useState(() => !user && !!localStorage.getItem('auth_token'))
+  const [user, setUser] = useState(() => readStoredUser())
+  const [token, setToken] = useState(() => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
+  const [loading, setLoading] = useState(() => !user && !!localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem('sb_auth_user', JSON.stringify(user))
+      localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user))
+      localStorage.setItem(AUTH_USER_REFRESHED_AT_KEY, String(Date.now()))
     } else {
-      localStorage.removeItem('sb_auth_user')
+      localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+      localStorage.removeItem(AUTH_USER_REFRESHED_AT_KEY)
     }
   }, [user])
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('auth_token', token)
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token)
       api.defaults.headers.common.Authorization = `Bearer ${token}`
-    } else {
-      localStorage.removeItem('auth_token')
-      delete api.defaults.headers.common.Authorization
+      return
     }
+
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+    delete api.defaults.headers.common.Authorization
   }, [token])
 
   useEffect(() => {
+    let cancelled = false
+
     const restoreAuth = async () => {
-      const savedToken = localStorage.getItem('auth_token')
-      const savedUser = localStorage.getItem('sb_auth_user')
+      const savedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+      const savedUser = readStoredUser()
 
       if (!savedToken) {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
         return
       }
 
       if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser)
-          setUser(parsedUser)
+        if (!cancelled) {
+          setUser(savedUser)
           setLoading(false)
-        } catch {
-          //
         }
       }
 
       try {
-        setToken(savedToken)
+        if (!cancelled) setToken(savedToken)
         api.defaults.headers.common.Authorization = `Bearer ${savedToken}`
 
-        const response = await api.get('/api/user')
-        setUser(response.data)
+        if (savedUser && isStoredUserFresh()) {
+          return
+        }
+
+        const restoredUser = await fetchRestoredUser(savedToken)
+        if (!cancelled) setUser(restoredUser)
       } catch {
-        setUser(null)
-        setToken(null)
-        localStorage.removeItem('sb_auth_user')
-        localStorage.removeItem('auth_token')
+        if (!cancelled) {
+          setUser(null)
+          setToken(null)
+        }
+        localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+        localStorage.removeItem(AUTH_USER_REFRESHED_AT_KEY)
+        localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
         localStorage.removeItem('omni_token')
         delete api.defaults.headers.common.Authorization
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     restoreAuth()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const refreshCurrentUser = useCallback(async () => {
     const response = await api.get('/api/user')
     setUser(response.data)
+    invalidateCache(AUTH_USER_CACHE_PREFIX)
+    return response.data
+  }, [])
+
+  const forceChangePassword = useCallback(async (password, passwordConfirmation) => {
+    const response = await api.put('/api/password/force-change', {
+      password,
+      password_confirmation: passwordConfirmation,
+    })
+    const nextUser = response?.data?.user || null
+    if (nextUser) {
+      setUser(nextUser)
+    }
     return response.data
   }, [])
 
   const updateCurrentUser = useCallback((nextUser) => {
     setUser(nextUser)
     return nextUser
-  }, [])
-
-  const persistUsers = useCallback((list) => {
-    localStorage.setItem('sb_users_list', JSON.stringify(list))
-    setUsers(list)
   }, [])
 
   const login = async (email, password) => {
@@ -115,39 +168,38 @@ export function AuthProvider({ children }) {
         return { error: true, message: 'Invalid login response.' }
       }
 
-      localStorage.setItem('auth_token', data.token)
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token)
       setToken(data.token)
       api.defaults.headers.common.Authorization = `Bearer ${data.token}`
 
-      
       const meResponse = await api.get('/api/user')
       const me = meResponse.data
-
       setUser(me)
-
+      invalidateCache(AUTH_USER_CACHE_PREFIX)
       return me
     } catch (error) {
       return {
         error: true,
-        message:
-          error?.response?.data?.message ||
-          'Invalid email or password.',
+        message: error?.response?.data?.message || 'Invalid email or password.',
       }
     }
   }
 
   const logout = async () => {
     const activeToken = token || localStorage.getItem('auth_token')
+    const canAttemptServerLogout = !!activeToken && isStoredUserFresh()
 
     setUser(null)
     setToken(null)
     setLoading(false)
     delete api.defaults.headers.common.Authorization
-    localStorage.removeItem('sb_auth_user')
-    localStorage.removeItem('auth_token')
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+    localStorage.removeItem(AUTH_USER_REFRESHED_AT_KEY)
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
     localStorage.removeItem('omni_token')
+    invalidateCache(AUTH_USER_CACHE_PREFIX)
 
-    if (!activeToken) return
+    if (!canAttemptServerLogout) return
 
     try {
       await api.post(
@@ -157,6 +209,7 @@ export function AuthProvider({ children }) {
           headers: {
             Authorization: `Bearer ${activeToken}`,
           },
+          validateStatus: (status) => status >= 200 && status < 300 || status === 401,
         }
       )
     } catch {
@@ -164,84 +217,18 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const addUser = useCallback((actorRole, userData) => {
-    if (!can(actorRole, 'users:create')) return { error: 'Unauthorized: Only Super Admin can create users.' }
-    if (users.find((u) => u.email.toLowerCase() === userData.email.toLowerCase())) return { error: 'A user with this email already exists.' }
-    const newUser = {
-      ...userData,
-      id: Date.now(),
-      initials: getInitials(userData.name),
-      status: 'active',
-      password: userData.password || 'change123',
-    }
-    persistUsers([...users, newUser])
-    return { success: true, user: newUser }
-  }, [users, persistUsers])
-
-  const editUser = useCallback((actorRole, userId, data) => {
-    const target = users.find((u) => u.id === userId)
-    if (!target) return { error: 'User not found.' }
-    if (!canModifyUser(actorRole, target.role)) return { error: 'Unauthorized: Cannot modify a Super Admin account.' }
-
-    const updated = users.map((u) => {
-      if (u.id !== userId) return u
-      const merged = { ...u, ...data }
-      if (data.name) merged.initials = getInitials(data.name)
-      return merged
-    })
-
-    persistUsers(updated)
-
-    if (user && user.id === userId) {
-      const { password: _pw, ...safe } = updated.find((u) => u.id === userId)
-      setUser(safe)
-      localStorage.setItem('sb_auth_user', JSON.stringify(safe))
-    }
-
-    return { success: true }
-  }, [users, user, persistUsers])
-
-  const deleteUser = useCallback((actorRole, userId) => {
-    const target = users.find((u) => u.id === userId)
-    if (!target) return { error: 'User not found.' }
-    if (!canModifyUser(actorRole, target.role)) return { error: 'Unauthorized: Cannot delete a Super Admin account.' }
-    persistUsers(users.filter((u) => u.id !== userId))
-    return { success: true }
-  }, [users, persistUsers])
-
-  const suspendUser = useCallback((actorRole, userId) => {
-    const target = users.find((u) => u.id === userId)
-    if (!target) return { error: 'User not found.' }
-    if (!can(actorRole, 'users:suspend')) return { error: 'Unauthorized.' }
-    if (!canModifyUser(actorRole, target.role)) return { error: 'Cannot suspend a Super Admin account.' }
-    const newStatus = target.status === 'suspended' ? 'active' : 'suspended'
-    return editUser(actorRole, userId, { status: newStatus })
-  }, [users, editUser])
-
-  const resetPassword = useCallback((actorRole, userId, newPassword) => {
-    if (!can(actorRole, 'users:reset-password')) return { error: 'Unauthorized.' }
-    if (!users.find((u) => u.id === userId)) return { error: 'User not found.' }
-    persistUsers(users.map((u) => (u.id === userId ? { ...u, password: newPassword } : u)))
-    return { success: true }
-  }, [users, persistUsers])
-
   return (
     <AuthContext.Provider
       value={{
         user,
-        users,
         token,
         loading,
         isAuthenticated: !!user && !!token,
         refreshCurrentUser,
         updateCurrentUser,
+        forceChangePassword,
         login,
         logout,
-        addUser,
-        editUser,
-        deleteUser,
-        suspendUser,
-        resetPassword,
       }}
     >
       {children}

@@ -5,8 +5,8 @@ import DashboardCard from '@/components/ui/DashboardCard'
 export default function SummaryCardStrip({
   cards = [],
   className = '',
-  gapClassName = 'gap-4 sm:gap-5',
-  cardClassName = 'w-[228px] flex-none sm:w-[252px]',
+  gapClassName = 'gap-4 sm:gap-3',
+  cardClassName = 'w-[228px] flex-none sm:w-[305px]',
   stretch = false,
   stretchGridClassName = '',
 }) {

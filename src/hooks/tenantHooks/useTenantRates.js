@@ -5,7 +5,7 @@ function normalizeRates(rows = []) {
   const base = {
     electricity: { rate: 0, unit: 'per kWh', effectiveFrom: '', description: '' },
     water: { rate: 0, unit: 'per m³', effectiveFrom: '', description: '' },
-    thermal: { rate: 0, unit: 'per BTU', effectiveFrom: '', description: '' },
+    thermal: { rate: 0, unit: 'per kBTU', effectiveFrom: '', description: '' },
   }
 
   rows.forEach((item) => {
@@ -28,7 +28,9 @@ function normalizeRates(rows = []) {
     if (item?.is_active || isMoreRecent) {
       base[key] = {
         rate: Number(item?.price_per_unit || 0),
-        unit: item?.unit_measure || base[key].unit,
+        unit: key === 'thermal' && ['kbtu/h', 'kbut/h', 'kbuth', 'kbtu', 'btu'].includes(String(item?.unit_measure || '').toLowerCase())
+          ? 'per kBTU'
+          : item?.unit_measure || base[key].unit,
         effectiveFrom: item?.effective_from || '',
         description: item?.description || '',
       }

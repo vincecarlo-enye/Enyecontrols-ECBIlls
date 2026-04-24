@@ -1,7 +1,7 @@
 ﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
-  X,
+  Minus,
   Send,
   Mic,
   Sparkles,
@@ -104,11 +104,12 @@ function MessageBubble({ message }) {
       )}
 
       <div
-        className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed shadow-sm ${
+        className={`max-w-[85%] break-words overflow-hidden px-3 py-2 rounded-2xl text-xs leading-relaxed shadow-sm ${
           isUser
             ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-br-sm'
             : 'bg-white dark:bg-slate-700/80 text-slate-700 dark:text-slate-200 rounded-bl-sm border border-slate-200/60 dark:border-slate-600/50'
         }`}
+        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
       >
         {renderMessageContent(message.content)}
 
@@ -704,7 +705,7 @@ export default function AIAssistant() {
 
       {isOpen && (
         <div
-          className="fixed z-[9997] w-[calc(100vw-1rem)] max-w-[420px] sm:w-[420px] max-h-[min(78vh,680px)] flex flex-col rounded-2xl shadow-2xl border border-slate-200/60 dark:border-slate-700/50 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl overflow-hidden"
+          className="fixed z-[9997] flex h-[min(520px,calc(100vh-7rem))] w-[calc(100vw-1rem)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/95 sm:w-[420px]"
           style={panelStyle}
           role="dialog"
           aria-label="AI Assistant"
@@ -745,13 +746,13 @@ export default function AIAssistant() {
                 className="p-2 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition-colors"
                 title="Close"
               >
-                <X className="w-4 h-4" />
+                <Minus className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {showSettings && (
-            <div className="px-4 py-3 bg-slate-50/90 dark:bg-slate-800/90 border-b border-slate-200/60 dark:border-slate-700/50 flex-shrink-0 space-y-3">
+            <div className="absolute inset-x-3 top-[60px] z-20 rounded-2xl border border-slate-200/60 bg-white/72 px-4 py-3 shadow-xl backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-800/68">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2 font-medium">
                   Reply Mode
@@ -802,60 +803,62 @@ export default function AIAssistant() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-[220px] max-h-[420px] scroll-smooth">
-            {messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={{
-                  ...msg,
-                  content: msg.role === 'assistant' && msg.isStreaming
-                    ? <TypingText text={msg.content} active />
-                    : msg.content,
-                }}
-              />
-            ))}
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
+            <div className="flex min-h-full flex-col justify-end space-y-3">
+              {messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={{
+                    ...msg,
+                    content: msg.role === 'assistant' && msg.isStreaming
+                      ? <TypingText text={msg.content} active />
+                      : msg.content,
+                  }}
+                />
+              ))}
 
-            {isTyping && <TypingIndicator />}
+              {isTyping && <TypingIndicator />}
 
-            {voice.interimText && (
-              <div className="flex justify-end">
-                <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-br-sm bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 text-xs italic opacity-80">
-                  {voice.interimText}...
+              {voice.interimText && (
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-br-sm bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 text-xs italic opacity-80">
+                    {voice.interimText}...
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {showSuggestions && messages.length <= 1 && !isTyping && !isAnimatingReply && hasLoadedHistory && (
-              <div className="pt-1">
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1">Suggested</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(pageContext.suggestions || []).map((suggestion, index) => (
-                    <SuggestionChip key={index} text={suggestion} onClick={sendMessage} />
-                  ))}
+              {showSuggestions && messages.length <= 1 && !isTyping && !isAnimatingReply && hasLoadedHistory && (
+                <div className="pt-1">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1">Suggested</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(pageContext.suggestions || []).map((suggestion, index) => (
+                      <SuggestionChip key={index} text={suggestion} onClick={sendMessage} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {isAISpeaking && (
-              <div className="flex items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200/70 dark:border-violet-700/40 px-3 py-2">
-                <div className="flex items-end gap-1 h-6">
-                  {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <span
-                      key={i}
-                      className="w-1.5 rounded-full bg-gradient-to-t from-violet-600 to-fuchsia-400"
-                      style={{
-                        height: `${10 + (i % 4) * 3}px`,
-                        animation: 'aiTyping 0.75s ease-in-out infinite',
-                        animationDelay: `${i * 0.08}s`,
-                      }}
-                    />
-                  ))}
+              {isAISpeaking && (
+                <div className="flex items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200/70 dark:border-violet-700/40 px-3 py-2">
+                  <div className="flex items-end gap-1 h-6">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <span
+                        key={i}
+                        className="w-1.5 rounded-full bg-gradient-to-t from-violet-600 to-fuchsia-400"
+                        style={{
+                          height: `${10 + (i % 4) * 3}px`,
+                          animation: 'aiTyping 0.75s ease-in-out infinite',
+                          animationDelay: `${i * 0.08}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-violet-600 dark:text-violet-300 font-medium">AI speaking...</span>
                 </div>
-                <span className="text-[10px] text-violet-600 dark:text-violet-300 font-medium">AI speaking...</span>
-              </div>
-            )}
+              )}
 
-            <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} />
+            </div>
           </div>
 
           {voiceError && (
@@ -865,31 +868,6 @@ export default function AIAssistant() {
           )}
 
           <div className="p-3 border-t border-slate-200/60 dark:border-slate-700/50 flex-shrink-0 bg-slate-50/80 dark:bg-slate-800/80 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleMicToggle}
-                title={voice.isListening ? 'Stop recording' : 'Record voice message'}
-                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  voice.isListening
-                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105'
-                    : voice.availabilityReason
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-900/30 hover:text-violet-600 dark:hover:text-violet-400'
-                }`}
-              >
-                {voice.isListening ? <WaveAnimation active size="sm" /> : <Mic className="w-4 h-4" />}
-              </button>
-
-              <div className="min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700/60 px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Current Mode</p>
-                <p className="text-xs text-slate-700 dark:text-slate-200 truncate">
-                  {outputMode === 'text' && (autoReadAloud ? 'Text only + read aloud' : 'Text only')}
-                  {outputMode === 'voice' && 'Voice response'}
-                  {outputMode === 'custom' && 'Custom voice response'}
-                </p>
-              </div>
-            </div>
-
             {voice.isListening && (
               <div className="rounded-xl border border-violet-200 dark:border-violet-700/40 bg-violet-50 dark:bg-violet-900/20 px-3 py-2 text-xs text-violet-700 dark:text-violet-300">
                 {voice.interimText || 'Listening... speak now'}
@@ -913,6 +891,19 @@ export default function AIAssistant() {
             )}
 
             <div className="flex items-end gap-2">
+              <button
+                onClick={handleMicToggle}
+                title={voice.isListening ? 'Stop recording' : 'Record voice message'}
+                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                  voice.isListening
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105'
+                    : voice.availabilityReason
+                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-900/30 hover:text-violet-600 dark:hover:text-violet-400'
+                }`}
+              >
+                {voice.isListening ? <WaveAnimation active size="sm" /> : <Mic className="w-4 h-4" />}
+              </button>
               <textarea
                 ref={inputRef}
                 value={inputValue}

@@ -1,137 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  decorateBillWithAdjustmentState,
+  fetchAllAdjustments,
+} from '@/services/financeService/financeAdjustmentService'
+import {
   fetchTenantBills,
   fetchTenantBill,
   submitTenantBillPayment,
 } from '@/services/tenantService/tenantBillingService'
+import { normalizeTenantBill, toNumber } from '@/utils/billing'
 
 const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
-
-function toNumber(value, fallback = 0) {
-  const n = Number(value)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function normalizeBreakdown(items = []) {
-  const totals = {
-    electricity: 0,
-    water: 0,
-    thermal: 0,
-  }
-
-  if (!Array.isArray(items)) return totals
-
-  items.forEach((item) => {
-    const type = String(item?.type || item?.utility_type || '').toLowerCase()
-    const amount = toNumber(item?.amount || item?.subtotal || item?.cost || 0)
-
-    if (type === 'electric' || type === 'electricity') totals.electricity += amount
-    else if (type === 'water') totals.water += amount
-    else if (type === 'thermal') totals.thermal += amount
-  })
-
-  return totals
-}
-
-function formatDisplayDate(value) {
-  if (!value) return ''
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-function formatShortDate(value) {
-  if (!value) return ''
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-function normalizeBill(raw = {}) {
-  const billingMonth =
-    raw?.billing_month ||
-    raw?.billingMonth ||
-    raw?.month ||
-    raw?.period ||
-    ''
-
-  const dueDate =
-    raw?.due_date ||
-    raw?.dueDate ||
-    raw?.billing_end ||
-    raw?.billingEnd ||
-    ''
-
-  const billingPeriod =
-    raw?.billing_start && raw?.billing_end
-      ? `${formatShortDate(raw.billing_start)} - ${formatShortDate(raw.billing_end)}`
-      : raw?.billing_end
-        ? formatShortDate(raw.billing_end)
-        : formatShortDate(dueDate)
-
-  const statusRaw = String(raw?.status || '').toLowerCase()
-
-  const statusMap = {
-    unpaid: 'published',
-    pending: 'submitted',
-    published: 'published',
-    payment_submitted: 'submitted',
-    paid: 'paid',
-    overdue: 'overdue',
-  }
-
-  const breakdown =
-    raw?.breakdown ||
-    normalizeBreakdown(raw?.items || raw?.bill_items || [])
-
-  return {
-    id: raw?.id,
-
-    tenantId:
-      raw?.tenant_id ??
-      raw?.tenantId ??
-      raw?.tenant?.id ??
-      null,
-
-    unitId:
-      raw?.unit_id ??
-      raw?.unitId ??
-      raw?.unit?.id ??
-      null,
-
-    unit:
-      raw?.unit?.unit_number ||
-      raw?.unit?.unitnumber ||
-      raw?.unit?.building_name ||
-      raw?.unit_name ||
-      raw?.unit ||
-      'N/A',
-
-    month: billingMonth,
-    dueDate: formatDisplayDate(dueDate),
-    billingPeriod,
-    amount: toNumber(raw?.amount ?? raw?.total_amount ?? raw?.subtotal ?? 0),
-    status: statusMap[statusRaw] || statusRaw || 'published',
-    breakdown: {
-      electricity: toNumber(breakdown?.electricity ?? breakdown?.electric ?? 0),
-      water: toNumber(breakdown?.water ?? 0),
-      thermal: toNumber(breakdown?.thermal ?? 0),
-    },
-    raw,
-  }
-}
 
 export function useBills() {
   const [bills, setBills] = useState([])
@@ -146,9 +25,13 @@ export function useBills() {
 
       const res = await fetchTenantBills()
       const rows = Array.isArray(res?.data) ? res.data : []
-      console.log('fetchTenantBills response:', res)
-
-      setBills(rows.map(normalizeBill).filter((bill) => TENANT_VISIBLE.includes(bill.status)))
+      const loadedAdjustments = await fetchAllAdjustments()
+      setBills(
+        rows
+          .map(normalizeTenantBill)
+          .map((bill) => decorateBillWithAdjustmentState(bill, loadedAdjustments))
+          .filter((bill) => TENANT_VISIBLE.includes(bill.status))
+      )
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load bills.')
     } finally {
@@ -162,7 +45,9 @@ export function useBills() {
 
   const getBillById = useCallback(async (id) => {
     const res = await fetchTenantBill(id)
-    return normalizeBill(res?.data || {})
+    const normalized = normalizeTenantBill(res?.data || {})
+    const loadedAdjustments = await fetchAllAdjustments()
+    return decorateBillWithAdjustmentState(normalized, loadedAdjustments)
   }, [])
 
   const submitPaymentReceipt = useCallback(async (billId, receiptData) => {

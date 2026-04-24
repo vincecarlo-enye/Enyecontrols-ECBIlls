@@ -8,6 +8,7 @@ import {
   YAxis,
 } from 'recharts'
 import { TrendingDown, TrendingUp } from 'lucide-react'
+import ChartExportButton from '@/components/common/ChartExportButton'
 
 function CustomTooltip({ active, payload, label, unit, color }) {
   if (!active || !payload?.length) return null
@@ -31,18 +32,21 @@ export default function DailyUsageChart({ title, data = [], dataKey, unit, color
   const TrendIcon = Number(trend) >= 0 ? TrendingUp : TrendingDown
 
   return (
-    <div className="space-y-4">
+    <div data-chart-export-panel="true" className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[15px] font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
           <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-500">Last 7 days</p>
         </div>
 
-        <div className="text-right">
-          <p className="text-xl font-bold text-slate-800 dark:text-slate-50">
-            {average} <span className="text-sm font-mono font-normal text-slate-500 dark:text-slate-500">{unit}</span>
-          </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-500">avg/day</p>
+        <div className="flex items-start gap-2">
+          <div className="text-right">
+            <p className="text-xl font-bold text-slate-800 dark:text-slate-50">
+              {average} <span className="text-sm font-mono font-normal text-slate-500 dark:text-slate-500">{unit}</span>
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-500">avg/day</p>
+          </div>
+          <ChartExportButton title={title} rows={safeData} />
         </div>
       </div>
 

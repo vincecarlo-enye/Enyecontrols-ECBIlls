@@ -1,19 +1,15 @@
+import { normalizeUtilityKey } from '@/utils/utilityTypes'
 import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { isDateWithinTenantTimeRange } from '@/context/UnitFilterContext'
 import { useBills } from '@/components/billing/hooks/useBills'
+import { getTenantConsumptionReports } from '@/services/tenantService/tenantConsumptionService'
 
 function toNumber(value, fallback = 0) {
   const n = Number(value)
   return Number.isFinite(n) ? n : fallback
 }
 
-function normalizeType(value) {
-  const type = String(value || '').toLowerCase()
-  if (type === 'electric' || type === 'electricity') return 'electricity'
-  if (type === 'water') return 'water'
-  if (type === 'thermal') return 'thermal'
-  return ''
-}
 
 function getTenantUnits(user) {
   return (Array.isArray(user?.tenants) ? user.tenants : [user?.tenant])
@@ -61,7 +57,7 @@ function getMonthlyData(bills) {
     const items = bill?.raw?.items || bill?.raw?.bill_items || []
 
     items.forEach((item) => {
-      const type = normalizeType(item?.type || item?.utility_type)
+      const type = normalizeUtilityKey(item?.type || item?.utility_type)
       if (!type || !bucket[type] && bucket[type] !== 0) return
       bucket[type] += toNumber(item?.consumption ?? item?.quantity)
     })
@@ -75,13 +71,91 @@ function getMonthlyData(bills) {
       water: Number(row.water.toFixed(2)),
       thermal: Number(row.thermal.toFixed(2)),
     }))
-    .slice(-6)
+}
+
+function getDailyData(bills) {
+  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const dayMap = new Map(
+    dayLabels.map((label) => [label, {
+      month: label,
+      electricity: 0,
+      water: 0,
+      thermal: 0,
+    }])
+  )
+
+  bills.forEach((bill) => {
+    const date = getBillDate(bill)
+    if (!date) return
+
+    const dayLabel = dayLabels[(date.getDay() + 6) % 7]
+    const bucket = dayMap.get(dayLabel)
+    if (!bucket) return
+
+    const items = bill?.raw?.items || bill?.raw?.bill_items || []
+    items.forEach((item) => {
+      const type = normalizeUtilityKey(item?.type || item?.utility_type)
+      if (!type || (bucket[type] !== 0 && !bucket[type])) return
+      bucket[type] += toNumber(item?.consumption ?? item?.quantity)
+    })
+  })
+
+  return dayLabels.map((label) => ({
+    ...dayMap.get(label),
+    electricity: Number(dayMap.get(label).electricity.toFixed(2)),
+    water: Number(dayMap.get(label).water.toFixed(2)),
+    thermal: Number(dayMap.get(label).thermal.toFixed(2)),
+  }))
+}
+
+function getWeeklyData(bills) {
+  const rows = Array.from({ length: 4 }, (_, index) => ({
+    month: `Week ${index + 1}`,
+    electricity: 0,
+    water: 0,
+    thermal: 0,
+  }))
+
+  bills.forEach((bill) => {
+    const date = getBillDate(bill)
+    if (!date) return
+
+    const weekIndex = Math.min(3, Math.floor((date.getDate() - 1) / 7))
+    const bucket = rows[weekIndex]
+    const items = bill?.raw?.items || bill?.raw?.bill_items || []
+
+    items.forEach((item) => {
+      const type = normalizeUtilityKey(item?.type || item?.utility_type)
+      if (!type || (bucket[type] !== 0 && !bucket[type])) return
+      bucket[type] += toNumber(item?.consumption ?? item?.quantity)
+    })
+  })
+
+  return rows.map((row) => ({
+    ...row,
+    electricity: Number(row.electricity.toFixed(2)),
+    water: Number(row.water.toFixed(2)),
+    thermal: Number(row.thermal.toFixed(2)),
+  }))
+}
+
+function getRangeData(bills, timeRange) {
+  if (timeRange === '7d') return getDailyData(bills)
+  if (timeRange === '1m') return getWeeklyData(bills)
+  return getMonthlyData(bills)
 }
 
 export function useTenantConsumptionReports() {
   const { user } = useAuth()
   const { bills, loading, error, refreshBills } = useBills()
   const [requestedUnit, setRequestedUnit] = useState('all')
+  const [requestedTimeRange, setRequestedTimeRange] = useState('1m')
+  const [reportLoading, setReportLoading] = useState(true)
+  const [reportError, setReportError] = useState('')
+  const [reportSummary, setReportSummary] = useState(null)
+  const [reportMonthly, setReportMonthly] = useState([])
+  const [reportUnit, setReportUnit] = useState(null)
+  const [reportUnits, setReportUnits] = useState([])
 
   const tenantUnits = useMemo(() => getTenantUnits(user), [user])
   const selectedUnits = useMemo(
@@ -90,39 +164,92 @@ export function useTenantConsumptionReports() {
   )
 
   const filteredBills = useMemo(() => {
-    if (requestedUnit === 'all') return bills
-    return bills.filter((bill) => String(bill?.unit) === String(requestedUnit))
-  }, [bills, requestedUnit])
+    const unitScopedBills = requestedUnit === 'all'
+      ? bills
+      : bills.filter((bill) => String(bill?.unit) === String(requestedUnit))
 
-  const monthly = useMemo(() => getMonthlyData(filteredBills), [filteredBills])
+    return unitScopedBills.filter((bill) => {
+      const billDate = getBillDate(bill)
+      return billDate ? isDateWithinTenantTimeRange(billDate, requestedTimeRange) : false
+    })
+  }, [bills, requestedTimeRange, requestedUnit])
 
-  const summary = useMemo(() => ({
+  const monthly = useMemo(() => getRangeData(filteredBills, requestedTimeRange), [filteredBills, requestedTimeRange])
+
+  const fallbackSummary = useMemo(() => ({
     electricity: Number(monthly.reduce((sum, row) => sum + toNumber(row.electricity), 0).toFixed(2)),
     water: Number(monthly.reduce((sum, row) => sum + toNumber(row.water), 0).toFixed(2)),
     thermal: Number(monthly.reduce((sum, row) => sum + toNumber(row.thermal), 0).toFixed(2)),
   }), [monthly])
 
-  const reload = useCallback(async (unit = 'all') => {
+  const loadReports = useCallback(async (unit = 'all', timeRange = '1m') => {
+    try {
+      setReportLoading(true)
+      setReportError('')
+
+      const data = await getTenantConsumptionReports({ unit, timeRange })
+      setReportUnit(data?.unit || null)
+      setReportUnits(Array.isArray(data?.units) ? data.units : [])
+      setReportSummary(data?.summary && typeof data.summary === 'object' ? {
+        electricity: toNumber(data.summary.electricity),
+        water: toNumber(data.summary.water),
+        thermal: toNumber(data.summary.thermal),
+      } : null)
+      setReportMonthly(
+        Array.isArray(data?.monthly)
+          ? data.monthly.map((row) => ({
+              month: row?.month || '',
+              electricity: toNumber(row?.electricity),
+              water: toNumber(row?.water),
+              thermal: toNumber(row?.thermal),
+            }))
+          : []
+      )
+    } catch (err) {
+      setReportUnit(null)
+      setReportUnits([])
+      setReportSummary(null)
+      setReportMonthly([])
+      setReportError(err?.response?.data?.message || err?.message || 'Failed to load consumption reports.')
+    } finally {
+      setReportLoading(false)
+    }
+  }, [])
+
+  const summary = useMemo(() => reportSummary || fallbackSummary, [fallbackSummary, reportSummary])
+  const resolvedMonthly = useMemo(() => (reportMonthly.length > 0 ? reportMonthly : monthly), [monthly, reportMonthly])
+  const backendDriven = reportMonthly.length > 0 || reportSummary !== null
+
+  const reload = useCallback(async (unit = 'all', timeRange = '1m') => {
     setRequestedUnit(unit || 'all')
-    await refreshBills()
-  }, [refreshBills])
+    setRequestedTimeRange(timeRange || '1m')
+    await Promise.all([
+      refreshBills(),
+      loadReports(unit || 'all', timeRange || '1m'),
+    ])
+  }, [loadReports, refreshBills])
 
   return {
-    unit:
+    unit: reportUnit || (
       requestedUnit === 'all' || selectedUnits.length !== 1
         ? null
         : {
             id: selectedUnits[0]?.id ?? null,
             unit_number: selectedUnits[0]?.unit_number || selectedUnits[0]?.name || '',
-          },
-    units: selectedUnits.map((unit) => ({
-      id: unit?.id ?? null,
-      unit_number: unit?.unit_number || unit?.name || '',
-    })),
+          }
+    ),
+    units: reportUnits.length > 0
+      ? reportUnits
+      : selectedUnits.map((unit) => ({
+          id: unit?.id ?? null,
+          unit_number: unit?.unit_number || unit?.name || '',
+        })),
     summary,
-    monthly,
-    loading,
-    error,
+    monthly: resolvedMonthly,
+    timeRange: requestedTimeRange,
+    backendDriven,
+    loading: loading || reportLoading,
+    error: reportError || error,
     reload,
   }
 }

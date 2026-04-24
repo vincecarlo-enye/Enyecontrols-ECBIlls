@@ -1,6 +1,8 @@
+import { formatDate, formatPeso} from '@/utils/filterUtils'
 import { useMemo } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { History, TrendingUp, TrendingDown } from 'lucide-react'
+import ChartExportButton from '@/components/common/ChartExportButton'
 
 const TYPE_COLORS = {
   electricity: '#f59e0b',
@@ -8,22 +10,7 @@ const TYPE_COLORS = {
   thermal: '#f43f5e',
 }
 
-function formatPeso(value) {
-  return `PHP ${Number(value || 0).toFixed(2)}`
-}
 
-function formatDate(value) {
-  if (!value) return 'No date'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
 
 function buildChartData(history = []) {
   const grouped = new Map()
@@ -69,10 +56,13 @@ export default function RateHistoryPanel({ history = [], loading = false, compac
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white dark:bg-slate-900 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-2">
-          <History className="w-4 h-4 text-slate-400" />
-          <h3 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">Rate Movement Trend</h3>
+      <div data-chart-export-panel="true" className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white dark:bg-slate-900 p-5 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-slate-400" />
+            <h3 className="font-display font-700 text-[15px] text-slate-800 dark:text-white">Rate Movement Trend</h3>
+          </div>
+          <ChartExportButton title="Rate Movement Trend" rows={chartData} />
         </div>
         <p className="text-xs text-slate-400 mb-4">Tracks when billing rates changed and the latest value applied over time.</p>
         <ResponsiveContainer width="100%" height={compact ? 220 : 280}>

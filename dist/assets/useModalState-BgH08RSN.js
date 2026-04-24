@@ -1,0 +1,1 @@
+import{r as t}from"./router-UErtFBTk.js";function d(){const[u,n]=t.useState(!1),[c,s]=t.useState(null),l=t.useRef(null),a=t.useCallback((e=null)=>{e!==null&&(l.current=e,s(e)),n(!0)},[]),o=t.useCallback(()=>{n(!1),setTimeout(()=>s(null),300)},[]),r=t.useCallback(e=>{l.current=e,s(e)},[]),f=c??l.current;return{isOpen:u,selectedItem:f,open:a,close:o,update:r}}export{d as u};

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useClientPagination } from '@/hooks/useClientPagination'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { UnitsSkeleton } from '@/components/skeletons'
 import Drawer from '@/components/ui/Drawer'
@@ -27,7 +28,6 @@ const emptyForm = {
   unit_number: '',
   floor: '',
   building_name: '',
-  status: 'vacant',
 }
 
 function StatCard({ label, value, sub, tone = 'slate' }) {
@@ -44,6 +44,74 @@ function StatCard({ label, value, sub, tone = 'slate' }) {
       <p className="mt-1 text-xs text-slate-400">{sub}</p>
     </div>
   )
+}
+
+function MeterStackItem({ icon: Icon, iconClass, label, meter, emptyLabel }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="flex items-center gap-2">
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${iconClass}`} aria-hidden="true" />
+        <p className="min-w-0 break-words text-xs font-medium text-slate-700 dark:text-slate-200" title={label}>
+          {meter?.meterName || meter?.watchName || emptyLabel}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function getUnitOccupancyStatus(unit) {
+  const tenantCount = Array.isArray(unit?.tenants)
+    ? unit.tenants.filter(Boolean).length
+    : 0
+
+  return tenantCount > 0 ? 'occupied' : 'vacant'
+}
+
+function getUnitDeleteGuard(unit, metersByUnit) {
+  const tenantCount = Array.isArray(unit?.tenants) ? unit.tenants.filter(Boolean).length : 0
+  const linkedMeters = metersByUnit[String(unit?.id)] || []
+  const hasHistorySignals = Boolean(
+    unit?.bill_count > 0 ||
+    unit?.bills_count > 0 ||
+    unit?.payment_count > 0 ||
+    unit?.payments_count > 0 ||
+    unit?.invoice_count > 0 ||
+    unit?.invoices_count > 0 ||
+    unit?.usage_count > 0 ||
+    unit?.usages_count > 0 ||
+    unit?.reading_count > 0 ||
+    unit?.readings_count > 0 ||
+    unit?.has_bills ||
+    unit?.has_usage ||
+    unit?.has_usages ||
+    unit?.has_history
+  )
+
+  if (tenantCount > 0) {
+    return {
+      allowed: false,
+      reason: 'This unit still has tenant assignments. Units with occupants should not be hard deleted.',
+    }
+  }
+
+  if (linkedMeters.length > 0) {
+    return {
+      allowed: false,
+      reason: 'This unit still has linked meters. Remove those links before considering a hard delete.',
+    }
+  }
+
+  if (hasHistorySignals) {
+    return {
+      allowed: false,
+      reason: 'This unit appears linked to billing or usage history and should be kept for system records.',
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: 'Use hard delete only for wrong, test, or duplicate unit records.',
+  }
 }
 
 export default function Units() {
@@ -63,8 +131,6 @@ export default function Units() {
   const { meters } = useAdminMeters()
 
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState('add')
   const [form, setForm] = useState(emptyForm)
@@ -72,11 +138,12 @@ export default function Units() {
   const [editingId, setEditingId] = useState(null)
   const [viewUnit, setViewUnit] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const isSuperAdmin = user?.role === 'super_admin'
 
-  const occupied = units.filter((unit) => unit.status === 'occupied').length
-  const vacant = units.filter((unit) => unit.status === 'vacant').length
+  const occupied = units.filter((unit) => getUnitOccupancyStatus(unit) === 'occupied').length
+  const vacant = units.filter((unit) => getUnitOccupancyStatus(unit) === 'vacant').length
 
   const metersByUnit = useMemo(() => {
     return meters.reduce((acc, meter) => {
@@ -122,31 +189,20 @@ export default function Units() {
         unit.unit_number,
         unit.floor,
         unit.building_name,
-        unit.status,
+        getUnitOccupancyStatus(unit),
         tenantNames,
       ].some((value) => String(value || '').toLowerCase().includes(q))
     })
   }, [units, search])
 
-  const paginated = useMemo(() => {
-    const start = (page - 1) * perPage
-    return filtered.slice(start, start + perPage)
-  }, [filtered, page, perPage])
-
-  const paginationMeta = useMemo(() => {
-    const total = filtered.length
-    const lastPage = Math.max(1, Math.ceil(total / perPage))
-    const from = total === 0 ? 0 : (page - 1) * perPage + 1
-    const to = Math.min(page * perPage, total)
-    return {
-      current_page: page,
-      per_page: perPage,
-      total,
-      last_page: lastPage,
-      from,
-      to,
-    }
-  }, [filtered.length, page, perPage])
+  const {
+    pagedItems: paginated,
+    meta: paginationMeta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
+  } = useClientPagination(filtered, 10)
 
   const validate = () => {
     const nextErrors = {}
@@ -168,7 +224,6 @@ export default function Units() {
       unit_number: unit.unit_number || '',
       floor: String(unit.floor || ''),
       building_name: unit.building_name || '',
-      status: unit.status || 'vacant',
     })
     setErrors({})
     setEditingId(unit.id)
@@ -183,7 +238,9 @@ export default function Units() {
       unit_number: form.unit_number.trim(),
       floor: form.floor?.trim() || null,
       building_name: form.building_name?.trim() || null,
-      status: form.status || 'vacant',
+      status: drawerMode === 'edit'
+        ? getUnitOccupancyStatus(units.find((unit) => String(unit.id) === String(editingId)))
+        : 'vacant',
     }
 
     try {
@@ -208,11 +265,19 @@ export default function Units() {
 
   const handleDelete = async () => {
     if (!deletingId) return
+    const targetUnit = units.find((unit) => String(unit.id) === String(deletingId))
+    const deleteGuard = getUnitDeleteGuard(targetUnit, metersByUnit)
+    if (!deleteGuard.allowed) {
+      setDeleteError(deleteGuard.reason)
+      return
+    }
+
     try {
       await removeUnit(deletingId)
+      setDeleteError('')
       setDeletingId(null)
     } catch (err) {
-      console.error(err)
+      setDeleteError(err?.response?.data?.message || 'Unit hard delete failed. Keep the unit for records if it has linked operational history.')
     }
   }
 
@@ -225,6 +290,8 @@ export default function Units() {
     setPerPage(nextPerPage)
     setPage(1)
   }
+  const deletingUnit = units.find((unit) => String(unit.id) === String(deletingId))
+  const deletingGuard = deletingUnit ? getUnitDeleteGuard(deletingUnit, metersByUnit) : null
 
   if ((pageLoading && units.length === 0) || (unitsLoading && units.length === 0)) return <UnitsSkeleton />
 
@@ -273,7 +340,7 @@ export default function Units() {
           />
         </div>
 
-        <p className="text-xs text-slate-400">Switching to table view keeps large unit datasets easier to manage.</p>
+       
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/60 dark:bg-slate-900">
@@ -302,6 +369,7 @@ export default function Units() {
                   const waterMeter = getMeterByType(unit.id, 'water')
                   const thermalMeter = getMeterByType(unit.id, 'thermal')
                   const tenantNames = Array.isArray(unit.tenants) ? unit.tenants.map((tenant) => tenant.name).filter(Boolean) : []
+                  const occupancyStatus = getUnitOccupancyStatus(unit)
 
                   return (
                     <tr key={unit.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -334,18 +402,36 @@ export default function Units() {
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 min-w-[260px]">
-                        <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                          <p className="inline-flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-amber-500" /> {electricMeter?.meterName || electricMeter?.watchName || 'No electric meter'}</p>
-                          <p className="inline-flex items-center gap-2"><Droplets className="h-3.5 w-3.5 text-cyan-500" /> {waterMeter?.meterName || waterMeter?.watchName || 'No water meter'}</p>
-                          <p className="inline-flex items-center gap-2"><Gauge className="h-3.5 w-3.5 text-rose-500" /> {thermalMeter?.meterName || thermalMeter?.watchName || 'No thermal meter'}</p>
+                      <td className="px-4 py-3.5 min-w-[250px]">
+                        <div className="space-y-1.5">
+                          <MeterStackItem
+                            icon={Zap}
+                            iconClass="text-amber-500"
+                            label="Electric"
+                            meter={electricMeter}
+                            emptyLabel="No electric meter"
+                          />
+                          <MeterStackItem
+                            icon={Droplets}
+                            iconClass="text-cyan-500"
+                            label="Water"
+                            meter={waterMeter}
+                            emptyLabel="No water meter"
+                          />
+                          <MeterStackItem
+                            icon={Gauge}
+                            iconClass="text-rose-500"
+                            label="Thermal"
+                            meter={thermalMeter}
+                            emptyLabel="No thermal meter"
+                          />
                         </div>
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold capitalize ${unit.status === 'occupied' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}`}>
-                          {unit.status === 'occupied' ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-                          {unit.status}
+                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold capitalize ${occupancyStatus === 'occupied' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}`}>
+                          {occupancyStatus === 'occupied' ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          {occupancyStatus}
                         </span>
                       </td>
 
@@ -357,9 +443,18 @@ export default function Units() {
                           <button onClick={() => openEdit(unit)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Edit unit">
                             <Edit3 className="h-4 w-4" />
                           </button>
-                          <button onClick={() => setDeletingId(unit.id)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20" title="Remove unit">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {isSuperAdmin ? (
+                            <button
+                              onClick={() => {
+                                setDeleteError('')
+                                setDeletingId(unit.id)
+                              }}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                              title="Hard delete unit record"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -408,14 +503,11 @@ export default function Units() {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Status</label>
-            <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className={fieldCls(errors.status)}>
-              <option value="vacant">Vacant</option>
-              <option value="occupied">Occupied</option>
-              <option value="maintenance">Maintenance</option>
-            </select>
-            {errors.status ? <p className="mt-1 text-xs text-red-500">{errors.status}</p> : null}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+            <p className="mb-1 text-xs font-medium text-slate-700 dark:text-slate-200">Occupancy status</p>
+            <p className="text-xs leading-relaxed text-slate-400">
+              Status is set automatically from tenant assignment: units with tenants are marked `Occupied`, and units without tenants are marked `Vacant`.
+            </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
@@ -449,7 +541,7 @@ export default function Units() {
                 <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Unit Details</p>
                 <div className="space-y-3">
                   {[
-                    ['Status', viewUnit.status || '-'],
+                    ['Status', getUnitOccupancyStatus(viewUnit)],
                     ['Floor', viewUnit.floor || '-'],
                     ['Building', viewUnit.building_name || '-'],
                   ].map(([label, value]) => (
@@ -502,11 +594,19 @@ export default function Units() {
 
       <ConfirmModal
         isOpen={!!deletingId}
-        title="Remove Unit?"
-        message="This unit record will be permanently removed. This cannot be undone."
-        confirmLabel="Remove Unit"
+        title="Hard Delete Unit?"
+        message={
+          deletingUnit
+            ? `${deletingGuard?.reason || 'This unit record will be permanently removed.'}${deletingGuard?.allowed ? ' This should only be used for wrong, test, or duplicate unit records.' : ''}${deleteError ? ` ${deleteError}` : ''}`
+            : 'This unit record will be permanently removed.'
+        }
+        confirmLabel={deletingGuard?.allowed ? 'Permanently Delete' : 'Delete Blocked'}
+        confirmClass={deletingGuard?.allowed ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-400 hover:bg-slate-400'}
         onConfirm={handleDelete}
-        onCancel={() => setDeletingId(null)}
+        onCancel={() => {
+          setDeletingId(null)
+          setDeleteError('')
+        }}
       />
     </div>
   )

@@ -2,16 +2,18 @@
  * pages/superadmin/Announcements.jsx
  * Super Admin announcement management — full CRUD + system-wide toggle.
  */
-import { useState } from 'react'
-import { Megaphone, Plus, Globe, Shield, Search, Pencil, Trash2, Filter } from 'lucide-react'
-import { useAnnouncements } from '@/context/AnnouncementContext'
+import { useMemo, useState } from 'react'
+import { Megaphone, Plus, Globe, Shield, Search, Filter } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
+import { useClientPagination } from '@/hooks/useClientPagination'
 import { DashboardSkeleton } from '@/components/skeletons'
 import CreateAnnouncementModal from '@/components/announcements/CreateAnnouncementModal'
 import AnnouncementCard from '@/components/announcements/AnnouncementCard'
+import PaginationBar from '@/components/common/PaginationBar'
+import { useAdminAnnouncements } from '@/hooks/adminHooks/useAdminAnnouncements'
 
 const AUTHOR_LABEL = { super_admin: 'System Administration', admin: 'Building Management', facility_manager: 'Facilities Team', finance: 'Billing Department' }
 const TYPE_COLORS = {
@@ -23,37 +25,63 @@ const TYPE_COLORS = {
 export default function SAnnouncements() {
   const loading = usePageLoader(600)
   const { user } = useAuth()
-  const { announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement } = useAnnouncements()
+  const {
+    announcements,
+    addAnnouncement,
+    updateAnnouncement,
+    deleteAnnouncement,
+    loading: announcementsLoading,
+  } = useAdminAnnouncements()
   const { addToast } = useApp()
-  const { isSuperAdmin, canEditAnnouncement, canDeleteAnnouncement } = usePermissions()
+  const { canEditAnnouncement, canDeleteAnnouncement } = usePermissions()
 
   const [showModal, setShowModal] = useState(false)
   const [editingAnn, setEditingAnn] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
 
-  if (loading) return <DashboardSkeleton />
-
-  const filtered = announcements.filter(a => {
-    const q = search.toLowerCase()
-    const matchSearch = !q || a.title.toLowerCase().includes(q) || a.body.toLowerCase().includes(q)
+  const filtered = useMemo(() => announcements.filter(a => {
+    const q = search.toLowerCase().trim()
+    const matchSearch = !q || a.title?.toLowerCase().includes(q) || a.body?.toLowerCase().includes(q)
     const matchFilter = filter === 'all' || (filter === 'system' ? (a.isSystemWide || a.createdBy === 'super_admin') : !a.isSystemWide && a.createdBy !== 'super_admin')
     return matchSearch && matchFilter
-  })
+  }), [announcements, search, filter])
+  const {
+    page,
+    perPage,
+    setPage,
+    setPerPage,
+    pagedItems,
+    meta,
+  } = useClientPagination(filtered, 8)
 
-  const handleSave = (formData) => {
-    if (editingAnn) {
-      updateAnnouncement(editingAnn.id, formData)
-      addToast('Announcement updated successfully')
-    } else {
-      addAnnouncement({ ...formData, author: AUTHOR_LABEL[user?.role] || user?.name, createdBy: user?.role })
-      addToast(formData.isSystemWide ? 'System-wide announcement posted' : 'Announcement posted successfully')
+  if (loading || announcementsLoading) return <DashboardSkeleton />
+
+  const handleSave = async (formData) => {
+    try {
+      if (editingAnn) {
+        await updateAnnouncement(editingAnn.id, formData)
+        addToast('Announcement updated successfully')
+      } else {
+        await addAnnouncement({ ...formData, author: AUTHOR_LABEL[user?.role] || user?.name, createdBy: user?.role })
+        addToast(formData.isSystemWide ? 'System-wide announcement posted' : 'Announcement posted successfully')
+      }
+      setShowModal(false)
+      setEditingAnn(null)
+    } catch (error) {
+      addToast(error?.response?.data?.message || 'Failed to save announcement.', 'error')
     }
-    setShowModal(false); setEditingAnn(null)
   }
 
-  const handleDelete = (id) => {
-    if (confirm('Delete this announcement?')) { deleteAnnouncement(id); addToast('Announcement deleted', 'info') }
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this announcement?')) return
+
+    try {
+      await deleteAnnouncement(id)
+      addToast('Announcement deleted', 'info')
+    } catch (error) {
+      addToast(error?.response?.data?.message || 'Failed to delete announcement.', 'error')
+    }
   }
 
   const systemCount = announcements.filter(a => a.isSystemWide || a.createdBy === 'super_admin').length
@@ -118,15 +146,26 @@ export default function SAnnouncements() {
           <p className="text-sm text-slate-400 mt-1">Click New Announcement to post one</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map(ann => (
-            <AnnouncementCard key={ann.id} ann={ann}
-              canEdit={canEditAnnouncement(ann)}
-              canDelete={canDeleteAnnouncement(ann)}
-              onEdit={(a) => { setEditingAnn(a); setShowModal(true) }}
-              onDelete={handleDelete}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {pagedItems.map(ann => (
+              <AnnouncementCard key={ann.id} ann={ann}
+                canEdit={canEditAnnouncement(ann)}
+                canDelete={canDeleteAnnouncement(ann)}
+                onEdit={(a) => { setEditingAnn(a); setShowModal(true) }}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+
+          <PaginationBar
+            meta={meta}
+            page={page}
+            perPage={perPage}
+            onPageChange={setPage}
+            onPerPageChange={setPerPage}
+            perPageOptions={[8, 12, 20]}
+          />
         </div>
       )}
 

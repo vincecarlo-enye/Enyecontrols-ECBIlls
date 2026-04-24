@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createAdminAnnouncement, deleteAdminAnnouncement, fetchAdminAnnouncements, updateAdminAnnouncement } from '../../services/adminService/adminAnnouncementService'
+import { createAdminAnnouncement, deleteAdminAnnouncement, fetchAdminAnnouncements, getAdminAnnouncementsSnapshot, updateAdminAnnouncement } from '../../services/adminService/adminAnnouncementService'
 
 
 function mapBackendToUI(item) {
@@ -71,19 +71,30 @@ function mapUIToBackend(formData) {
   }
 }
 
+function sortAnnouncementsNewestFirst(items = []) {
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left?._raw?.created_at || left?.starts_at || left?.date || 0).getTime()
+    const rightTime = new Date(right?._raw?.created_at || right?.starts_at || right?.date || 0).getTime()
+    return rightTime - leftTime
+  })
+}
+
 export function useAdminAnnouncements() {
-  const [announcements, setAnnouncements] = useState([])
-  const [loading, setLoading] = useState(true)
+  const initialSnapshot = getAdminAnnouncementsSnapshot()
+  const initialRows = Array.isArray(initialSnapshot?.data) ? initialSnapshot.data : []
+  const hasInitialAnnouncements = initialRows.length > 0
+  const [announcements, setAnnouncements] = useState(() => sortAnnouncementsNewestFirst(initialRows.map(mapBackendToUI)))
+  const [loading, setLoading] = useState(!hasInitialAnnouncements)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   const loadAnnouncements = useCallback(async () => {
     try {
-      setLoading(true)
+      setLoading((current) => current || !hasInitialAnnouncements)
       setError('')
       const res = await fetchAdminAnnouncements()
       const rows = Array.isArray(res?.data) ? res.data : []
-      setAnnouncements(rows.map(mapBackendToUI))
+      setAnnouncements(sortAnnouncementsNewestFirst(rows.map(mapBackendToUI)))
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load announcements.')
     } finally {
@@ -104,7 +115,7 @@ export function useAdminAnnouncements() {
       const created = res?.data
 
       if (created) {
-        setAnnouncements((prev) => [mapBackendToUI(created), ...prev])
+        setAnnouncements((prev) => sortAnnouncementsNewestFirst([mapBackendToUI(created), ...prev]))
       } else {
         await loadAnnouncements()
       }
@@ -128,7 +139,9 @@ export function useAdminAnnouncements() {
 
       if (updated) {
         setAnnouncements((prev) =>
-          prev.map((item) => (String(item.id) === String(id) ? mapBackendToUI(updated) : item))
+          sortAnnouncementsNewestFirst(
+            prev.map((item) => (String(item.id) === String(id) ? mapBackendToUI(updated) : item))
+          )
         )
       } else {
         await loadAnnouncements()

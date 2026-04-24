@@ -1,82 +1,4 @@
 {
-  "stats": {
-    "electricity": { "usage": 1637.11, "unit": "kWh", "estimatedCost": 17991.84, "trend": 4.2, "lastUpdated": "March 6, 2026 • 08:42 AM" },
-    "thermal": { "usage": 1637.11, "unit": "kBTU/h", "estimatedCost": 17991.84, "trend": -1.8, "lastUpdated": "March 6, 2026 • 08:42 AM" },
-    "water": { "usage": 1637.11, "unit": "m³", "estimatedCost": 17991.84, "trend": 2.1, "lastUpdated": "March 6, 2026 • 08:42 AM" }
-  },
-  "electricityDaily": [
-    { "day": "Feb 28", "usage": 450, "cost": 4950 },
-    { "day": "Mar 1", "usage": 520, "cost": 5720 },
-    { "day": "Mar 2", "usage": 610, "cost": 6710 },
-    { "day": "Mar 3", "usage": 480, "cost": 5280 },
-    { "day": "Mar 4", "usage": 555, "cost": 6105 },
-    { "day": "Mar 5", "usage": 590, "cost": 6490 },
-    { "day": "Mar 6", "usage": 432, "cost": 4752 }
-  ],
-  "waterDaily": [
-    { "day": "Feb 28", "usage": 40, "cost": 1200 },
-    { "day": "Mar 1", "usage": 38, "cost": 1140 },
-    { "day": "Mar 2", "usage": 55, "cost": 1650 },
-    { "day": "Mar 3", "usage": 42, "cost": 1260 },
-    { "day": "Mar 4", "usage": 50, "cost": 1500 },
-    { "day": "Mar 5", "usage": 47, "cost": 1410 },
-    { "day": "Mar 6", "usage": 35, "cost": 1050 }
-  ],
-  "thermalDaily": [
-    { "day": "Feb 28", "usage": 210, "cost": 3150 },
-    { "day": "Mar 1", "usage": 240, "cost": 3600 },
-    { "day": "Mar 2", "usage": 198, "cost": 2970 },
-    { "day": "Mar 3", "usage": 260, "cost": 3900 },
-    { "day": "Mar 4", "usage": 245, "cost": 3675 },
-    { "day": "Mar 5", "usage": 270, "cost": 4050 },
-    { "day": "Mar 6", "usage": 214, "cost": 3210 }
-  ],
-  "rateConfig": {
-    "electricity": { "rate": 10.99, "unit": "per kWh", "completeness": 85 },
-    "water": { "rate": 30.00, "unit": "per m³", "completeness": 100 },
-    "thermal": { "rate": 11.00, "unit": "per kBTU/h", "completeness": 70 }
-  },
-  "monthlyOverview": [
-    { "month": "Oct", "electricity": 12400, "water": 3200, "thermal": 8100 },
-    { "month": "Nov", "electricity": 13200, "water": 3600, "thermal": 9200 },
-    { "month": "Dec", "electricity": 15100, "water": 4100, "thermal": 11300 },
-    { "month": "Jan", "electricity": 14800, "water": 3900, "thermal": 10800 },
-    { "month": "Feb", "electricity": 16200, "water": 4300, "thermal": 11900 },
-    { "month": "Mar", "electricity": 17991, "water": 4800, "thermal": 12400 }
-  ],
-  "rates": {
-    "electricity": { "rate": 12.50, "unit": "/kWh" },
-    "water": { "rate": 35.00, "unit": "/m³" },
-    "thermal": { "rate": 2.75, "unit": "/kBTU/h" }
-  },
-  "sampleBill": {
-    "accountNumber": "ACC-2026-00042",
-    "tenantName": "ABC Corporation",
-    "unit": "12F-A, Tower One",
-    "billDate": "March 6, 2026",
-    "dueDate": "March 15, 2026",
-    "billingPeriod": "February 1 – February 28, 2026",
-    "previousBalance": 0,
-    "paymentsReceived": 0,
-    "charges": [
-      { "particular": "Electricity", "used": "1,247.50 kWh", "previous": "342,210", "current": "343,457", "amount": 7200 },
-      { "particular": "Water", "used": "93.2 m³", "previous": "8,420", "current": "8,513", "amount": 2800 },
-      { "particular": "Thermal Energy", "used": "230.9 kBTU/h", "previous": "12,340", "current": "12,571", "amount": 2540 }
-    ],
-    "grandTotal": 12540
-  },
-  "tenantBills": [
-    { "id": "BL-2026-001",  "tenant": "ABC Corporation", "unit": "12F-A", "month": "March 2026",    "billingPeriod": "Feb 1 – Feb 28", "amount": 12540, "dueDate": "March 15, 2026",    "status": "unpaid", "breakdown": { "electricity": 7200, "water": 2800, "thermal": 2540 } },
-    { "id": "BL-2026-T01",  "tenant": "ABC Corporation", "unit": "12F-A", "month": "February 2026", "billingPeriod": "Jan 1 – Jan 31", "amount": 11820, "dueDate": "February 15, 2026", "status": "paid",   "breakdown": { "electricity": 6800, "water": 2620, "thermal": 2400 } },
-    { "id": "BL-2026-T02",  "tenant": "ABC Corporation", "unit": "12F-A", "month": "January 2026",  "billingPeriod": "Dec 1 – Dec 31", "amount": 13100, "dueDate": "January 15, 2026",  "status": "paid",   "breakdown": { "electricity": 7500, "water": 2900, "thermal": 2700 } },
-    { "id": "BL-2025-T03",  "tenant": "ABC Corporation", "unit": "12F-A", "month": "December 2025", "billingPeriod": "Nov 1 – Nov 30", "amount": 12280, "dueDate": "December 15, 2025", "status": "paid",   "breakdown": { "electricity": 7100, "water": 2700, "thermal": 2480 } },
-    { "id": "BL-2025-T04",  "tenant": "ABC Corporation", "unit": "12F-A", "month": "November 2025", "billingPeriod": "Oct 1 – Oct 31", "amount": 11950, "dueDate": "November 15, 2025", "status": "paid",   "breakdown": { "electricity": 6900, "water": 2650, "thermal": 2400 } },
-    { "id": "BL-2026-007",  "tenant": "ABC Corporation", "unit": "12F-B", "month": "March 2026",    "billingPeriod": "Feb 1 – Feb 28", "amount": 9800,  "dueDate": "March 15, 2026",    "status": "unpaid", "breakdown": { "electricity": 5600, "water": 2200, "thermal": 2000 } },
-    { "id": "BL-2026-B01",  "tenant": "ABC Corporation", "unit": "12F-B", "month": "February 2026", "billingPeriod": "Jan 1 – Jan 31", "amount": 9200,  "dueDate": "February 15, 2026", "status": "paid",   "breakdown": { "electricity": 5300, "water": 2050, "thermal": 1850 } },
-    { "id": "BL-2026-B02",  "tenant": "ABC Corporation", "unit": "12F-B", "month": "January 2026",  "billingPeriod": "Dec 1 – Dec 31", "amount": 10100, "dueDate": "January 15, 2026",  "status": "paid",   "breakdown": { "electricity": 5800, "water": 2250, "thermal": 2050 } },
-    { "id": "BL-2025-B03",  "tenant": "ABC Corporation", "unit": "12F-B", "month": "December 2025", "billingPeriod": "Nov 1 – Nov 30", "amount": 9600,  "dueDate": "December 15, 2025", "status": "paid",   "breakdown": { "electricity": 5500, "water": 2100, "thermal": 2000 } },
-    { "id": "BL-2025-B04",  "tenant": "ABC Corporation", "unit": "12F-B", "month": "November 2025", "billingPeriod": "Oct 1 – Oct 31", "amount": 9300,  "dueDate": "November 15, 2025", "status": "paid",   "breakdown": { "electricity": 5200, "water": 2000, "thermal": 2100 } }
-  ],
   "monthlyConsumption": {
     "12F-A": [
       { "month": "Oct", "electricity": 1120, "water": 168, "thermal": 2480 },
@@ -87,8 +9,8 @@
       { "month": "Mar", "electricity": 1380, "water": 196, "thermal": 2970 }
     ],
     "12F-B": [
-      { "month": "Oct", "electricity": 890,  "water": 132, "thermal": 1950 },
-      { "month": "Nov", "electricity": 920,  "water": 140, "thermal": 2100 },
+      { "month": "Oct", "electricity": 890, "water": 132, "thermal": 1950 },
+      { "month": "Nov", "electricity": 920, "water": 140, "thermal": 2100 },
       { "month": "Dec", "electricity": 1200, "water": 175, "thermal": 2650 },
       { "month": "Jan", "electricity": 1100, "water": 160, "thermal": 2400 },
       { "month": "Feb", "electricity": 1020, "water": 148, "thermal": 2200 },

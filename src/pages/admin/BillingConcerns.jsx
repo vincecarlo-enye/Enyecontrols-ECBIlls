@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/filterUtils'
 /**
  * pages/admin/BillingConcerns.jsx
  * Admin view for billing concern tickets.
@@ -11,17 +12,22 @@ import {
   XCircle,
   Info,
   Filter,
+  Ticket,
 } from 'lucide-react'
 import {
   assignBillingConcern,
   fetchAdminBillingConcerns,
   fetchFinanceUsers,
+  getAdminBillingConcernsSnapshot,
+  getFinanceUsersSnapshot,
   updateAdminBillingConcernStatus,
 } from '@/services/adminService/adminBillingConcernService'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
+import PaginationBar from '@/components/common/PaginationBar'
+import { useClientPagination } from '@/hooks/useClientPagination'
 
 const ALL_STATUSES = [
   'all',
@@ -35,30 +41,79 @@ const ALL_STATUSES = [
   'reopened',
 ]
 
-function formatDate(value) {
-  if (!value) return 'â€”'
 
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
+function buildTimeline(item = {}) {
+  const timeline = []
 
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  if (item?.created_at) {
+    timeline.push({
+      id: `submitted-${item.id}`,
+      action: 'Ticket submitted',
+      by: item?.tenant?.name || 'Tenant',
+      role: 'tenant',
+      date: formatDate(item.created_at),
+      note: item?.description ?? item?.message ?? '',
+    })
+  }
+
+  if (item?.assignedBy?.name || item?.assignee?.name) {
+    timeline.push({
+      id: `assigned-${item.id}`,
+      action: 'Assigned to Finance',
+      by: item?.assignedBy?.name || 'Admin',
+      role: 'admin',
+      date: formatDate(item?.updated_at || item?.created_at),
+      note: item?.admin_notes ?? '',
+    })
+  }
+
+  if (item?.admin_notes) {
+    timeline.push({
+      id: `admin-note-${item.id}`,
+      action: item?.status === 'rejected' ? 'Ticket rejected' : 'Admin update added',
+      by: item?.assignedBy?.name || 'Admin',
+      role: 'admin',
+      date: formatDate(item?.updated_at || item?.created_at),
+      note: item.admin_notes,
+    })
+  }
+
+  if (item?.finance_notes) {
+    timeline.push({
+      id: `finance-note-${item.id}`,
+      action: 'Finance update added',
+      by: item?.assignee?.name || 'Finance',
+      role: 'finance',
+      date: formatDate(item?.updated_at || item?.created_at),
+      note: item.finance_notes,
+    })
+  }
+
+  if (item?.status && !['pending'].includes(String(item.status).toLowerCase())) {
+    timeline.push({
+      id: `status-${item.id}`,
+      action: `Status changed to ${String(item.status).replace(/_/g, ' ')}`,
+      by: item?.assignee?.name || item?.assignedBy?.name || 'System',
+      role: item?.assigned_to ? 'finance' : 'admin',
+      date: formatDate(item?.updated_at || item?.created_at),
+      note: '',
+    })
+  }
+
+  return timeline
 }
 
 function normalizeConcern(item = {}) {
   return {
     id: String(item?.id ?? ''),
-    billId: String(item?.bill_id ?? item?.bill?.id ?? 'â€”'),
+    billId: String(item?.bill_id ?? item?.bill?.id ?? '--'),
     tenantName: item?.tenant?.name ?? 'Unknown tenant',
     email: item?.tenant?.email ?? '',
     unit:
       item?.tenant?.unit?.unit_number ??
       item?.unit?.unit_number ??
       item?.unit?.building_name ??
-      'â€”',
+      '--',
     category: item?.category ?? 'general',
     subject: item?.subject ?? '',
     message: item?.description ?? item?.message ?? '',
@@ -69,6 +124,7 @@ function normalizeConcern(item = {}) {
     adminNotes: item?.admin_notes ?? '',
     financeNotes: item?.finance_notes ?? '',
     assignedTo: item?.assignee?.name ?? '',
+    timeline: Array.isArray(item?.timeline) && item.timeline.length > 0 ? item.timeline : buildTimeline(item),
     tenant: item?.tenant ?? null,
     raw: item,
   }
@@ -77,23 +133,32 @@ function normalizeConcern(item = {}) {
 export default function AdminBillingConcerns() {
   const loading = usePageLoader(600)
   const { addToast } = useApp()
+  const concernsSnapshot = getAdminBillingConcernsSnapshot()
+  const financeUsersSnapshot = getFinanceUsersSnapshot()
+  const hasInitialSnapshot = concernsSnapshot != null || financeUsersSnapshot != null
+  const initialConcerns = Array.isArray(concernsSnapshot?.data)
+    ? concernsSnapshot.data.map(normalizeConcern)
+    : []
+  const initialFinanceUsers = Array.isArray(financeUsersSnapshot?.data)
+    ? financeUsersSnapshot.data
+    : []
 
-  const [concerns, setConcerns] = useState([])
-  const [pageLoading, setPageLoading] = useState(true)
+  const [concerns, setConcerns] = useState(initialConcerns)
+  const [pageLoading, setPageLoading] = useState(!hasInitialSnapshot)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedConcern, setSelectedConcern] = useState(null)
-  const [financeUsers, setFinanceUsers] = useState([])
+  const [financeUsers, setFinanceUsers] = useState(initialFinanceUsers)
   const [assignUserId, setAssignUserId] = useState('')
   const [assignTarget, setAssignTarget] = useState(null)
 
   useEffect(() => {
     const loadConcerns = async () => {
       try {
-        setPageLoading(true)
+        setPageLoading((current) => current || !hasInitialSnapshot)
         setError('')
         const [concernsRes, financeRes] = await Promise.all([
           fetchAdminBillingConcerns(),
@@ -111,21 +176,25 @@ export default function AdminBillingConcerns() {
     }
 
     loadConcerns()
-  }, [])
+  }, [hasInitialSnapshot])
 
-  const filtered = concerns.filter((concern) => {
-    const q = search.toLowerCase()
-    const matchSearch =
-      !q ||
-      concern.id.toLowerCase().includes(q) ||
-      concern.tenantName.toLowerCase().includes(q) ||
-      String(concern.unit).toLowerCase().includes(q) ||
-      String(concern.category).toLowerCase().includes(q) ||
-      String(concern.billId).toLowerCase().includes(q)
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    return concerns.filter((concern) => {
+      const matchSearch =
+        !q ||
+        concern.id.toLowerCase().includes(q) ||
+        concern.tenantName.toLowerCase().includes(q) ||
+        String(concern.unit).toLowerCase().includes(q) ||
+        String(concern.category).toLowerCase().includes(q) ||
+        String(concern.billId).toLowerCase().includes(q)
 
-    const matchStatus = statusFilter === 'all' || concern.status === statusFilter
-    return matchSearch && matchStatus
-  })
+      const matchStatus = statusFilter === 'all' || concern.status === statusFilter
+      return matchSearch && matchStatus
+    })
+  }, [concerns, search, statusFilter])
+
+  const { pagedItems, meta, page, perPage, setPage, setPerPage } = useClientPagination(filtered, 15)
 
   const counts = useMemo(
     () => ({
@@ -209,13 +278,30 @@ export default function AdminBillingConcerns() {
 
   return (
     <div className="space-y-5 animate-in">
+      <div className="flex items-center gap-3">
+        <div className="rounded-xl bg-orange-100 p-2.5 dark:bg-orange-900/30">
+          <Ticket className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+        </div>
+
+        <div>
+          <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">
+            Billing Concerns
+          </h1>
+          <p className="mt-0.5 text-sm text-slate-400">
+            Review and manage tenant billing dispute tickets
+          </p>
+        </div>
+      </div>
+
+      <div className="h-px bg-slate-200 dark:bg-slate-700/50" />
+
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 mx-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 m-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
           { label: 'Total', value: counts.total, cls: 'text-blue-600 dark:text-blue-400' },
           { label: 'Pending', value: counts.pending, cls: 'text-amber-600 dark:text-amber-400' },
@@ -242,7 +328,7 @@ export default function AdminBillingConcerns() {
                 type="text"
                 placeholder="Search tickets..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 className="pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all w-44"
               />
             </div>
@@ -251,7 +337,7 @@ export default function AdminBillingConcerns() {
               {ALL_STATUSES.slice(0, 6).map((status) => (
                 <button
                   key={status}
-                  onClick={() => setStatusFilter(status)}
+                  onClick={() => { setStatusFilter(status); setPage(1) }}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-medium capitalize transition-all ${
                     statusFilter === status
                       ? 'bg-blue-600 text-white shadow-sm'
@@ -284,7 +370,7 @@ export default function AdminBillingConcerns() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((concern) => (
+                pagedItems.map((concern) => (
                   <tr
                     key={concern.id}
                     className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
@@ -357,6 +443,17 @@ export default function AdminBillingConcerns() {
             </tbody>
           </table>
         </div>
+        {meta.last_page > 1 && (
+          <div className="border-t border-slate-200 dark:border-slate-800 px-4 py-3">
+            <PaginationBar
+              meta={meta}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              onPerPageChange={(val) => { setPerPage(val); setPage(1) }}
+            />
+          </div>
+        )}
       </div>
 
       <ConcernDetails

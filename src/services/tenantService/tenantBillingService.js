@@ -1,7 +1,7 @@
 import api from "../../lib/api"
 
-export async function fetchTenantBills() {
-  const res = await api.get('/api/tenant/bills')
+export async function fetchTenantBills(params = {}) {
+  const res = await api.get('/api/tenant/bills', { params })
   return res.data
 }
 

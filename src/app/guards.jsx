@@ -4,6 +4,7 @@ import AppLoadingScreen from "@/components/common/AppLoadingScreen"
 
 function getHomeByRole(user) {
   if (!user) return "/login"
+  if (user.must_change_password) return "/force-password-change"
 
   switch (user.role) {
     case "super_admin":
@@ -28,6 +29,7 @@ export function RequireAdmin({ children }) {
 
   if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
+  if (user.must_change_password) return <Navigate to="/force-password-change" replace />
   if (user.role !== "admin") {
     return <Navigate to={getHomeByRole(user)} replace />
   }
@@ -40,6 +42,7 @@ export function RequireSuperAdmin({ children }) {
 
   if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
+  if (user.must_change_password) return <Navigate to="/force-password-change" replace />
   if (user.role !== "super_admin") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
@@ -50,6 +53,7 @@ export function RequireTenant({ children }) {
 
   if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
+  if (user.must_change_password) return <Navigate to="/force-password-change" replace />
   if (user.role !== "tenant") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
@@ -60,6 +64,7 @@ export function RequireFacility({ children }) {
 
   if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
+  if (user.must_change_password) return <Navigate to="/force-password-change" replace />
   if (user.role !== "facility_manager") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
@@ -70,6 +75,7 @@ export function RequireFinance({ children }) {
 
   if (loading) return <GuardLoading />
   if (!user) return <Navigate to="/login" replace />
+  if (user.must_change_password) return <Navigate to="/force-password-change" replace />
   if (user.role !== "finance") return <Navigate to={getHomeByRole(user)} replace />
 
   return children
@@ -91,4 +97,14 @@ export function AuthRedirect() {
   if (!user) return null
 
   return <Navigate to={getHomeByRole(user)} replace />
+}
+
+export function RequirePasswordChange({ children }) {
+  const { user, loading } = useAuth()
+
+  if (loading) return <GuardLoading />
+  if (!user) return <Navigate to="/login" replace />
+  if (!user.must_change_password) return <Navigate to={getHomeByRole(user)} replace />
+
+  return children
 }

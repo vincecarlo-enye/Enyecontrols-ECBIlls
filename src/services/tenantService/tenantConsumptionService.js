@@ -1,8 +1,13 @@
 import api from "../../lib/api"
 
-export async function getTenantConsumptionReports(unit = 'all') {
+export async function getTenantConsumptionReports({ unit = 'all', timeRange = '1m' } = {}) {
+  const params = {
+    ...(unit && unit !== 'all' ? { unit } : {}),
+    ...(timeRange ? { time_range: timeRange, range: timeRange } : {}),
+  }
+
   const { data } = await api.get('/api/tenant/consumption-reports', {
-    params: unit && unit !== 'all' ? { unit } : {},
+    params,
   })
   return data?.data ?? {
     unit: null,

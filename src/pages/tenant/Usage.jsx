@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Zap, Droplets, Flame, Wifi } from 'lucide-react'
 import {
   LineChart,
@@ -14,8 +14,12 @@ import {
 } from 'recharts'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
+import ChartExportButton from '@/components/common/ChartExportButton'
 import { useTenantUsageMonitoring } from '@/hooks/tenantHooks/useTenantUsageMonitoring'
-import { useUnitFilter } from '@/context/UnitFilterContext'
+import {
+  TENANT_TIME_RANGE_OPTIONS,
+  useUnitFilter,
+} from '@/context/UnitFilterContext'
 import UnitFilterBar from '@/components/common/UnitFilterBar'
 
 const ttStyle = {
@@ -55,7 +59,7 @@ function buildHourlyFallback(summary = {}) {
 export default function Usage() {
   const pageLoading = usePageLoader(700)
   const [tab, setTab] = useState('hourly')
-  const { selectedUnit } = useUnitFilter()
+  const { selectedUnit, selectedTimeRange } = useUnitFilter()
 
   const {
     unit,
@@ -72,8 +76,8 @@ export default function Usage() {
   const tenantUnits = Array.isArray(units) ? units : []
 
   useEffect(() => {
-    refreshUsage(selectedUnit)
-  }, [refreshUsage, selectedUnit])
+    refreshUsage(selectedUnit, selectedTimeRange)
+  }, [refreshUsage, selectedTimeRange, selectedUnit])
 
   const isLoading = (pageLoading && !summary?.electric && safeHourly.length === 0 && safeDaily.length === 0 && safeMonthly.length === 0)
     || (loading && !summary?.electric && safeHourly.length === 0 && safeDaily.length === 0 && safeMonthly.length === 0)
@@ -101,6 +105,8 @@ export default function Usage() {
         ? `Unit ${unit.unit_number}`
         : 'Assigned Unit'
     : `Unit ${selectedUnit}`
+  const selectedRangeLabel =
+    TENANT_TIME_RANGE_OPTIONS.find((option) => option.value === selectedTimeRange)?.label || '1M'
 
   const summaryCards = [
     {
@@ -114,7 +120,7 @@ export default function Usage() {
     },
     {
       label: 'Water Consumption',
-      value: `${formatReading(summary?.water?.consumption)} ${summary?.water?.unit || 'mÂ³'}`,
+      value: `${formatReading(summary?.water?.consumption)} ${summary?.water?.unit || 'm3'}`,
       previous: `Prev: ${formatReading(summary?.water?.previous)}`,
       current: `Curr: ${formatReading(summary?.water?.current)}`,
       icon: Droplets,
@@ -140,7 +146,7 @@ export default function Usage() {
             Usage Monitoring
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            Utility consumption and meter readings for {unitLabel.toLowerCase()}
+            Utility consumption and meter readings for {unitLabel.toLowerCase()} · {selectedRangeLabel}
           </p>
         </div>
 
@@ -162,7 +168,7 @@ export default function Usage() {
         </div>
       ) : null}
 
-      <UnitFilterBar />
+      <UnitFilterBar showTimeRange />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {summaryCards.map((s, i) => {
@@ -182,7 +188,7 @@ export default function Usage() {
                     {s.value}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {s.previous} Â· {s.current}
+                    {s.previous} - {s.current} · {selectedRangeLabel}
                   </p>
                 </div>
 
@@ -215,13 +221,18 @@ export default function Usage() {
 
       {tab === 'hourly' && (
         <>
-          <div className="glass rounded-2xl p-5 shadow-lg">
-            <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-1">
-              Hourly Consumption
-            </h2>
-            <p className="text-xs text-slate-400 mb-4">
-              Hour-by-hour utility monitoring for {unitLabel.toLowerCase()}
-            </p>
+          <div data-chart-export-panel="true" className="glass rounded-2xl p-5 shadow-lg">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-1">
+                  Hourly Consumption
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Hour-by-hour utility monitoring for {unitLabel.toLowerCase()} · {selectedRangeLabel}
+                </p>
+              </div>
+              <ChartExportButton title="Hourly Consumption" rows={safeHourly} />
+            </div>
 
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={safeHourly} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
@@ -241,7 +252,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Line type="monotone" dataKey="electric" stroke="#f59e0b" strokeWidth={2} dot={false} name="Electric (kWh)" />
-                <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water (mÂ³)" />
+                <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water (m3)" />
                 <Line type="monotone" dataKey="thermal" stroke="#f43f5e" strokeWidth={2} dot={false} name="Thermal (kBTU)" />
               </LineChart>
             </ResponsiveContainer>
@@ -258,7 +269,7 @@ export default function Usage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0">
                   <tr className="border-b border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60">
-                    {['Time', 'Electric (kWh)', 'Water (mÂ³)', 'Thermal (kBTU)'].map((col) => (
+                    {['Time', 'Electric (kWh)', 'Water (m3)', 'Thermal (kBTU)'].map((col) => (
                       <th
                         key={col}
                         className="text-left text-[10px] font-mono uppercase tracking-wider text-slate-400 px-4 py-3 whitespace-nowrap"
@@ -297,13 +308,18 @@ export default function Usage() {
       )}
 
       {tab === 'daily' && (
-        <div className="glass rounded-2xl p-5 shadow-lg">
-          <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-1">
-            Daily Totals
-          </h2>
-          <p className="text-xs text-slate-400 mb-4">
-            Utility consumption per day for {unitLabel.toLowerCase()}
-          </p>
+        <div data-chart-export-panel="true" className="glass rounded-2xl p-5 shadow-lg">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-1">
+                Daily Totals
+              </h2>
+              <p className="text-xs text-slate-400">
+                Utility consumption grouped by weekday for {unitLabel.toLowerCase()} · {selectedRangeLabel}
+              </p>
+            </div>
+            <ChartExportButton title="Daily Totals" rows={safeDaily} />
+          </div>
 
           {safeDaily.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -323,7 +339,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="electric" name="Electric (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="water" name="Water (mÂ³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="water" name="Water (m3)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -336,13 +352,18 @@ export default function Usage() {
       )}
 
       {tab === 'monthly' && (
-        <div className="glass rounded-2xl p-5 shadow-lg">
-          <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-1">
-            Monthly Totals
-          </h2>
-          <p className="text-xs text-slate-400 mb-4">
-            Utility consumption trend over recent months for {unitLabel.toLowerCase()}
-          </p>
+        <div data-chart-export-panel="true" className="glass rounded-2xl p-5 shadow-lg">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-1">
+                Monthly Totals
+              </h2>
+              <p className="text-xs text-slate-400">
+                Utility consumption grouped by quarter for {unitLabel.toLowerCase()} · {selectedRangeLabel}
+              </p>
+            </div>
+            <ChartExportButton title="Monthly Totals" rows={safeMonthly} />
+          </div>
 
           {safeMonthly.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -362,7 +383,7 @@ export default function Usage() {
                 <Tooltip {...ttStyle} />
                 <Legend wrapperStyle={{ fontSize: '11px' }} />
                 <Bar dataKey="electric" name="Electric (kWh)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="water" name="Water (mÂ³)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="water" name="Water (m3)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -376,3 +397,4 @@ export default function Usage() {
     </div>
   )
 }
+

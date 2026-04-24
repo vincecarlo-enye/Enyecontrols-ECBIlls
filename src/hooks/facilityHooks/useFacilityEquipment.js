@@ -1,5 +1,7 @@
+import { unwrapCollection } from '@/utils/apiUtils'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchFacilityEquipment } from '@/services/facilityService/facilityEquipmentService'
+
 
 export function useFacilityEquipment() {
   const [meters, setMeters] = useState([])
@@ -12,7 +14,7 @@ export function useFacilityEquipment() {
 
     try {
       const response = await fetchFacilityEquipment()
-      const data = Array.isArray(response?.data) ? response.data : []
+      const data = unwrapCollection(response)
       setMeters(data)
     } catch (err) {
       setMeters([])

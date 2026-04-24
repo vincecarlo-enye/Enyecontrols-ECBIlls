@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchAdminUnits } from '../../services/adminService/adminUnitService'
 import { fetchAdminTenants } from '../../services/adminService/adminTenantService'
-import { fetchAdminBills } from '../../services/adminService/adminBillingService'
+import { fetchAdminBills, fetchAdminPayments } from '../../services/adminService/adminBillingService'
 import { fetchAdminBillingConcerns } from '../../services/adminService/adminBillingConcernService'
 
 export function useAdminDashboard() {
   const [units, setUnits] = useState([])
   const [tenants, setTenants] = useState([])
   const [bills, setBills] = useState([])
+  const [payments, setPayments] = useState([])
   const [concerns, setConcerns] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -17,16 +18,18 @@ export function useAdminDashboard() {
       setLoading(true)
       setError('')
 
-      const [unitsRes, tenantsRes, billsRes, concernsRes] = await Promise.all([
+      const [unitsRes, tenantsRes, billsRes, paymentsRes, concernsRes] = await Promise.all([
         fetchAdminUnits(),
         fetchAdminTenants(),
         fetchAdminBills(),
+        fetchAdminPayments(),
         fetchAdminBillingConcerns(),
       ])
 
       setUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : [])
       setTenants(Array.isArray(tenantsRes?.data) ? tenantsRes.data : [])
       setBills(Array.isArray(billsRes?.data) ? billsRes.data : [])
+      setPayments(Array.isArray(paymentsRes?.data) ? paymentsRes.data : [])
       setConcerns(Array.isArray(concernsRes?.data) ? concernsRes.data : [])
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load dashboard data.')
@@ -74,6 +77,7 @@ export function useAdminDashboard() {
     units,
     tenants,
     bills,
+    payments,
     concerns,
     loading,
     error,

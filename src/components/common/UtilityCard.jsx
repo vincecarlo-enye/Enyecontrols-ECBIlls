@@ -1,3 +1,4 @@
+import { normalizeUtilityShort } from '@/utils/utilityTypes'
 import { TrendingDown, TrendingUp, Zap, Droplets, Flame } from 'lucide-react'
 import electricityMeterBefore from '@/assets/meters/electricity_b4.png'
 import electricityMeter from '@/assets/meters/electricity.png'
@@ -5,14 +6,8 @@ import waterMeterBefore from '@/assets/meters/water_b4.png'
 import waterMeter from '@/assets/meters/water.png'
 import thermalMeterBefore from '@/assets/meters/thermal_b4.png'
 import thermalMeter from '@/assets/meters/thermal.png'
+import { formatPeso } from '@/utils/filterUtils'
 
-const normalizeType = (type) => {
-  const value = String(type || '').toLowerCase()
-  if (value === 'electricity' || value === 'electric') return 'electric'
-  if (value === 'water') return 'water'
-  if (value === 'thermal') return 'thermal'
-  return 'electric'
-}
 
 const imageMap = {
   electric: {
@@ -41,7 +36,7 @@ const colorMap = {
     text: 'text-amber-300',
     badge: 'bg-emerald-500/10 text-emerald-300 border border-emerald-400/15',
     valueUnit: 'kWh',
-    label: 'Power Meter',
+    label: 'Electric Meter',
     description: 'Real-time electrical monitoring',
   },
   water: {
@@ -56,9 +51,9 @@ const colorMap = {
     gradient: 'from-rose-400 to-red-500',
     text: 'text-rose-300',
     badge: 'bg-emerald-500/10 text-emerald-300 border border-emerald-400/15',
-    valueUnit: 'BTU',
-    label: 'BTU Meter',
-    description: 'Heat-flow monitoring',
+    valueUnit: 'kBTU',
+    label: 'Thermal Energy',
+    description: 'Thermal energy monitoring',
   },
 }
 
@@ -69,6 +64,69 @@ function toNumber(value) {
 
 const BAR_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
+/**
+ * Shorten a bar label to fit the narrow sparkline width without producing
+ * nonsense like "WEE" from "Week 1".
+ *
+ * Rules (applied in order):
+ *  1. "Week N"  → "W{N}"   (e.g. "Week 1" → "W1")
+ *  2. "Q{N}"    → kept as-is (already short)
+ *  3. 3-letter month abbrevs (Jan…Dec) → kept as-is
+ *  4. Weekday names (Monday…Sunday, Mon…Sun) → first 3 chars
+ *  5. Anything else ≤ 4 chars → kept as-is uppercased
+ *  6. Fallback → first 3 chars uppercased
+ */
+function shortenBarLabel(raw) {
+  const s = String(raw ?? '').trim()
+
+  // "Week 1", "Week 2", …
+  const weekMatch = s.match(/^[Ww]eek\s*(\d+)$/)
+  if (weekMatch) return `W${weekMatch[1]}`
+
+  // "Q1" … "Q4" — already short
+  if (/^Q\d$/i.test(s)) return s.toUpperCase()
+
+  // 3-letter month abbreviations
+  if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i.test(s)) {
+    return s.slice(0, 3).toUpperCase()
+  }
+
+  // Weekday names (full or abbreviated)
+  if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/i.test(s)) {
+    return s.slice(0, 3).toUpperCase()
+  }
+
+  // Short labels (≤ 4 chars) — keep as-is
+  if (s.length <= 4) return s.toUpperCase()
+
+  // Generic fallback — first 3 chars
+  return s.slice(0, 3).toUpperCase()
+}
+
+function buildChartBars(series = [], safeUsage = 0) {
+  if (Array.isArray(series) && series.length > 0) {
+    return series.slice(-7).map((entry, index) => {
+      const rawValue = toNumber(entry?.value ?? entry?.usage)
+      const rawLabel = entry?.label ?? entry?.day ?? entry?.date ?? `P${index + 1}`
+      const label = shortenBarLabel(rawLabel)
+
+      return {
+        label,
+        value: rawValue,
+      }
+    })
+  }
+
+  const fallbackHeights = safeUsage > 0
+    ? [54, 48, 66, 44, 50, 68, 56]
+    : [0, 0, 0, 0, 0, 0, 0]
+
+  return fallbackHeights.map((height, index) => ({
+    label: BAR_LABELS[index],
+    value: Number((safeUsage * (height / 100)).toFixed(2)),
+  }))
+}
+
 export default function UtilityCard({
   type,
   usage = 0,
@@ -76,24 +134,23 @@ export default function UtilityCard({
   unit = '',
   estimatedCost = 0,
   cost,
+  currentRate = 0,
   trend = 0,
   delta,
+  series = [],
 }) {
-  const normalizedType = normalizeType(type)
+  const normalizedType = normalizeUtilityShort(type)
   const meterImages = imageMap[normalizedType]
   const Icon = iconMap[normalizedType]
   const palette = colorMap[normalizedType]
   const safeUsage = toNumber(usage ?? value)
   const safeCost = toNumber(estimatedCost ?? cost)
+  const safeRate = toNumber(currentRate)
   const safeTrend = toNumber(trend ?? delta)
   const TrendIcon = safeTrend >= 0 ? TrendingUp : TrendingDown
   const displayUnit = unit || palette.valueUnit
-  const bars = normalizedType === 'electric'
-    ? [54, 48, 66, 44, 50, 68, 56]
-    : normalizedType === 'water'
-      ? [46, 58, 66, 49, 44, 68, 52]
-      : [48, 44, 67, 52, 46, 66, 49]
-  const barValues = bars.map((height) => Number((safeUsage * (height / 100)).toFixed(2)))
+  const chartBars = buildChartBars(series, safeUsage)
+  const maxBarValue = Math.max(...chartBars.map((entry) => entry.value), 0)
 
   return (
     <div className="group relative overflow-hidden rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] transition-all duration-300 dark:border-cyan-500/15 dark:bg-[#0d1118]/95 dark:shadow-[0_0_0_1px_rgba(6,182,212,0.06),0_18px_50px_rgba(0,0,0,0.35)]">
@@ -163,36 +220,59 @@ export default function UtilityCard({
       </div>
 
       <div className="flex items-end gap-2">
-        {bars.map((height, index) => (
+        {chartBars.map((entry, index) => {
+          const height = maxBarValue > 0
+            ? Math.max(34, Math.round((entry.value / maxBarValue) * 56))
+            : 34
+          const isFirstBar = index === 0
+          const isLastBar = index === chartBars.length - 1
+          const estimatedBarCost = safeRate > 0
+            ? entry.value * safeRate
+            : safeUsage > 0 && safeCost > 0
+              ? (entry.value / safeUsage) * safeCost
+              : 0
+          const formattedUsage = entry.value.toLocaleString('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+          const formattedCost = formatPeso(estimatedBarCost)
+
+          return (
           <div
-            key={`${normalizedType}-${index}`}
+            key={`${normalizedType}-${entry.label}-${index}`}
             className="group/bar relative flex flex-1 flex-col items-center gap-1.5"
-            title={`${BAR_LABELS[index]}: ${barValues[index].toLocaleString('en-PH', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} ${displayUnit}`}
-            aria-label={`${BAR_LABELS[index]} consumption ${barValues[index].toLocaleString('en-PH', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} ${displayUnit}`}
+            title={`${entry.label}: ${formattedUsage} ${displayUnit} • ${formattedCost}`}
+            aria-label={`${entry.label} consumption ${formattedUsage} ${displayUnit}, estimated price ${formattedCost}`}
           >
             <div
               className={`w-full rounded-md bg-gradient-to-t ${palette.gradient} opacity-90 transition-all duration-300 group-hover:opacity-100`}
-              style={{ height: Math.max(34, Math.round(height * 0.82)) }}
+              style={{ height }}
             />
-            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-700 shadow-lg group-hover/bar:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-              <span className="whitespace-nowrap">
-                {BAR_LABELS[index]}: {barValues[index].toLocaleString('en-PH', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })} {displayUnit}
-              </span>
+            <div
+              className={[
+                'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-700 shadow-lg group-hover/bar:block dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100',
+                isFirstBar
+                  ? 'left-0'
+                  : isLastBar
+                    ? 'right-0'
+                    : 'left-1/2 -translate-x-1/2',
+              ].join(' ')}
+            >
+              <div className="space-y-0.5">
+                <p className="whitespace-nowrap">
+                  {entry.label}: {formattedUsage} {displayUnit}
+                </p>
+                <p className="whitespace-nowrap text-slate-500 dark:text-slate-400">
+                  Est. price: {formattedCost}
+                </p>
+              </div>
             </div>
             <span className="text-[9px] font-mono text-slate-600 dark:text-slate-600">
-              {BAR_LABELS[index]}
+              {entry.label}
             </span>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -1,16 +1,24 @@
 {
-  "question": "Hello",
-  "generate_audio": false,
-  "tts_mode": "edge",
-  "voice": "en-US-AriaNeural",
-  "auth": {
-    "user_id": 1,
-    "role": "admin",
-    "tenant_ids": [],
-    "unit_ids": [],
-    "meter_ids": [],
-    "can_view_finance": true,
-    "can_view_all": true,
-    "allowed_domains": ["system"]
-  }
+    "question":  "Summarize adjustment review",
+    "generate_audio":  false,
+    "tts_mode":  "edge",
+    "voice":  "en-US-AriaNeural",
+    "auth":  {
+                 "user_id":  1,
+                 "role":  "super_admin",
+                 "tenant_ids":  [
+
+                                ],
+                 "unit_ids":  [
+
+                              ],
+                 "meter_ids":  [
+
+                               ],
+                 "can_view_finance":  true,
+                 "can_view_all":  true,
+                 "allowed_domains":  [
+                                         "system"
+                                     ]
+             }
 }

@@ -1,8 +1,12 @@
-import { useState, useRef, memo } from 'react'
+import { getTenantName } from '@/utils/billing'
+import { formatLongDate, formatShortPeriodDate } from '@/utils/filterUtils'
+import { useState, useRef, useMemo, memo } from 'react'
+import { useClientPagination } from '@/hooks/useClientPagination'
 import {
   Eye,
   Trash2,
   Download,
+  Printer,
   ChevronDown,
   FileText,
   FileSpreadsheet,
@@ -11,8 +15,11 @@ import BillViewerModal from './BillViewerModal'
 import BillStatusBadge from './BillStatusBadge'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import EmptyState from '@/components/ui/EmptyState'
+import PaginationBar from '@/components/common/PaginationBar'
 import { useModalState } from '@/hooks/useModalState'
-import { exportBillCSV } from '@/services/billingService'
+import { exportAllBillsCSV, exportBillCSV } from '@/services/billingService'
+import { fetchAdminBills } from '@/services/adminService/adminBillingService'
+import { printElement } from '@/utils/reporting'
 
 const STATUS_FILTER_TABS = [
   { k: 'all', l: 'All' },
@@ -22,36 +29,18 @@ const STATUS_FILTER_TABS = [
   { k: 'paid', l: 'Paid' },
 ]
 
-function formatLongDate(value) {
-  if (!value) return '—'
+function normalizeFilterableStatus(status) {
+  const raw = String(status || '').toLowerCase().trim()
 
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  if (raw === 'unpaid') return 'published'
+  if (raw === 'submitted' || raw === 'payment_submitted' || raw === 'pending') return 'payment_submitted'
+  if (raw === 'verified') return 'paid'
 
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
+  return raw || 'draft'
 }
 
-function formatShortPeriodDate(value) {
-  if (!value) return '—'
 
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
 
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
-
-function getTenantName(bill) {
-  if (typeof bill?.tenant === 'string') return bill.tenant
-  return bill?.tenant?.name || bill?.tenant_name || 'Unknown Tenant'
-}
 
 function getTenantInitial(bill) {
   const name = getTenantName(bill)
@@ -186,11 +175,25 @@ function ExportDropdown({ bill }) {
 
 function BillsTable({ bills = [], onView, onDelete }) {
   const viewer = useModalState()
+  const printRef = useRef(null)
   const [filter, setFilter] = useState('all')
   const [deleteId, setDeleteId] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const filterRef = useRef('all')
 
-  const filtered =
-    filter === 'all' ? bills : bills.filter((b) => b.status === filter)
+  const filtered = useMemo(
+    () => filter === 'all' ? bills : bills.filter((b) => normalizeFilterableStatus(b.status) === filter),
+    [bills, filter]
+  )
+
+  const {
+    pagedItems: pagedBills,
+    meta: paginationMeta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
+  } = useClientPagination(filtered, 10)
 
   const handleView = async (bill) => {
     const fullBill = await onView?.(bill)
@@ -198,10 +201,38 @@ function BillsTable({ bills = [], onView, onDelete }) {
   }
 
   const selectedDeleteBill = bills.find((b) => String(b.id) === String(deleteId))
+  const activeFilterLabel = STATUS_FILTER_TABS.find(({ k }) => k === filter)?.l || 'All'
+
+  const handleExportFiltered = async () => {
+    const activeFilter = filterRef.current || 'all'
+    setExporting(true)
+
+    try {
+      const fullBillsResponse = await fetchAdminBills({ page: 1, per_page: 10000 })
+      const fullBills = Array.isArray(fullBillsResponse?.data) ? fullBillsResponse.data : bills
+      const exportRows = activeFilter === 'all'
+        ? fullBills
+        : fullBills.filter((bill) => normalizeFilterableStatus(bill.status) === activeFilter)
+    const exportFilterLabel = STATUS_FILTER_TABS.find(({ k }) => k === activeFilter)?.l || 'All'
+
+      exportAllBillsCSV(exportRows, { filterLabel: exportFilterLabel })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handlePrintFiltered = () => {
+    printElement({
+      title: 'Billing Oversight',
+      subtitle: `${activeFilterLabel} bills`,
+      element: printRef.current,
+      mode: 'tables',
+    })
+  }
 
   return (
     <>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
+      <div ref={printRef} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-200 dark:border-slate-700/60">
           <div>
             <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">
@@ -214,7 +245,11 @@ function BillsTable({ bills = [], onView, onDelete }) {
             {STATUS_FILTER_TABS.map(({ k, l }) => (
               <button
                 key={k}
-                onClick={() => setFilter(k)}
+                onClick={() => {
+                  filterRef.current = k
+                  setFilter(k)
+                  setPage(1)
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${filter === k
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -223,6 +258,26 @@ function BillsTable({ bills = [], onView, onDelete }) {
                 {l}
               </button>
             ))}
+            <button
+              onClick={handlePrintFiltered}
+              disabled={filtered.length === 0}
+              aria-label={`Print ${activeFilterLabel} bills`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              title={`Print ${activeFilterLabel} bills`}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Print</span>
+            </button>
+            <button
+              onClick={handleExportFiltered}
+              disabled={filtered.length === 0 || exporting}
+              aria-label={`Export ${activeFilterLabel} bills`}
+              className="ml-1 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              title={`Export ${activeFilterLabel} bills`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export'}</span>
+            </button>
           </div>
         </div>
 
@@ -252,7 +307,7 @@ function BillsTable({ bills = [], onView, onDelete }) {
                   </td>
                 </tr>
               ) : (
-                filtered.map((bill) => (
+                pagedBills.map((bill) => (
                   <tr
                     key={bill.id}
                     className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
@@ -312,13 +367,15 @@ function BillsTable({ bills = [], onView, onDelete }) {
 
                         <ExportDropdown bill={bill} />
 
-                        <button
-                          onClick={() => setDeleteId(bill.id)}
-                          className="p-2 rounded-lg text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {onDelete ? (
+                          <button
+                            onClick={() => setDeleteId(bill.id)}
+                            className="p-2 rounded-lg text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -326,6 +383,19 @@ function BillsTable({ bills = [], onView, onDelete }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="border-t border-slate-200/70 px-4 py-4 dark:border-slate-700/50 sm:px-5">
+          <PaginationBar
+            meta={paginationMeta}
+            page={page}
+            perPage={perPage}
+            onPageChange={setPage}
+            onPerPageChange={(value) => {
+              setPerPage(value)
+              setPage(1)
+            }}
+          />
         </div>
       </div>
 
@@ -335,17 +405,19 @@ function BillsTable({ bills = [], onView, onDelete }) {
         onClose={viewer.close}
       />
 
-      <ConfirmModal
-        isOpen={!!deleteId}
-        title="Delete Bill?"
-        message="This bill will be permanently removed and cannot be recovered."
-        confirmLabel="Delete Bill"
-        onConfirm={() => {
-          onDelete?.(selectedDeleteBill)
-          setDeleteId(null)
-        }}
-        onCancel={() => setDeleteId(null)}
-      />
+      {onDelete ? (
+        <ConfirmModal
+          isOpen={!!deleteId}
+          title="Delete Bill?"
+          message="This bill will be permanently removed and cannot be recovered."
+          confirmLabel="Delete Bill"
+          onConfirm={() => {
+            onDelete?.(selectedDeleteBill)
+            setDeleteId(null)
+          }}
+          onCancel={() => setDeleteId(null)}
+        />
+      ) : null}
     </>
   )
 }

@@ -1,10 +1,14 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, RefreshCw, Search } from 'lucide-react'
+import { Activity, Download, Eye, RefreshCw, Search } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import PaginationBar from '@/components/common/PaginationBar'
-import { fetchActivityLogs } from '@/services/activityLogService'
+import { fetchActivityLogs, fetchActivityTimeline, getActivityLogsSnapshot } from '@/services/activityLogService'
 import { useAuth } from '@/context/AuthContext'
+import { useApp } from '@/context/AppContext'
+import ActivityTimelineModal from '@/components/activity/ActivityTimelineModal'
+import { downloadCsv } from '@/utils/exportCsv'
 
 const DEFAULT_PER_PAGE = 10
 const DEFAULT_META = {
@@ -16,20 +20,6 @@ const DEFAULT_META = {
   to: 0,
 }
 
-function formatDate(value) {
-  if (!value) return ''
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function prettyLabel(value) {
   if (!value) return 'General'
@@ -41,23 +31,32 @@ function prettyLabel(value) {
 
 export default function ActivityLogsPage() {
   const { user } = useAuth()
+  const { addToast } = useApp()
   const pageLoading = usePageLoader(120)
-  const [logs, setLogs] = useState([])
-  const [meta, setMeta] = useState(DEFAULT_META)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [actionFilter, setActionFilter] = useState('')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [timelineOpen, setTimelineOpen] = useState(false)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState('')
+  const [timelineItems, setTimelineItems] = useState([])
+  const [timelineEntity, setTimelineEntity] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const initialSnapshot = getActivityLogsSnapshot({ page: 1, per_page: DEFAULT_PER_PAGE })
+  const hasInitialSnapshot = initialSnapshot != null
+  const [logs, setLogs] = useState(Array.isArray(initialSnapshot?.data) ? initialSnapshot.data : [])
+  const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
+  const [loading, setLoading] = useState(!hasInitialSnapshot)
 
   const isGlobalView = ['admin', 'super_admin'].includes(user?.role)
 
   const loadLogs = async (nextPage = page, nextPerPage = perPage) => {
     try {
-      setLoading(true)
+      setLoading((current) => current || (!hasInitialSnapshot && nextPage === 1 && nextPerPage === DEFAULT_PER_PAGE))
       setError('')
       const res = await fetchActivityLogs({
         page: nextPage,
@@ -102,6 +101,64 @@ export default function ActivityLogsPage() {
     setSearch(searchInput.trim())
   }
 
+  const openTimeline = async (log) => {
+    if (!log?.entity_type || !log?.entity_id) return
+
+    setTimelineOpen(true)
+    setTimelineLoading(true)
+    setTimelineError('')
+    setTimelineItems([])
+    setTimelineEntity({
+      label: prettyLabel(log.entity_type),
+      key: `${prettyLabel(log.entity_type)} #${log.entity_id}`,
+    })
+
+    try {
+      const res = await fetchActivityTimeline(log.entity_type, log.entity_id)
+      setTimelineItems(Array.isArray(res?.data) ? res.data : [])
+    } catch (err) {
+      setTimelineError(err?.response?.data?.message || err?.message || 'Failed to load timeline.')
+    } finally {
+      setTimelineLoading(false)
+    }
+  }
+
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      const res = await fetchActivityLogs({
+        page: 1,
+        per_page: 5000,
+        search,
+        role: roleFilter || undefined,
+        action: actionFilter || undefined,
+      })
+
+      const rows = [
+        ['When', 'User', 'Role', 'Action', 'Description', 'Entity Type', 'Entity ID', 'Method', 'Path', 'IP'],
+        ...((Array.isArray(res?.data) ? res.data : []).map((item) => [
+          formatDate(item.created_at),
+          item.user_name || 'System',
+          item.role || '',
+          item.action || '',
+          item.description || '',
+          item.entity_type || '',
+          item.entity_id || '',
+          item.method || '',
+          item.path || '',
+          item.ip_address || '',
+        ])),
+      ]
+
+      downloadCsv('activity-logs.csv', rows)
+      addToast('Activity logs exported to CSV')
+    } catch (err) {
+      addToast(err?.response?.data?.message || err?.message || 'Failed to export activity logs.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if ((pageLoading && logs.length === 0) || (loading && logs.length === 0)) {
     return <ReportsSkeleton />
   }
@@ -118,13 +175,25 @@ export default function ActivityLogsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => loadLogs(page, perPage)}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            aria-label={exporting ? 'Exporting activity logs as CSV' : 'Export activity logs as CSV'}
+            title={exporting ? 'Exporting activity logs as CSV' : 'Export activity logs as CSV'}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+          <button
+            onClick={() => loadLogs(page, perPage)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -199,12 +268,13 @@ export default function ActivityLogsPage() {
                 <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Description</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Target</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Route</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-300">Timeline</th>
               </tr>
             </thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                     No activity logs found for the selected filters.
                   </td>
                 </tr>
@@ -243,6 +313,19 @@ export default function ActivityLogsPage() {
                         {log.path || 'N/A'}
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      {log.entity_type && log.entity_id ? (
+                        <button
+                          onClick={() => openTimeline(log)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 transition-all hover:bg-blue-50 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View Timeline
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">N/A</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
@@ -263,6 +346,16 @@ export default function ActivityLogsPage() {
           />
         </div>
       </div>
+
+      <ActivityTimelineModal
+        open={timelineOpen}
+        onClose={() => setTimelineOpen(false)}
+        entityLabel={timelineEntity?.label}
+        entityKey={timelineEntity?.key}
+        loading={timelineLoading}
+        error={timelineError}
+        items={timelineItems}
+      />
     </div>
   )
 }

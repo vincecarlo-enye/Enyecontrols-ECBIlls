@@ -1,4 +1,6 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useMemo, useState } from 'react'
+import { useClientPagination } from '@/hooks/useClientPagination'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { TenantListSkeleton } from '@/components/skeletons'
 import Drawer from '@/components/ui/Drawer'
@@ -18,9 +20,11 @@ import {
   CalendarDays,
   Building2,
   X,
+  AlertCircle,
 } from 'lucide-react'
 import { useAdminTenants } from '@/hooks/adminHooks/useAdminTenants'
 import { useAdminUnits } from '@/hooks/adminHooks/useAdminUnits'
+import { useAuth } from '@/context/AuthContext'
 
 const emptyForm = {
   user_id: '',
@@ -36,16 +40,6 @@ const emptyForm = {
   move_out_date: '',
 }
 
-function formatDate(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function StatCard({ label, value, sub, tone = 'slate' }) {
   const toneClass = {
@@ -63,16 +57,104 @@ function StatCard({ label, value, sub, tone = 'slate' }) {
   )
 }
 
+function getTenantStatusMetaByValues(unitId, status) {
+  if (!unitId) {
+    return {
+      label: 'Pending Tenant Setup',
+      icon: AlertCircle,
+      className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    }
+  }
+
+  const normalizedStatus = String(status || 'inactive').toLowerCase()
+
+  if (normalizedStatus === 'active') {
+    return {
+      label: 'Active',
+      icon: CheckCircle2,
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    }
+  }
+
+  if (normalizedStatus === 'moved_out') {
+    return {
+      label: 'Moved Out',
+      icon: XCircle,
+      className: 'bg-slate-200 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300',
+    }
+  }
+
+  return {
+    label: 'Inactive',
+    icon: XCircle,
+    className: 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400',
+  }
+}
+
+function getTenantStatusMeta(tenant) {
+  return getTenantStatusMetaByValues(tenant?.unit_id || tenant?.unit?.id, tenant?.status)
+}
+
+function getDeleteGuard(tenant) {
+  const linkedUnits = Array.isArray(tenant?.linkedUnits) ? tenant.linkedUnits.filter(Boolean) : []
+  const normalizedStatus = String(tenant?.status || '').toLowerCase()
+  const setupState = String(tenant?.setup_state || '').toLowerCase()
+  const hasLinkedUnits = linkedUnits.length > 0
+  const hasBillingHistorySignals = Boolean(
+    tenant?.is_billing_ready ||
+    tenant?.bill_count > 0 ||
+    tenant?.bills_count > 0 ||
+    tenant?.payment_count > 0 ||
+    tenant?.payments_count > 0 ||
+    tenant?.invoice_count > 0 ||
+    tenant?.invoices_count > 0 ||
+    tenant?.has_bills ||
+    tenant?.has_payments
+  )
+
+  if (hasBillingHistorySignals) {
+    return {
+      allowed: false,
+      reason: 'This tenant appears linked to billing or payment history and should be managed through status changes instead of hard delete.',
+    }
+  }
+
+  if (hasLinkedUnits) {
+    return {
+      allowed: false,
+      reason: 'This tenant still has linked unit assignments. Remove unit links first and use status changes for normal tenant lifecycle updates.',
+    }
+  }
+
+  if (normalizedStatus === 'active' || normalizedStatus === 'moved_out') {
+    return {
+      allowed: false,
+      reason: 'Only inactive setup, duplicate, or test records without linked units can be hard deleted.',
+    }
+  }
+
+  if (setupState && setupState !== 'pending_setup' && setupState !== 'inactive') {
+    return {
+      allowed: false,
+      reason: 'Only setup-style records can be hard deleted from this screen.',
+    }
+  }
+
+  return {
+    allowed: true,
+    reason: 'Use hard delete only for mistaken, duplicate, or test tenant records.',
+  }
+}
+
 export default function Tenants() {
   const pageLoading = usePageLoader(700)
+  const { user } = useAuth()
 
   const {
     tenants,
-    tenantUsers,
     loading,
     submitting,
     error,
-    addTenant,
     editTenant,
     removeTenant,
     loadTenants,
@@ -81,15 +163,13 @@ export default function Tenants() {
   const { units } = useAdminUnits()
 
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [drawerMode, setDrawerMode] = useState('add')
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [editingId, setEditingId] = useState(null)
   const [viewTenant, setViewTenant] = useState(null)
   const [deletingGroup, setDeletingGroup] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const tenantUnitMap = useMemo(() => {
     return tenants.reduce((acc, tenant) => {
@@ -113,62 +193,51 @@ export default function Tenants() {
     }, {})
   }, [tenants])
 
-  const tenantGroups = useMemo(() => {
-    const map = new Map()
+  const tenantRows = useMemo(() => {
+    const grouped = new Map()
 
     tenants.forEach((tenant) => {
-      const key = String(tenant.user_id || tenant.id || '')
-      if (!key) return
+      const userKey = String(tenant.user_id || tenant.id || '')
+      if (!userKey) return
 
-      if (!map.has(key)) {
-        map.set(key, {
-          id: key,
-          user_id: tenant.user_id || null,
-          primaryTenantId: tenant.id,
-          name: tenant.name || '',
-          email: tenant.email || '',
-          phone: tenant.phone || '',
-          contact_person: tenant.contact_person || '',
-          contact_person_phone: tenant.contact_person_phone || '',
-          status: tenant.status || 'active',
-          move_in_date: tenant.move_in_date || null,
-          move_out_date: tenant.move_out_date || null,
-          tenantIds: [],
-          units: [],
+      if (!grouped.has(userKey)) {
+        grouped.set(userKey, {
+          ...tenant,
+          linkedUnits: tenantUnitMap[userKey] || [],
+          tenantRecordIds: [tenant.id],
+          tenantRecords: [tenant],
         })
+        return
       }
 
-      const group = map.get(key)
-      group.tenantIds.push(tenant.id)
+      const current = grouped.get(userKey)
+      current.tenantRecordIds.push(tenant.id)
+      current.tenantRecords.push(tenant)
+      current.linkedUnits = tenantUnitMap[userKey] || []
 
-      if (!group.name && tenant.name) group.name = tenant.name
-      if (!group.email && tenant.email) group.email = tenant.email
-      if (!group.phone && tenant.phone) group.phone = tenant.phone
-      if (!group.contact_person && tenant.contact_person) group.contact_person = tenant.contact_person
-      if (!group.contact_person_phone && tenant.contact_person_phone) group.contact_person_phone = tenant.contact_person_phone
+      const currentHasUnit = Boolean(current.unit_id || current.unit?.id)
+      const nextHasUnit = Boolean(tenant.unit_id || tenant.unit?.id)
 
-      const relatedUnits = []
-      if (tenant.unit?.id || tenant.unit?.unit_number) relatedUnits.push(tenant.unit)
-      if (Array.isArray(tenant.units)) relatedUnits.push(...tenant.units)
-
-      relatedUnits.forEach((unit) => {
-        const unitKey = String(unit?.id || unit?.unit_number || '')
-        if (!unitKey) return
-        if (!group.units.some((existing) => String(existing?.id || existing?.unit_number || '') === unitKey)) {
-          group.units.push(unit)
-        }
-      })
+      if (!currentHasUnit && nextHasUnit) {
+        grouped.set(userKey, {
+          ...current,
+          ...tenant,
+          linkedUnits: tenantUnitMap[userKey] || [],
+          tenantRecordIds: current.tenantRecordIds,
+          tenantRecords: current.tenantRecords,
+        })
+      }
     })
 
-    return Array.from(map.values())
-  }, [tenants])
+    return Array.from(grouped.values())
+  }, [tenantUnitMap, tenants])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    if (!q) return tenantGroups
+    if (!q) return tenantRows
 
-    return tenantGroups.filter((tenant) => {
-      const relatedUnits = tenant.units || []
+    return tenantRows.filter((tenant) => {
+      const relatedUnits = tenant.linkedUnits || []
       const relatedUnitText = relatedUnits.map((unit) => unit?.unit_number).filter(Boolean).join(' ')
 
       return [
@@ -180,32 +249,21 @@ export default function Tenants() {
         tenant.status,
       ].some((value) => String(value || '').toLowerCase().includes(q))
     })
-  }, [tenantGroups, search])
+  }, [tenantRows, search])
 
-  const paginated = useMemo(() => {
-    const start = (page - 1) * perPage
-    return filtered.slice(start, start + perPage)
-  }, [filtered, page, perPage])
+  const {
+    pagedItems: paginated,
+    meta: paginationMeta,
+    page,
+    perPage,
+    setPage,
+    setPerPage,
+  } = useClientPagination(filtered, 10)
 
-  const paginationMeta = useMemo(() => {
-    const total = filtered.length
-    const lastPage = Math.max(1, Math.ceil(total / perPage))
-    const from = total === 0 ? 0 : (page - 1) * perPage + 1
-    const to = Math.min(page * perPage, total)
-
-    return {
-      current_page: page,
-      per_page: perPage,
-      total,
-      last_page: lastPage,
-      from,
-      to,
-    }
-  }, [filtered.length, page, perPage])
-
-  const activeCount = tenantGroups.filter((tenant) => tenant.status === 'active').length
-  const multiUnitCount = tenantGroups.filter((tenant) => (tenant.units || []).length > 1).length
-  const currentEditUnits = drawerMode === 'edit' ? (tenantUnitMap[String(form.user_id || '')] || []).filter(Boolean) : []
+  const activeCount = tenantRows.filter((tenant) => String(tenant.setup_state || '').toLowerCase() === 'active').length
+  const pendingSetupCount = tenantRows.filter((tenant) => String(tenant.setup_state || '').toLowerCase() === 'pending_setup').length
+  const billingReadyCount = tenantRows.filter((tenant) => tenant.is_billing_ready).length
+  const currentEditUnits = (tenantUnitMap[String(form.user_id || '')] || []).filter(Boolean)
   const occupiedByOtherUsers = useMemo(() => {
     const currentUserId = String(form.user_id || '')
     return new Set(
@@ -224,28 +282,23 @@ export default function Tenants() {
         })
     )
   }, [tenants, form.user_id])
-  const extraAssignedIds = (form.extra_unit_ids || []).filter(Boolean).map(String)
+  const selectedUnitIds = (form.extra_unit_ids || []).filter(Boolean).map(String)
   const linkedUnitIds = currentEditUnits.map((unit) => String(unit?.id || '')).filter(Boolean)
-  const availableExtraUnits = units.filter((unit) => {
+  const availableAssignmentUnits = units.filter((unit) => {
     const unitId = String(unit.id)
-    if (linkedUnitIds.includes(unitId)) return false
+    if (linkedUnitIds.includes(unitId)) return true
     if (occupiedByOtherUsers.has(unitId)) return false
     return true
   })
 
-  const openAdd = () => {
-    setForm(emptyForm)
-    setErrors({})
-    setEditingId(null)
-    setDrawerMode('add')
-    setDrawerOpen(true)
-  }
-
   const openEdit = (tenant) => {
+    const linkedUnits = (tenant.linkedUnits || []).filter(Boolean)
     setForm({
       user_id: tenant.user_id || '',
-      unit_id: tenant.unit_id || tenant.unit?.id || '',
-      extra_unit_ids: [''],
+      unit_id: tenant.unit_id || tenant.unit?.id || linkedUnits[0]?.id || '',
+      extra_unit_ids: linkedUnits.length > 0
+        ? linkedUnits.map((unit) => String(unit?.id || '')).filter(Boolean)
+        : [''],
       name: tenant.name || '',
       email: tenant.email || '',
       phone: tenant.phone || '',
@@ -257,18 +310,13 @@ export default function Tenants() {
     })
     setErrors({})
     setEditingId(tenant.id)
-    setDrawerMode('edit')
     setDrawerOpen(true)
   }
 
   const validate = () => {
     const nextErrors = {}
-    if (!form.user_id) nextErrors.user_id = 'Tenant user is required'
-    if (!form.name.trim()) nextErrors.name = 'Name is required'
-    if (drawerMode === 'edit') {
-      const chosenExtra = [...new Set((form.extra_unit_ids || []).filter(Boolean).map(String))]
-      if (chosenExtra.length !== extraAssignedIds.length) nextErrors.extra_unit_ids = 'Duplicate extra units are not allowed'
-    }
+    const chosenUnits = [...new Set((form.extra_unit_ids || []).filter(Boolean).map(String))]
+    if (chosenUnits.length !== selectedUnitIds.length) nextErrors.extra_unit_ids = 'Duplicate units are not allowed'
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
@@ -276,51 +324,25 @@ export default function Tenants() {
   const handleSubmit = async () => {
     if (!validate()) return
 
+    const unitIds = [...new Set((form.extra_unit_ids || []).filter(Boolean).map((id) => Number(id)))]
+    const normalizedStatus = unitIds.length > 0 ? (form.status || 'active') : 'inactive'
     const payload = {
       user_id: form.user_id ? Number(form.user_id) : null,
-      unit_id: form.unit_id ? Number(form.unit_id) : null,
+      unit_id: unitIds[0] || null,
+      unit_ids: unitIds,
       name: form.name.trim(),
       email: form.email?.trim() || null,
       phone: form.phone?.trim() || null,
       contact_person: form.contact_person?.trim() || null,
       contact_person_phone: form.contact_person_phone?.trim() || null,
-      status: form.status || 'active',
+      status: normalizedStatus,
       move_in_date: form.move_in_date || null,
       move_out_date: form.move_out_date || null,
     }
 
     try {
-      if (drawerMode === 'add') {
-        await addTenant(payload)
-      } else {
-        await editTenant(editingId, payload)
-        const siblingTenantIds = tenants
-          .filter((tenant) => String(tenant.user_id || '') === String(payload.user_id) && String(tenant.id) !== String(editingId))
-          .map((tenant) => tenant.id)
-
-        for (const siblingTenantId of siblingTenantIds) {
-          await editTenant(siblingTenantId, {
-            user_id: payload.user_id,
-            name: payload.name,
-            email: payload.email,
-            phone: payload.phone,
-            contact_person: payload.contact_person,
-            contact_person_phone: payload.contact_person_phone,
-            status: payload.status,
-            move_in_date: payload.move_in_date,
-            move_out_date: payload.move_out_date,
-          })
-        }
-
-        const newExtraUnitIds = [...new Set((form.extra_unit_ids || []).filter(Boolean).map((id) => Number(id)))]
-        for (const extraUnitId of newExtraUnitIds) {
-          await addTenant({
-            ...payload,
-            unit_id: extraUnitId,
-          })
-        }
-        await loadTenants()
-      }
+      await editTenant(editingId, payload)
+      await loadTenants()
 
       setDrawerOpen(false)
       setForm(emptyForm)
@@ -336,14 +358,22 @@ export default function Tenants() {
   }
 
   const handleDelete = async () => {
-    if (!deletingGroup?.tenantIds?.length) return
+    if (!deletingGroup?.id) return
+    const deleteGuard = getDeleteGuard(deletingGroup)
+    if (!deleteGuard.allowed) {
+      setDeleteError(deleteGuard.reason)
+      return
+    }
+
     try {
-      for (const tenantId of deletingGroup.tenantIds) {
-        await removeTenant(tenantId)
+      const recordIds = deletingGroup.tenantRecordIds || [deletingGroup.id]
+      for (const recordId of recordIds) {
+        await removeTenant(recordId)
       }
+      setDeleteError('')
       setDeletingGroup(null)
     } catch (err) {
-      console.error(err)
+      setDeleteError(err?.response?.data?.message || 'Tenant hard delete failed. If this record has linked bills or payments, keep it and use status changes instead.')
     }
   }
 
@@ -385,29 +415,27 @@ export default function Tenants() {
     setPage(1)
   }
 
-  if ((pageLoading && tenantGroups.length === 0) || (loading && tenantGroups.length === 0)) return <TenantListSkeleton />
+  const editingStatusMeta = getTenantStatusMetaByValues(selectedUnitIds[0], form.status)
+  const EditingStatusIcon = editingStatusMeta.icon
+  const canHardDeleteTenants = user?.role === 'super_admin'
+  const deletingGuard = deletingGroup ? getDeleteGuard(deletingGroup) : null
+
+  if ((pageLoading && tenantRows.length === 0) || (loading && tenantRows.length === 0)) return <TenantListSkeleton />
 
   return (
     <div className="space-y-6 animate-in min-h-[calc(100vh-80px)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-display font-700 text-xl text-slate-800 dark:text-white">Tenants</h2>
-          <p className="mt-1 text-sm text-slate-400">Manage tenant users, grouped unit assignments, and linked records.</p>
+          <p className="mt-1 text-sm text-slate-400">Tenant accounts are created in User Management. Use this page to complete tenant profile details and unit assignments.</p>
         </div>
-
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Tenant
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <StatCard label="Tenant Users" value={tenantGroups.length} sub="Unique tenant accounts in the system" />
-        <StatCard label="Active" value={activeCount} sub="Currently active tenants" tone="emerald" />
-        <StatCard label="Multi-Unit" value={multiUnitCount} sub="Tenant users linked to multiple units" tone="amber" />
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <StatCard label="Tenants" value={tenantRows.length} sub="Tenant users shown in the directory" />
+        <StatCard label="Active" value={activeCount} sub="Currently active tenant users" tone="emerald" />
+        <StatCard label="Billing Ready" value={billingReadyCount} sub="Ready for bill generation" tone="emerald" />
+        <StatCard label="Pending Setup" value={pendingSetupCount} sub="Needs profile completion" tone="amber" />
       </div>
 
       {error ? (
@@ -430,7 +458,7 @@ export default function Tenants() {
           />
         </div>
 
-        <p className="text-xs text-slate-400">Showing one row per tenant user, with units grouped under the same account.</p>
+       
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/60 dark:bg-slate-900">
@@ -455,8 +483,10 @@ export default function Tenants() {
                 </tr>
               ) : (
                 paginated.map((tenant) => {
-                  const relatedUnits = tenant.units || []
-                  return (
+                   const relatedUnits = tenant.linkedUnits || []
+                   const statusMeta = getTenantStatusMeta(tenant)
+                   const StatusIcon = statusMeta.icon
+                   return (
                     <tr key={tenant.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3.5 min-w-[240px]">
                         <div className="flex items-center gap-3">
@@ -494,9 +524,9 @@ export default function Tenants() {
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold capitalize ${tenant.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}`}>
-                          {tenant.status === 'active' ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                          {tenant.status}
+                        <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${statusMeta.className}`}>
+                          <StatusIcon className="h-3 w-3" />
+                          {statusMeta.label}
                         </span>
                       </td>
 
@@ -512,12 +542,21 @@ export default function Tenants() {
                           <button onClick={() => setViewTenant(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="View details">
                             <Eye className="h-4 w-4" />
                           </button>
-                          <button onClick={() => openEdit({ ...tenant, id: tenant.primaryTenantId, unit_id: relatedUnits[0]?.id || '' })} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Edit tenant">
+                          <button onClick={() => openEdit({ ...tenant, unit_id: tenant.unit_id || relatedUnits[0]?.id || '' })} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Edit tenant">
                             <Edit3 className="h-4 w-4" />
                           </button>
-                          <button onClick={() => setDeletingGroup(tenant)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20" title="Remove tenant">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {canHardDeleteTenants ? (
+                            <button
+                              onClick={() => {
+                                setDeleteError('')
+                                setDeletingGroup(tenant)
+                              }}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                              title="Hard delete tenant record"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -543,36 +582,55 @@ export default function Tenants() {
       <Drawer
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title={drawerMode === 'add' ? 'Add New Tenant' : 'Edit Tenant'}
-        subtitle={drawerMode === 'add' ? 'Fill in the tenant details below' : `Editing ${form.name}`}
+        title="Edit Tenant"
+        subtitle={`Updating tenant profile and unit assignments for ${form.name}`}
       >
         <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Tenant User *</label>
-            <select value={form.user_id} onChange={(event) => setForm((current) => ({ ...current, user_id: event.target.value }))} className={fieldCls(errors.user_id)}>
-              <option value="">- Select tenant user -</option>
-              {tenantUsers
-                .filter((user) => drawerMode === 'add' || String(user.id) !== String(form.user_id))
-                .map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.email})
-                  </option>
-                ))}
-              {drawerMode === 'edit' && form.user_id && !tenantUsers.some((user) => String(user.id) === String(form.user_id)) ? (
-                <option value={form.user_id}>Current linked user</option>
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Current Status</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${editingStatusMeta.className}`}>
+                <EditingStatusIcon className="h-3 w-3" />
+                {editingStatusMeta.label}
+              </span>
+              {selectedUnitIds.length === 0 ? (
+                <span className="text-xs text-slate-400">Assign at least one unit before this tenant can become active.</span>
               ) : null}
-            </select>
-            {errors.user_id ? <p className="mt-1 text-xs text-red-500">{errors.user_id}</p> : null}
+            </div>
+            {selectedUnitIds.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                Missing: unit assignment
+              </div>
+            ) : null}
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Tenant Name *</label>
-            <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="e.g. Tenant User" className={fieldCls(errors.name)} />
-            {errors.name ? <p className="mt-1 text-xs text-red-500">{errors.name}</p> : null}
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Account Source</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400">Tenant User ID</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{form.user_id || '-'}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400">Account Name</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{form.name || '-'}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400">Account Email</p>
+                <p
+                  className="break-all text-sm font-medium text-slate-700 dark:text-slate-200"
+                  title={form.email || '-'}
+                >
+                  {form.email || '-'}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              Create and update tenant account identity in User Management. This page handles occupancy, contact, and unit assignment details.
+            </p>
           </div>
 
-          {drawerMode === 'edit' ? (
-            <div className="space-y-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
+          <div className="space-y-4 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 dark:border-slate-700/60 dark:bg-slate-800/30">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Assigned Units</label>
                 <span className="text-[10px] text-slate-400">{currentEditUnits.length} linked</span>
@@ -593,37 +651,33 @@ export default function Tenants() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Primary Unit For This Record</label>
-                <select value={form.unit_id} onChange={(event) => setForm((current) => ({ ...current, unit_id: event.target.value }))} className={fieldCls(errors.unit_id)}>
-                  <option value="">- No unit assigned -</option>
-                  {units.map((unit) => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.unit_number} ({unit.building_name || '-'})
-                    </option>
-                  ))}
-                </select>
-                {errors.unit_id ? <p className="mt-1 text-xs text-red-500">{errors.unit_id}</p> : null}
-              </div>
-
-
-              <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Add More Units</label>
-                  <span className="text-[10px] text-slate-400">Optional</span>
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400">Assigned Units</label>
+                  <span className="text-[10px] text-slate-400">Required for billing</span>
                 </div>
 
                 <div className="space-y-2">
                   {(form.extra_unit_ids || ['']).map((unitId, index) => {
-                    const chosenByOtherRows = extraAssignedIds.filter((value, valueIndex) => valueIndex !== index)
-                    const options = availableExtraUnits.filter((unit) => !chosenByOtherRows.includes(String(unit.id)) || String(unit.id) === String(unitId))
+                    const chosenByOtherRows = selectedUnitIds.filter((value, valueIndex) => valueIndex !== index)
+                    const options = availableAssignmentUnits.filter((unit) => !chosenByOtherRows.includes(String(unit.id)) || String(unit.id) === String(unitId))
                     return (
                       <div key={index} className="flex items-center gap-2">
                         <select
                           value={unitId}
-                          onChange={(event) => setExtraUnitAtIndex(index, event.target.value)}
+                          onChange={(event) => {
+                            const nextValue = event.target.value
+                            setExtraUnitAtIndex(index, nextValue)
+                            setForm((current) => ({
+                              ...current,
+                              unit_id: nextValue || current.unit_id,
+                              status: nextValue || selectedUnitIds.filter((_, valueIndex) => valueIndex !== index).length > 0
+                                ? current.status
+                                : 'inactive',
+                            }))
+                          }}
                           className={`${fieldCls(false)} flex-1`}
                         >
-                          <option value="">- Select additional unit -</option>
+                          <option value="">- Select unit -</option>
                           {options.map((unit) => (
                             <option key={unit.id} value={unit.id}>
                               {unit.unit_number} ({unit.building_name || '-'}, Floor {unit.floor || '-'})
@@ -654,35 +708,15 @@ export default function Tenants() {
                   className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Add Unit Row
+                  Add Another Unit
                 </button>
               </div>
 
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-900/40 dark:bg-blue-900/20">
                 <p className="text-xs leading-relaxed text-blue-700 dark:text-blue-300">
-                  Saving this form will keep the current tenant record updated and create additional linked tenant records for any extra units you add here.
+                  Saving this form will keep one tenant profile and sync all selected units under that same tenant.
                 </p>
               </div>
-            </div>
-          ) : (
-            <div>
-              <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Assigned Unit</label>
-              <select value={form.unit_id} onChange={(event) => setForm((current) => ({ ...current, unit_id: event.target.value }))} className={fieldCls(errors.unit_id)}>
-                <option value="">- No unit assigned -</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.unit_number} ({unit.building_name || '-'})
-                  </option>
-                ))}
-              </select>
-              {errors.unit_id ? <p className="mt-1 text-xs text-red-500">{errors.unit_id}</p> : null}
-            </div>
-          )}
-
-          <div>
-            <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Email Address</label>
-            <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="e.g. tenant@example.com" className={fieldCls(errors.email)} />
-            {errors.email ? <p className="mt-1 text-xs text-red-500">{errors.email}</p> : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -719,11 +753,17 @@ export default function Tenants() {
 
           <div>
             <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Status</label>
-            <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className={fieldCls(errors.status)}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="moved_out">Moved Out</option>
-            </select>
+            {selectedUnitIds.length > 0 ? (
+              <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className={fieldCls(errors.status)}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="moved_out">Moved Out</option>
+              </select>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                Pending Tenant Setup. Assign a unit first to enable the tenant lifecycle status.
+              </div>
+            )}
             {errors.status ? <p className="mt-1 text-xs text-red-500">{errors.status}</p> : null}
           </div>
 
@@ -732,7 +772,7 @@ export default function Tenants() {
               Cancel
             </button>
             <button onClick={handleSubmit} disabled={submitting} className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-60">
-              {submitting ? 'Saving...' : drawerMode === 'add' ? 'Add Tenant' : 'Save Changes'}
+              {submitting ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -742,10 +782,27 @@ export default function Tenants() {
         isOpen={!!viewTenant}
         onClose={() => setViewTenant(null)}
         title={viewTenant?.name}
-        subtitle={viewTenant ? `${(viewTenant.units || []).length} assigned unit(s)` : ''}
+        subtitle={viewTenant ? `${(viewTenant.linkedUnits || []).length} linked unit(s) for this tenant user` : ''}
       >
         {viewTenant ? (
           <div className="space-y-5">
+            {(() => {
+              const statusMeta = getTenantStatusMeta(viewTenant)
+              const StatusIcon = statusMeta.icon
+              return (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+                  <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Tenant Status</p>
+                  <span className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold ${statusMeta.className}`}>
+                    <StatusIcon className="h-3 w-3" />
+                    {statusMeta.label}
+                  </span>
+                  {statusMeta.label === 'Pending Tenant Setup' ? (
+                    <p className="mt-3 text-xs text-slate-400">Assign a unit to move this tenant out of setup state.</p>
+                  ) : null}
+                </div>
+              )
+            })()}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
                 <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Contact Info</p>
@@ -755,7 +812,7 @@ export default function Tenants() {
                     ['Phone', viewTenant.phone || '-'],
                     ['Contact Person', viewTenant.contact_person || '-'],
                     ['Contact Person Phone', viewTenant.contact_person_phone || '-'],
-                    ['Status', viewTenant.status || '-'],
+                    ['Status', getTenantStatusMeta(viewTenant).label],
                   ].map(([label, value]) => (
                     <div key={label}>
                       <p className="text-xs text-slate-400">{label}</p>
@@ -785,8 +842,8 @@ export default function Tenants() {
             <div>
               <p className="mb-3 text-[10px] font-mono uppercase tracking-widest text-slate-400">Assigned Units</p>
               <div className="grid gap-2">
-                {(viewTenant.units || []).length > 0 ? (
-                  (viewTenant.units || []).map((unit) => (
+                {(viewTenant.linkedUnits || []).length > 0 ? (
+                  (viewTenant.linkedUnits || []).map((unit) => (
                     <div key={unit?.id || unit?.unit_number} className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3 dark:border-slate-700 dark:bg-slate-800/40">
                       <p className="text-sm font-medium text-slate-800 dark:text-white">{unit?.unit_number || 'No unit number'}</p>
                       <p className="mt-1 text-xs text-slate-400">Floor {unit?.floor || '-'} - {unit?.building_name || '-'}</p>
@@ -803,13 +860,20 @@ export default function Tenants() {
 
       <ConfirmModal
         isOpen={!!deletingGroup}
-        title="Remove Tenant User?"
-        message="This will remove the tenant user entry and all linked unit assignment records. This cannot be undone."
-        confirmLabel="Remove Tenant User"
+        title="Hard Delete Tenant Record?"
+        message={
+          deletingGroup
+            ? `${deletingGuard?.reason || 'This action permanently removes the tenant record.'}${deletingGuard?.allowed ? ' This should only be used for bad, test, or duplicate records with no billing history.' : ''}${deleteError ? ` ${deleteError}` : ''}`
+            : 'This action permanently removes the tenant record.'
+        }
+        confirmLabel={deletingGuard?.allowed ? 'Permanently Delete' : 'Delete Blocked'}
+        confirmClass={deletingGuard?.allowed ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-400 hover:bg-slate-400'}
         onConfirm={handleDelete}
-        onCancel={() => setDeletingGroup(null)}
+        onCancel={() => {
+          setDeletingGroup(null)
+          setDeleteError('')
+        }}
       />
     </div>
   )
 }
-

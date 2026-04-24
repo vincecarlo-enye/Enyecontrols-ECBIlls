@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createAdminTenant, deleteAdminTenant, fetchAdminTenants, fetchAvailableTenantUsers, updateAdminTenant } from '../../services/adminService/adminTenantService'
+import { createAdminTenant, deleteAdminTenant, updateAdminTenant } from '../../services/adminService/adminTenantService'
+import { getSharedAdminTenants } from '@/services/adminService/adminDirectoryStore'
 
 export function useAdminTenants() {
   const [tenants, setTenants] = useState([])
-  const [tenantUsers, setTenantUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -13,13 +13,9 @@ export function useAdminTenants() {
       setLoading(true)
       setError('')
 
-      const [tenantsRes, usersRes] = await Promise.all([
-        fetchAdminTenants(),
-        fetchAvailableTenantUsers(),
-      ])
+      const tenantsRows = await getSharedAdminTenants()
 
-      setTenants(Array.isArray(tenantsRes?.data) ? tenantsRes.data : [])
-      setTenantUsers(Array.isArray(usersRes?.data) ? usersRes.data : [])
+      setTenants(tenantsRows)
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load tenants.')
     } finally {
@@ -43,6 +39,7 @@ export function useAdminTenants() {
       } else {
         await loadTenants()
       }
+      await loadTenants()
 
       return res
     } catch (err) {
@@ -64,10 +61,8 @@ export function useAdminTenants() {
         setTenants((prev) =>
           prev.map((tenant) => (String(tenant.id) === String(id) ? updated : tenant))
         )
-        await loadTenants()
-      } else {
-        await loadTenants()
       }
+      await loadTenants()
 
       return res
     } catch (err) {
@@ -96,7 +91,6 @@ export function useAdminTenants() {
 
   return {
     tenants,
-    tenantUsers,
     loading,
     submitting,
     error,

@@ -4,7 +4,12 @@ import { Bell, Sun, Moon, Search, Menu, ChevronDown, LogOut, AlertTriangle, Info
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUnitFilter } from '@/context/UnitFilterContext'
-import { fetchNotifications, markNotificationAsRead } from '@/services/notificationService'
+import { fetchNotifications, getNotificationsSnapshot, markNotificationAsRead } from '@/services/notificationService'
+
+const NAVBAR_NOTIFICATION_PARAMS = {
+  per_page: 25,
+  status: 'all',
+}
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -13,31 +18,65 @@ const pageTitles = {
   '/units': 'Units',
   '/usage-reports': 'Usage Reports',
   '/settings': 'Settings',
-  '/tenant-reports': 'Tenant Reports',
+  '/billing-concerns': 'Billing Concerns',
   '/tenant/dashboard': 'My Dashboard',
   '/tenant/bills': 'My Bills',
   '/tenant/usage': 'Usage Monitoring',
   '/tenant/profile': 'My Profile',
   '/tenant/consumption-reports': 'Consumption Reports',
+  '/tenant/billing-reports': 'Billing Reports',
   '/tenant/notifications': 'Notifications',
+  '/tenant/search': 'Global Search',
   '/tenant/make-report': 'Make Report',
+  '/admin': 'Dashboard',
+  '/admin/billing': 'Billing Oversight',
+  '/admin/bill-adjustments': 'Adjustment Review',
+  '/admin/tenants': 'Tenants',
+  '/admin/units': 'Units',
+  '/admin/usage-reports': 'Usage Reports',
+  '/admin/reconciliation': 'Reconciliation',
+  '/admin/occupancy-timeline': 'Occupancy Timeline',
+  '/admin/owner-portal': 'Owner Portal',
+  '/admin/billing-concerns': 'Billing Concerns',
   '/admin/meters': 'Meter Management',
   '/admin/notifications': 'Notifications',
   '/admin/activity-logs': 'Activity Logs',
+  '/admin/search': 'Global Search',
   '/super-admin': 'Dashboard',
-  '/super-admin/billing': 'Billing',
+  '/super-admin/billing': 'Billing Oversight',
+  '/super-admin/bill-adjustments': 'Adjustment Review',
   '/super-admin/tenants': 'Tenants',
   '/super-admin/units': 'Units',
   '/super-admin/usage-reports': 'Usage Reports',
-  '/super-admin/tenant-reports': 'Tenant Reports',
+  '/super-admin/billing-concerns': 'Billing Concerns',
   '/super-admin/notifications': 'Notifications',
+  '/super-admin/reconciliation': 'Reconciliation',
+  '/super-admin/occupancy-timeline': 'Occupancy Timeline',
+  '/super-admin/owner-portal': 'Owner Portal',
+  '/super-admin/system-health': 'System Health',
+  '/super-admin/search': 'Global Search',
   '/super-admin/meters': 'Meter Management',
   '/super-admin/billing-rates': 'Billing Rates',
   '/super-admin/users': 'User Management',
   '/super-admin/announcements': 'Announcements',
   '/super-admin/activity-logs': 'Activity Logs',
+  '/finance/dashboard': 'Dashboard',
+  '/finance/billing': 'Billing Management',
+  '/finance/bill-adjustments': 'Adjustment Ledger',
+  '/finance/payment-review': 'Payment Review',
+  '/finance/billing-tickets': 'Billing Tickets',
+  '/finance/reports': 'Financial Reports',
+  '/finance/search': 'Global Search',
   '/finance/notifications': 'Notifications',
   '/finance/activity-logs': 'Activity Logs',
+  '/facility/dashboard': 'Dashboard',
+  '/facility/monitoring': 'Building Monitoring',
+  '/facility/consumption': 'Utility Consumption',
+  '/facility/anomalies': 'Anomaly Alerts',
+  '/facility/maintenance': 'Maintenance Requests',
+  '/facility/equipment': 'Equipment Status',
+  '/facility/reports': 'Reports',
+  '/facility/search': 'Global Search',
   '/facility/notifications': 'Notifications',
   '/facility/activity-logs': 'Activity Logs',
   '/tenant/activity-logs': 'Activity Logs',
@@ -49,10 +88,16 @@ export default function Navbar({ onMenuClick }) {
   const { selectedUnit, setSelectedUnit } = useUnitFilter()
   const location = useLocation()
   const navigate = useNavigate()
+  const notificationsSnapshot = getNotificationsSnapshot(NAVBAR_NOTIFICATION_PARAMS)
+  const initialNotifications = Array.isArray(notificationsSnapshot?.data)
+    ? notificationsSnapshot.data
+    : []
   const [showNotifs, setShowNotifs] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
-  const [notifications, setNotifications] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [notifications, setNotifications] = useState(initialNotifications)
   const [notifLoading, setNotifLoading] = useState(false)
+  const [notifLoaded, setNotifLoaded] = useState(initialNotifications.length > 0)
   const title = pageTitles[location.pathname] || 'ECBills'
   const notifRef = useRef(null)
   const profileRef = useRef(null)
@@ -73,11 +118,25 @@ export default function Navbar({ onMenuClick }) {
     return '/admin/notifications'
   }
 
+  const getSearchPath = () => {
+    if (user?.role === 'super_admin') return '/super-admin/search'
+    if (user?.role === 'tenant') return '/tenant/search'
+    if (user?.role === 'finance') return '/finance/search'
+    if (user?.role === 'facility_manager') return '/facility/search'
+    return '/admin/search'
+  }
+
   const handleLogout = async () => {
     setShowProfile(false)
     setShowNotifs(false)
     await logout()
     navigate('/login', { replace: true })
+  }
+
+  const handleSearchSubmit = () => {
+    const trimmed = searchQuery.trim()
+    if (trimmed.length < 2) return
+    navigate(`${getSearchPath()}?q=${encodeURIComponent(trimmed)}`)
   }
 
   useEffect(() => {
@@ -95,13 +154,21 @@ export default function Navbar({ onMenuClick }) {
     let cancelled = false
 
     const loadNotifications = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return
+      }
+
       try {
         setNotifLoading(true)
-        const res = await fetchNotifications()
+        const res = await fetchNotifications(NAVBAR_NOTIFICATION_PARAMS)
         if (cancelled) return
         setNotifications(Array.isArray(res?.data) ? res.data : [])
+        setNotifLoaded(true)
       } catch {
-        if (!cancelled) setNotifications([])
+        if (!cancelled) {
+          setNotifications((current) => current)
+          setNotifLoaded(true)
+        }
       } finally {
         if (!cancelled) setNotifLoading(false)
       }
@@ -109,10 +176,17 @@ export default function Navbar({ onMenuClick }) {
 
     loadNotifications()
     const interval = window.setInterval(loadNotifications, 60000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadNotifications()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       cancelled = true
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [user])
 
@@ -139,6 +213,7 @@ export default function Navbar({ onMenuClick }) {
 
   const notifs = (notifications || []).slice(0, 5)
   const unreadCount = (notifications || []).filter((item) => !item.is_read).length
+  const hasUnreadNotifications = unreadCount > 0
 
   const isTenantPage = location.pathname.startsWith('/tenant')
   const tenantUnits = Array.from(
@@ -204,6 +279,14 @@ export default function Navbar({ onMenuClick }) {
           <input
             type="text"
             placeholder="Search tenants, bills..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                handleSearchSubmit()
+              }
+            }}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-xl bg-slate-100/80 dark:bg-slate-700/50 border border-transparent focus:border-blue-400 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none transition-all"
           />
         </div>
@@ -239,11 +322,18 @@ export default function Navbar({ onMenuClick }) {
         {/* Notifications */}
         <div ref={notifRef} className="relative">
           <button
-            onClick={() => { setShowNotifs(v => !v); setShowProfile(false) }}
-            className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all relative"
+            onClick={() => {
+              setShowNotifs((value) => !value)
+              setShowProfile(false)
+            }}
+            className={`p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all relative ${
+              hasUnreadNotifications
+                ? 'text-red-500 dark:text-red-400'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
           >
             <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
+            {notifLoaded && hasUnreadNotifications && (
               <>
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-800" />
                 <span className="absolute -top-0.5 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-slate-800">
@@ -254,63 +344,119 @@ export default function Navbar({ onMenuClick }) {
           </button>
 
           {showNotifs && (
-            <div className="fixed left-3 right-3 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 glass rounded-2xl shadow-2xl shadow-slate-200/60 dark:shadow-black/40 border border-slate-200/60 dark:border-slate-700/50 overflow-hidden animate-in z-50 max-h-[70vh] overflow-y-auto">
-              <div className="p-4 border-b border-slate-200/60 dark:border-slate-700/50">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold text-sm text-slate-800 dark:text-white">Notifications</p>
-                  <span className="text-[10px] font-mono text-slate-400">
-                    {unreadCount} unread
-                  </span>
-                </div>
-              </div>
-              {notifLoading ? (
-                <div className="p-4 text-xs text-slate-400">Loading notifications...</div>
-              ) : notifs.length === 0 ? (
-                <div className="p-4 text-xs text-slate-400">No notifications found.</div>
-              ) : notifs.map(n => {
-                const cfg = notifTypeConfig[n.type] || notifTypeConfig.info
-                const Icon = cfg.icon
-                return (
-                  <button
-                    key={n.id}
-                    onClick={() => handleNotificationClick(n)}
-                    className={`w-full text-left flex items-start gap-3 p-4 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors border-b border-slate-100 dark:border-slate-700/30 last:border-0 ${
-                      n.is_read ? '' : 'bg-blue-50/60 dark:bg-blue-900/10'
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 mt-0.5 ${cfg.iconClass}`} />
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">{n.title}</p>
-                        {!n.is_read && <span className="mt-1 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                        {n.message}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-2">
-                        {n.created_at
-                          ? new Date(n.created_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
-                          : ''}
-                      </p>
-                    </div>
-                  </button>
-                )
-              })}
-              <button
-                onClick={() => {
-                  setShowNotifs(false)
-                  navigate(getNotificationsPath())
-                }}
-                className="w-full px-4 py-3 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-700/30"
-              >
-                View all notifications
-              </button>
+  <div className="
+    fixed left-3 right-3 top-16
+    sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80
+
+    rounded-2xl overflow-hidden animate-in z-50 max-h-[70vh] overflow-y-auto
+
+    /* MOBILE (FORCE DARK) */
+    bg-slate-950/95 border border-slate-800 shadow-2xl shadow-black/70 backdrop-blur-2xl
+
+    /* DESKTOP (GLASS STYLE) */
+    sm:bg-white/90 sm:dark:bg-slate-900/90
+    sm:border-slate-200/60 sm:dark:border-slate-700/50
+    sm:shadow-2xl sm:shadow-slate-200/60 sm:dark:shadow-black/40
+  ">
+
+    {/* Header */}
+    <div className="p-4 border-b border-slate-200/60 dark:border-slate-700/50
+                    max-sm:bg-slate-950 max-sm:border-slate-800">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-semibold text-sm text-slate-800 dark:text-white">
+          Notifications
+        </p>
+        <span className="text-[10px] font-mono text-slate-400">
+          {unreadCount} unread
+        </span>
+      </div>
+    </div>
+
+    {/* Content */}
+    {notifLoading ? (
+      <div className="p-4 text-xs text-slate-400">
+        Loading notifications...
+      </div>
+    ) : notifs.length === 0 ? (
+      <div className="p-4 text-xs text-slate-400">
+        No notifications found.
+      </div>
+    ) : notifs.map(n => {
+      const cfg = notifTypeConfig[n.type] || notifTypeConfig.info
+      const Icon = cfg.icon
+
+      return (
+        <button
+          key={n.id}
+          onClick={() => handleNotificationClick(n)}
+          className={`
+            w-full text-left flex items-start gap-3 p-4 transition-colors
+
+            border-b last:border-0
+            border-slate-100 dark:border-slate-700/30
+            max-sm:border-slate-800
+
+            hover:bg-slate-50 dark:hover:bg-slate-700/40
+            max-sm:hover:bg-slate-900/80
+
+            ${n.is_read
+              ? ''
+              : 'bg-blue-50/60 dark:bg-blue-900/10 max-sm:bg-slate-900/90'}
+          `}
+        >
+          <Icon className={`w-4 h-4 mt-0.5 ${cfg.iconClass}`} />
+
+          <div className="flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
+                {n.title}
+              </p>
+              {!n.is_read && (
+                <span className="mt-1 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+              )}
             </div>
-          )}
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+              {n.message}
+            </p>
+
+            <p className="text-xs text-slate-400 mt-2">
+              {n.created_at
+                ? new Date(n.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
+                : ''}
+            </p>
+          </div>
+        </button>
+      )
+    })}
+
+    {/* Footer */}
+    <button
+      onClick={() => {
+        setShowNotifs(false)
+        navigate(getNotificationsPath())
+      }}
+      className="
+        w-full px-4 py-3 text-xs font-semibold text-blue-600 dark:text-blue-400
+
+        border-t border-slate-100 dark:border-slate-700/30
+        max-sm:border-slate-800 max-sm:bg-slate-950
+
+        hover:bg-slate-50 dark:hover:bg-slate-800
+        max-sm:hover:bg-slate-900
+
+        transition-colors
+      "
+    >
+      View all notifications
+    </button>
+
+  </div>
+)}
         </div>
 
         {/* Profile */}

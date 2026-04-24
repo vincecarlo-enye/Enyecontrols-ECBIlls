@@ -9,14 +9,21 @@ import { usePageLoader } from '@/hooks/usePageLoader'
 import { BillingSkeleton } from '@/components/skeletons'
 import EmptyState from '@/components/ui/EmptyState'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
+import PaymentReviewModal from '@/components/billing/PaymentReviewModal'
+import AdjustmentStatusBadge from '@/components/billing/adjustments/AdjustmentStatusBadge'
+import BillAdjustmentDrawer from '@/components/billing/adjustments/BillAdjustmentDrawer'
+import BillAdjustmentHistoryModal from '@/components/billing/adjustments/BillAdjustmentHistoryModal'
+import BillingPeriodLockPanel from '@/components/common/BillingPeriodLockPanel'
 import { useApp } from '@/context/AppContext'
 import { useModalState } from '@/hooks/useModalState'
 import RateConfigCard from '@/components/common/RateConfigCard'
 import PaginationBar from '@/components/common/PaginationBar'
 import PageActionBar from '@/components/common/PageActionBar'
 import { useClientPagination } from '@/hooks/useClientPagination'
+import { useBillingPenaltyRule } from '@/hooks/useBillingPenaltyRule'
+import { useBillingPeriodLocks } from '@/hooks/useBillingPeriodLocks'
 import { useFinanceBills } from '@/hooks/financeHooks/useFinanceBills'
-import { downloadCsv, printElement } from '@/utils/reporting'
+import { exportTableCsv, printElement } from '@/utils/reporting'
 
 const UTIL_CLS = {
   electricity: 'text-amber-600 dark:text-amber-400',
@@ -30,7 +37,7 @@ const UTIL_ICONS = {
   thermal: Flame,
 }
 
-function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
+function BillFormModal({ open, onClose, tenants, initial, onSave, saving, isMonthLocked, getMonthLock }) {
   const [tenantId, setTenantId] = useState(initial?.tenantId || '')
   const [billingMonth, setBillingMonth] = useState(initial?.billingMonth || '')
 
@@ -44,6 +51,8 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
     () => tenants.find((tenant) => String(tenant.id) === String(tenantId)),
     [tenantId, tenants]
   )
+  const selectedLock = billingMonth ? getMonthLock?.(billingMonth) : null
+  const monthLocked = billingMonth ? isMonthLocked?.(billingMonth) : false
 
   if (!open) return null
 
@@ -101,6 +110,12 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
             </p>
           </div>
 
+          {monthLocked && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+              {billingMonth} is locked. {selectedLock?.reason ? `Reason: ${selectedLock.reason}` : 'Unlock the billing period first before generating or regenerating bills.'}
+            </div>
+          )}
+
           {selectedTenant && (
             <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-4 py-3">
               <p className="text-xs font-mono uppercase text-slate-400 mb-1">Selected Tenant</p>
@@ -116,7 +131,7 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!tenantId || !billingMonth || saving}
+            disabled={!tenantId || !billingMonth || saving || monthLocked}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {initial ? 'Regenerate Bill' : 'Generate Bill'}
@@ -128,7 +143,7 @@ function BillFormModal({ open, onClose, tenants, initial, onSave, saving }) {
   )
 }
 
-function GenerateAllBillsModal({ open, onClose, onSubmit, saving }) {
+function GenerateAllBillsModal({ open, onClose, onSubmit, saving, isMonthLocked, getMonthLock }) {
   const [billingMonth, setBillingMonth] = useState('')
   const [regenerateExisting, setRegenerateExisting] = useState(false)
 
@@ -139,6 +154,8 @@ function GenerateAllBillsModal({ open, onClose, onSubmit, saving }) {
   }, [open])
 
   if (!open) return null
+  const selectedLock = billingMonth ? getMonthLock?.(billingMonth) : null
+  const monthLocked = billingMonth ? isMonthLocked?.(billingMonth) : false
 
   const handleSubmit = async () => {
     if (!billingMonth) return
@@ -187,6 +204,12 @@ function GenerateAllBillsModal({ open, onClose, onSubmit, saving }) {
               </p>
             </div>
           </label>
+
+          {monthLocked && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+              {billingMonth} is locked. {selectedLock?.reason ? `Reason: ${selectedLock.reason}` : 'Unlock the billing period first before running bulk generation.'}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800">
@@ -195,7 +218,7 @@ function GenerateAllBillsModal({ open, onClose, onSubmit, saving }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!billingMonth || saving}
+            disabled={!billingMonth || saving || monthLocked}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             Generate All Bills
@@ -263,10 +286,144 @@ function BillDetailModal({ bill, onClose }) {
               })}
             </div>
           </div>
+
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-3">Receipt Image</p>
+            {bill.receipt?.receiptImage ? (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 p-2 dark:bg-slate-800">
+                <img
+                  src={bill.receipt.receiptImage}
+                  alt="Payment receipt"
+                  className="block h-auto max-h-80 w-full rounded-lg object-contain"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-6 text-center">
+                <p className="text-xs text-slate-400">No receipt image available for this bill.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>,
     document.body
+  )
+}
+
+function PenaltyPreviewPanel({ rule, penaltyPreview, loading, onPreview, onApply }) {
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10))
+  const rows = Array.isArray(penaltyPreview?.rows) ? penaltyPreview.rows : []
+
+  return (
+    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm dark:border-slate-700/50 dark:bg-slate-900">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Penalty Preview</h3>
+          <p className="mt-1 text-xs text-slate-400">
+            {rule?.isEnabled
+              ? 'Preview or apply the active late-fee rule to overdue balances.'
+              : 'Enable the penalty rule in Billing Rates to use this workflow.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={asOfDate}
+            onChange={(event) => setAsOfDate(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+          />
+          <button
+            onClick={() => onPreview(asOfDate)}
+            disabled={loading || !rule?.isEnabled}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Preview
+          </button>
+          <button
+            onClick={() => onApply(asOfDate)}
+            disabled={loading || !rule?.isEnabled}
+            className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
+      {penaltyPreview && (
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Eligible</p>
+            <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{Number(penaltyPreview.eligible_count || 0)}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Applied</p>
+            <p className="mt-1 text-xl font-bold text-blue-600 dark:text-blue-400">{Number(penaltyPreview.already_applied_count || 0)}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Skipped</p>
+            <p className="mt-1 text-xl font-bold text-slate-700 dark:text-slate-200">{Number(penaltyPreview.skipped_count || 0)}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Penalty Total</p>
+            <p className="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">
+              PHP {Number(penaltyPreview.total_penalty_amount || 0).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-700">
+                {['Tenant', 'Unit', 'Month', 'Due Date', 'Outstanding', 'Penalty', 'Status'].map((header) => (
+                  <th key={header} className="px-3 py-3 text-left text-[10px] font-mono uppercase tracking-wider text-slate-400">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 8).map((row) => (
+                <tr key={`${row.bill_id}-${row.status}`} className="border-b border-slate-100 dark:border-slate-800">
+                  <td className="px-3 py-3 text-slate-700 dark:text-slate-200">{row.tenant_name}</td>
+                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.unit_label}</td>
+                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.billing_month}</td>
+                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.due_date || '-'}</td>
+                  <td className="px-3 py-3 text-slate-600 dark:text-slate-300">PHP {Number(row.outstanding_amount || 0).toLocaleString()}</td>
+                  <td className="px-3 py-3 font-semibold text-amber-600 dark:text-amber-400">PHP {Number(row.penalty_amount || 0).toLocaleString()}</td>
+                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.eligible ? 'Eligible' : row.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActionGuidePills() {
+  const items = [
+    ['Draft', 'Publish to Tenant first, then use Regenerate or Delete Draft only if needed'],
+    ['Published', 'Waiting for Tenant Payment'],
+    ['Submitted', 'Review Submitted Payment'],
+    ['Paid', 'Paid'],
+  ]
+
+  return (
+    <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/20">
+      <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Action Guide</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {items.map(([label, action]) => (
+          <span
+            key={label}
+            className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300"
+          >
+            {label}: {action}
+          </span>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -285,15 +442,31 @@ export default function FinanceBillManagement() {
     regenerateBill,
     publishBill,
     removeBill,
+    loadBillDetail,
+    loadPaymentReviewBill,
+    approvePayment,
+    rejectPayment,
     draftBills,
     publishedBills,
     submittedBills,
     paidBills,
     totalRevenue,
+    saveBillAdjustmentDraft,
+    submitBillAdjustment,
+    applyBillAdjustmentDirect,
+    adjustmentMetrics,
   } = useFinanceBills()
   const { addToast } = useApp()
+  const { isMonthLocked, getMonthLock } = useBillingPeriodLocks('finance')
+  const {
+    rule,
+    penaltyPreview,
+    previewLoading: penaltyLoading,
+    previewPenalties,
+    applyPenalties,
+  } = useBillingPenaltyRule()
 
-  const [activeTab, setActiveTab] = useState('manage')
+  const [activeTab, setActiveTab] = useState('prepare')
   const [manageSearch, setManageSearch] = useState('')
   const [manageStatus, setManageStatus] = useState('all')
   const [allSearch, setAllSearch] = useState('')
@@ -303,14 +476,18 @@ export default function FinanceBillManagement() {
   const formModal = useModalState()
   const batchModal = useModalState()
   const detailModal = useModalState()
+  const adjustmentDrawer = useModalState()
+  const historyModal = useModalState()
+  const reviewModal = useModalState()
 
   const loadingState = (pageLoading && bills.length === 0 && tenants.length === 0) || (loading && bills.length === 0 && tenants.length === 0 && !error)
 
-  const manageFiltered = useMemo(
+  const prepareFiltered = useMemo(
     () =>
       bills.filter((bill) => {
-        const q = manageSearch.toLowerCase()
+        const q = manageSearch.trim().toLowerCase()
         return (
+          ['draft', 'published'].includes(bill.status) &&
           (!q ||
             bill.tenant.toLowerCase().includes(q) ||
             bill.unit.toLowerCase().includes(q) ||
@@ -321,10 +498,45 @@ export default function FinanceBillManagement() {
     [bills, manageSearch, manageStatus]
   )
 
-  const allFiltered = useMemo(
+  const paymentQueueFiltered = useMemo(
     () =>
       bills.filter((bill) => {
-        const q = allSearch.toLowerCase()
+        const q = manageSearch.trim().toLowerCase()
+        return (
+          bill.status === 'payment_submitted' &&
+          (!q ||
+            bill.tenant.toLowerCase().includes(q) ||
+            bill.unit.toLowerCase().includes(q) ||
+            bill.id.toLowerCase().includes(q))
+        )
+      }),
+    [bills, manageSearch]
+  )
+
+  const exceptionFiltered = useMemo(
+    () =>
+      bills.filter((bill) => {
+        const q = manageSearch.trim().toLowerCase()
+        const hasAdjustmentActivity =
+          Boolean(bill.adjustmentState?.latestAdjustment) ||
+          (bill.adjustmentHistory?.length || 0) > 0 ||
+          bill.status === 'partial'
+
+        return (
+          hasAdjustmentActivity &&
+          (!q ||
+            bill.tenant.toLowerCase().includes(q) ||
+            bill.unit.toLowerCase().includes(q) ||
+            bill.id.toLowerCase().includes(q))
+        )
+      }),
+    [bills, manageSearch]
+  )
+
+  const ledgerFiltered = useMemo(
+    () =>
+      bills.filter((bill) => {
+        const q = allSearch.trim().toLowerCase()
         return (
           (!q ||
             bill.tenant.toLowerCase().includes(q) ||
@@ -337,11 +549,15 @@ export default function FinanceBillManagement() {
     [bills, allSearch, allStatus, allUtility]
   )
 
-  const managePagination = useClientPagination(manageFiltered, 10)
-  const allBillsPagination = useClientPagination(allFiltered, 10)
+  const preparePagination = useClientPagination(prepareFiltered, 10)
+  const paymentQueuePagination = useClientPagination(paymentQueueFiltered, 10)
+  const exceptionPagination = useClientPagination(exceptionFiltered, 10)
+  const allBillsPagination = useClientPagination(ledgerFiltered, 10)
 
   useEffect(() => {
-    managePagination.setPage(1)
+    preparePagination.setPage(1)
+    paymentQueuePagination.setPage(1)
+    exceptionPagination.setPage(1)
   }, [manageSearch, manageStatus])
 
   useEffect(() => {
@@ -364,7 +580,44 @@ export default function FinanceBillManagement() {
     formModal.open(bill)
   }
 
+  const openAdjustment = (bill) => {
+    adjustmentDrawer.open(bill)
+  }
+
+  const openHistory = (bill) => {
+    historyModal.open(bill)
+  }
+
+  const openPaymentReview = async (bill) => {
+    const reviewBill = await loadPaymentReviewBill(bill.id)
+
+    if (!reviewBill) {
+      addToast('Payment review details could not be loaded.', 'error')
+      return
+    }
+
+    reviewModal.open(reviewBill)
+  }
+
+  const openBillDetail = async (bill) => {
+    const detailBill = await loadBillDetail(bill.id)
+
+    if (!detailBill) {
+      addToast('Bill details could not be loaded.', 'error')
+      return
+    }
+
+    detailModal.open(detailBill)
+  }
+
   const handleSave = async (data) => {
+    if (isMonthLocked(data.billingMonth)) {
+      const lock = getMonthLock(data.billingMonth)
+      const result = { success: false, message: `Billing month ${data.billingMonth} is locked.${lock?.reason ? ` Reason: ${lock.reason}` : ''}` }
+      addToast(result.message, 'error')
+      return result
+    }
+
     const result = editBill?.id ? await regenerateBill(data) : await createBill(data)
 
     if (!result?.success) {
@@ -382,6 +635,12 @@ export default function FinanceBillManagement() {
   }
 
   const handleGenerateAll = async ({ billingMonth, regenerateExisting }) => {
+    if (isMonthLocked(billingMonth)) {
+      const result = { success: false, message: `Billing month ${billingMonth} is locked.` }
+      addToast(result.message, 'error')
+      return result
+    }
+
     const result = await generateAllBills({ billingMonth, regenerateExisting })
 
     if (!result?.success) {
@@ -403,7 +662,43 @@ export default function FinanceBillManagement() {
     addToast(result?.success ? 'Bill deleted successfully.' : result?.message || 'Failed to delete bill.', result?.success ? 'success' : 'error')
   }
 
-  const STATUS_TABS = [
+  const handleSaveAdjustmentDraft = async (payload) => {
+    const result = await saveBillAdjustmentDraft(adjustmentDrawer.selectedItem, payload)
+    addToast(result?.success ? 'Adjustment draft saved.' : result?.message || 'Failed to save draft.', result?.success ? 'success' : 'error')
+    if (result?.success) adjustmentDrawer.close()
+  }
+
+  const handleSubmitAdjustment = async (payload) => {
+    const result = await submitBillAdjustment(adjustmentDrawer.selectedItem, payload)
+    addToast(result?.success ? 'Adjustment request submitted.' : result?.message || 'Failed to submit adjustment.', result?.success ? 'success' : 'error')
+    if (result?.success) adjustmentDrawer.close()
+  }
+
+  const handleApplyAdjustment = async (payload) => {
+    const result = await applyBillAdjustmentDirect(adjustmentDrawer.selectedItem, payload)
+    addToast(result?.success ? 'Bill adjustment applied.' : result?.message || 'Failed to apply adjustment.', result?.success ? 'success' : 'error')
+    if (result?.success) adjustmentDrawer.close()
+  }
+
+  const handleApprovePayment = async (billOrPaymentId) => {
+    const result = await approvePayment(billOrPaymentId)
+    addToast(result?.success ? result?.message || 'Payment approved successfully.' : result?.message || 'Failed to approve payment.', result?.success ? 'success' : 'error')
+    return result
+  }
+
+  const handleRejectPayment = async (billOrPaymentId) => {
+    const result = await rejectPayment(billOrPaymentId)
+    addToast(result?.success ? result?.message || 'Payment rejected successfully.' : result?.message || 'Failed to reject payment.', result?.success ? 'success' : 'error')
+    return result
+  }
+
+  const PREPARE_STATUS_TABS = [
+    { k: 'all', l: 'All' },
+    { k: 'draft', l: 'Draft' },
+    { k: 'published', l: 'Published' },
+  ]
+
+  const LEDGER_STATUS_TABS = [
     { k: 'all', l: 'All' },
     { k: 'draft', l: 'Draft' },
     { k: 'published', l: 'Published' },
@@ -412,7 +707,16 @@ export default function FinanceBillManagement() {
   ]
 
   const handleExportCurrent = () => {
-    const rows = (activeTab === 'manage' ? manageFiltered : allFiltered).map((bill) => ({
+    const currentRows =
+      activeTab === 'prepare'
+        ? prepareFiltered
+        : activeTab === 'payments'
+          ? paymentQueueFiltered
+          : activeTab === 'exceptions'
+            ? exceptionFiltered
+            : ledgerFiltered
+
+    const rows = currentRows.map((bill) => ({
       invoice_id: bill.id,
       tenant: bill.tenant,
       unit: bill.unit,
@@ -425,15 +729,32 @@ export default function FinanceBillManagement() {
       status: bill.status,
     }))
 
-    downloadCsv(`finance-bills-${activeTab}.csv`, rows)
+    exportTableCsv(`finance-bills-${activeTab}.csv`, rows)
   }
 
   const handlePrintCurrent = () => {
+    const subtitles = {
+      prepare: 'Prepare bills queue',
+      payments: 'Payment review queue',
+      exceptions: 'Billing exceptions queue',
+      ledger: 'Bill ledger view',
+    }
+
     printElement({
       title: 'Billing Management',
-      subtitle: activeTab === 'manage' ? 'Manage bills view' : 'All bills view',
+      subtitle: subtitles[activeTab] || 'Billing management view',
       element: printRef.current,
     })
+  }
+
+  const handlePenaltyPreview = async (asOfDate) => {
+    const result = await previewPenalties({ asOfDate })
+    addToast(result?.success ? 'Penalty preview generated.' : result?.message || 'Failed to preview penalties.', result?.success ? 'success' : 'error')
+  }
+
+  const handlePenaltyApply = async (asOfDate) => {
+    const result = await applyPenalties({ asOfDate })
+    addToast(result?.success ? result?.message || 'Penalties applied.' : result?.message || 'Failed to apply penalties.', result?.success ? 'success' : 'error')
   }
 
   return (
@@ -444,23 +765,39 @@ export default function FinanceBillManagement() {
             <FileText className="w-5 h-5 text-blue-500" />
             Billing Management
           </h1>
-          <p className="text-sm text-slate-400 mt-0.5">Generate, publish, and monitor all tenant bills</p>
+          <p className="text-sm text-slate-400 mt-0.5">Generate, publish, regenerate, and adjust tenant bills</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <PageActionBar
             onExport={handleExportCurrent}
             onPrint={handlePrintCurrent}
-            exportLabel={activeTab === 'manage' ? 'Export Current Bills' : 'Export Filtered Bills'}
-            printLabel={activeTab === 'manage' ? 'Print Manage Bills' : 'Print All Bills'}
+            exportLabel={
+              activeTab === 'prepare'
+                ? 'Export Prepare Queue'
+                : activeTab === 'payments'
+                  ? 'Export Payment Queue'
+                  : activeTab === 'exceptions'
+                    ? 'Export Exceptions Queue'
+                    : 'Export Bill Ledger'
+            }
+            printLabel={
+              activeTab === 'prepare'
+                ? 'Print Prepare Queue'
+                : activeTab === 'payments'
+                  ? 'Print Payment Queue'
+                  : activeTab === 'exceptions'
+                    ? 'Print Exceptions Queue'
+                    : 'Print Bill Ledger'
+            }
             iconOnly
           />
-          {activeTab === 'manage' && (
+          {activeTab === 'prepare' && (
             <>
             <button
               onClick={openBatch}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
-              <LayoutList className="w-4 h-4" /> Generate All Bills
+              <LayoutList className="w-4 h-4" /> Run Bill Generation
             </button>
             <button
               onClick={openCreate}
@@ -480,9 +817,11 @@ export default function FinanceBillManagement() {
       )}
 
       <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-1.5 shadow-sm w-fit">
-        {[
-          { key: 'manage', label: 'Manage Bills', Icon: Settings2 },
-          { key: 'all-bills', label: 'All Bills', Icon: LayoutList },
+        {[ 
+          { key: 'prepare', label: 'Prepare Bills', Icon: Settings2 },
+          { key: 'payments', label: 'Payment Queue', Icon: Send },
+          { key: 'exceptions', label: 'Exceptions', Icon: Edit2 },
+          { key: 'ledger', label: 'Bill Ledger', Icon: LayoutList },
         ].map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -497,14 +836,14 @@ export default function FinanceBillManagement() {
       </div>
 
       <div ref={printRef}>
-      {activeTab === 'manage' && (
+      {activeTab === 'prepare' && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {[
               { label: 'Drafts', value: draftBills.length, color: 'text-slate-600 dark:text-slate-300', sub: 'Not yet published' },
               { label: 'Published', value: publishedBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Tenants can see' },
-              { label: 'Submitted', value: submittedBills.length, color: 'text-amber-600 dark:text-amber-400', sub: 'Pending review' },
-              { label: 'Paid', value: paidBills.length, color: 'text-emerald-600 dark:text-emerald-400', sub: 'Completed' },
+              { label: 'Ready To Publish', value: draftBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Draft queue' },
+              { label: 'Waiting For Payment', value: publishedBills.length, color: 'text-indigo-600 dark:text-indigo-400', sub: 'Already sent to tenants' },
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
@@ -512,6 +851,49 @@ export default function FinanceBillManagement() {
                 <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
               </div>
             ))}
+          </div>
+
+          <PenaltyPreviewPanel
+            rule={rule}
+            penaltyPreview={penaltyPreview}
+            loading={penaltyLoading}
+            onPreview={handlePenaltyPreview}
+            onApply={handlePenaltyApply}
+          />
+
+          <BillingPeriodLockPanel
+            scope="finance"
+            title="Finance Billing Period Lock"
+            description="Freeze finalized months before collections and audits so bill actions cannot be changed accidentally."
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.95fr] gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Prepare Bills Flow</p>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                {[
+                  ['1. Generate Drafts', 'Create missing monthly bills after Facility has approved readings.'],
+                  ['2. Review Draft Queue', 'Check draft totals and remove or regenerate drafts when they look wrong.'],
+                  ['3. Publish To Tenant', 'Send only finalized drafts so tenants can see and pay them.'],
+                  ['4. Wait For Payment', 'Published bills move automatically to Payment Queue once a receipt is submitted.'],
+                ].map(([title, copy]) => (
+                  <div key={title} className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/30 p-4">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{copy}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">What To Do Here</p>
+              <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Draft:</span> Publish, regenerate, or delete.</p>
+                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Published:</span> No more creation work. Wait for the tenant payment submission.</p>
+                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Need payment review:</span> Use the Payment Queue tab.</p>
+                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Need corrections:</span> Use the Exceptions tab.</p>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
@@ -525,7 +907,7 @@ export default function FinanceBillManagement() {
               />
             </div>
             <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-              {STATUS_TABS.map(({ k, l }) => (
+              {PREPARE_STATUS_TABS.map(({ k, l }) => (
                 <button
                   key={k}
                   onClick={() => setManageStatus(k)}
@@ -539,21 +921,22 @@ export default function FinanceBillManagement() {
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{manageFiltered.length} bills</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{prepareFiltered.length} bills in prepare queue</p>
             </div>
+            <ActionGuidePills />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                    {['Invoice', 'Tenant', 'Unit', 'Month', 'Amount', 'Due Date', 'Status', 'Actions'].map((header) => (
+                    {['Invoice', 'Tenant', 'Unit', 'Month', 'Amount', 'Due Date', 'Status', 'Adjustment', 'Actions'].map((header) => (
                       <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {manageFiltered.length === 0 ? (
-                    <tr><td colSpan={8}><EmptyState title="No bills found" message="Generate a new bill to get started." /></td></tr>
-                  ) : managePagination.pagedItems.map((bill) => (
+                  {prepareFiltered.length === 0 ? (
+                    <tr><td colSpan={9}><EmptyState title="No bills found" message="Generate a new bill to get started." /></td></tr>
+                  ) : preparePagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{bill.tenant}</td>
@@ -563,41 +946,91 @@ export default function FinanceBillManagement() {
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{bill.dueDate}</td>
                       <td className="px-4 py-3"><BillStatusBadge status={bill.status} /></td>
                       <td className="px-4 py-3">
+                        {bill.adjustmentState?.latestAdjustment ? (
+                          <div className="flex flex-col gap-1">
+                            <AdjustmentStatusBadge status={bill.adjustmentState.latestAdjustment.status} />
+                            {bill.adjustmentState.isAdjusted ? (
+                              <span className="text-[10px] text-slate-400">
+                                PHP {Number(bill.adjustmentState.totalAdjustmentAmount || 0).toLocaleString()}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300 dark:text-slate-600">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           {bill.status === 'draft' && (
                             <button
                               onClick={() => handlePublish(bill.id)}
                               disabled={saving}
+                              title="Publish this draft so the tenant can view and pay it."
                               className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-all whitespace-nowrap"
                             >
-                              <Send className="w-3 h-3" /> Publish
+                              <Send className="w-3 h-3" /> Publish to Tenant
                             </button>
                           )}
-                          {['draft', 'published'].includes(bill.status) && (
+                          {bill.status === 'draft' && (
                             <button
                               onClick={() => openEdit(bill)}
                               disabled={saving}
+                              title="Rebuild this bill using the latest approved readings for the selected billing month."
                               className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all"
                             >
-                              <Edit2 className="w-3 h-3" /> Regenerate
+                              <Edit2 className="w-3 h-3" /> Regenerate Bill
+                            </button>
+                          )}
+                          {bill.status === 'published' && (
+                            <span
+                              title="This bill is already visible to the tenant and is waiting for payment submission."
+                              className="text-[11px] text-blue-600 dark:text-blue-400 flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg whitespace-nowrap"
+                            >
+                              <Send className="w-3 h-3" /> Waiting for Payment
+                            </span>
+                          )}
+                          {['published', 'payment_submitted', 'paid', 'partial'].includes(bill.status) && (
+                            <button
+                              onClick={() => openAdjustment(bill)}
+                              disabled={saving}
+                              title="Open the bill adjustment workflow for corrections, disputes, or approved changes."
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 transition-all whitespace-nowrap"
+                            >
+                              <Edit2 className="w-3 h-3" /> Open Adjustment
+                            </button>
+                          )}
+                          {bill.adjustmentHistory?.length > 0 && (
+                            <button
+                              onClick={() => openHistory(bill)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 transition-all whitespace-nowrap"
+                            >
+                              <Eye className="w-3 h-3" /> History
                             </button>
                           )}
                           {bill.status === 'payment_submitted' && (
-                            <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg whitespace-nowrap">
-                              <CheckCircle2 className="w-3 h-3" /> Needs Review
-                            </span>
+                            <button
+                              onClick={() => openPaymentReview(bill)}
+                              disabled={saving}
+                              title="Review the tenant's submitted payment proof for this bill."
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition-all whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Review Submitted Payment
+                            </button>
                           )}
                           {bill.status === 'paid' && (
-                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg whitespace-nowrap">
-                              <CheckCircle2 className="w-3 h-3" /> Complete
+                            <span
+                              title="This bill is fully paid and needs no further billing action."
+                              className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Paid
                             </span>
                           )}
-                          {['draft', 'published'].includes(bill.status) && (
+                          {bill.status === 'draft' && (
                             <button
                               onClick={() => handleDelete(bill.id)}
                               disabled={saving}
                               className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-all"
-                              title="Delete"
+                              title="Delete this draft bill if it should no longer exist."
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -611,13 +1044,13 @@ export default function FinanceBillManagement() {
             </div>
             <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
               <PaginationBar
-                meta={managePagination.meta}
-                page={managePagination.page}
-                perPage={managePagination.perPage}
-                onPageChange={managePagination.setPage}
+                meta={preparePagination.meta}
+                page={preparePagination.page}
+                perPage={preparePagination.perPage}
+                onPageChange={preparePagination.setPage}
                 onPerPageChange={(value) => {
-                  managePagination.setPerPage(value)
-                  managePagination.setPage(1)
+                  preparePagination.setPerPage(value)
+                  preparePagination.setPage(1)
                 }}
               />
             </div>
@@ -627,7 +1060,221 @@ export default function FinanceBillManagement() {
         </>
       )}
 
-      {activeTab === 'all-bills' && (
+      {activeTab === 'payments' && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {[
+              { label: 'Submitted', value: submittedBills.length, color: 'text-amber-600 dark:text-amber-400', sub: 'Need finance review' },
+              { label: 'Paid', value: paidBills.length, color: 'text-emerald-600 dark:text-emerald-400', sub: 'Already cleared' },
+              { label: 'Partial', value: bills.filter((bill) => bill.status === 'partial').length, color: 'text-orange-600 dark:text-orange-400', sub: 'Still outstanding' },
+              { label: 'Queue Total', value: paymentQueueFiltered.length, color: 'text-slate-800 dark:text-white', sub: 'Current payment submissions' },
+            ].map((card) => (
+              <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
+                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Payment Queue</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">This tab is only for bills with submitted payment proof. Review the receipt, approve it, or reject it so the bill can move forward cleanly.</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                value={manageSearch}
+                onChange={(e) => setManageSearch(e.target.value)}
+                placeholder="Search submitted payments by tenant, unit, or bill ID..."
+                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{paymentQueueFiltered.length} bills waiting for payment review</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                    {['Invoice', 'Tenant', 'Unit', 'Month', 'Amount', 'Due Date', 'Status', 'Next Step'].map((header) => (
+                      <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {paymentQueueFiltered.length === 0 ? (
+                    <tr><td colSpan={8}><EmptyState title="No submitted payments" message="Bills will appear here only after a tenant submits payment proof." /></td></tr>
+                  ) : paymentQueuePagination.pagedItems.map((bill) => (
+                    <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
+                      <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{bill.tenant}</td>
+                      <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{bill.unit}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.month}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {bill.amount.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{bill.dueDate}</td>
+                      <td className="px-4 py-3"><BillStatusBadge status={bill.status} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => openPaymentReview(bill)}
+                            disabled={saving}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition-all whitespace-nowrap"
+                          >
+                            <CheckCircle2 className="w-3 h-3" /> Review Submitted Payment
+                          </button>
+                          <button
+                            onClick={() => openBillDetail(bill)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
+                          >
+                            <Eye className="w-3 h-3" /> View Bill
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+              <PaginationBar
+                meta={paymentQueuePagination.meta}
+                page={paymentQueuePagination.page}
+                perPage={paymentQueuePagination.perPage}
+                onPageChange={paymentQueuePagination.setPage}
+                onPerPageChange={(value) => {
+                  paymentQueuePagination.setPerPage(value)
+                  paymentQueuePagination.setPage(1)
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'exceptions' && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {[
+              { label: 'Adj Pending', value: adjustmentMetrics.pending, color: 'text-orange-600 dark:text-orange-400', sub: 'Awaiting approval' },
+              { label: 'Adjusted', value: adjustmentMetrics.applied, color: 'text-cyan-600 dark:text-cyan-400', sub: 'Applied changes' },
+              { label: 'Partial Bills', value: bills.filter((bill) => bill.status === 'partial').length, color: 'text-amber-600 dark:text-amber-400', sub: 'Need follow-up' },
+              { label: 'Queue Total', value: exceptionFiltered.length, color: 'text-slate-800 dark:text-white', sub: 'Bills with adjustment activity' },
+            ].map((card) => (
+              <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
+                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Exceptions Queue</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Use this queue for bill corrections, partial payment follow-ups, and any bill that already has adjustment activity. Operational edits stay here so the ledger can stay focused on records.</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                value={manageSearch}
+                onChange={(e) => setManageSearch(e.target.value)}
+                placeholder="Search exceptions by tenant, unit, or bill ID..."
+                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{exceptionFiltered.length} bills in exceptions queue</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                    {['Invoice', 'Tenant', 'Unit', 'Month', 'Status', 'Adjustment', 'Next Step'].map((header) => (
+                      <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {exceptionFiltered.length === 0 ? (
+                    <tr><td colSpan={7}><EmptyState title="No billing exceptions" message="Bills with adjustments or partial follow-ups will appear here." /></td></tr>
+                  ) : exceptionPagination.pagedItems.map((bill) => (
+                    <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
+                      <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{bill.tenant}</td>
+                      <td className="px-4 py-3 font-mono text-slate-500 dark:text-slate-400">{bill.unit}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{bill.month}</td>
+                      <td className="px-4 py-3"><BillStatusBadge status={bill.status} /></td>
+                      <td className="px-4 py-3">
+                        {bill.adjustmentState?.latestAdjustment ? (
+                          <div className="flex flex-col gap-1">
+                            <AdjustmentStatusBadge status={bill.adjustmentState.latestAdjustment.status} />
+                            {bill.adjustmentState.isAdjusted ? (
+                              <span className="text-[10px] text-slate-400">
+                                PHP {Number(bill.adjustmentState.totalAdjustmentAmount || 0).toLocaleString()}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300 dark:text-slate-600">No adjustment request yet</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => openAdjustment(bill)}
+                            disabled={saving}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 transition-all whitespace-nowrap"
+                          >
+                            <Edit2 className="w-3 h-3" /> Open Adjustment
+                          </button>
+                          {bill.adjustmentHistory?.length > 0 && (
+                            <button
+                              onClick={() => openHistory(bill)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 transition-all whitespace-nowrap"
+                            >
+                              <Eye className="w-3 h-3" /> View Adjustment History
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openBillDetail(bill)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
+                          >
+                            <Eye className="w-3 h-3" /> View Bill
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+              <PaginationBar
+                meta={exceptionPagination.meta}
+                page={exceptionPagination.page}
+                perPage={exceptionPagination.perPage}
+                onPageChange={exceptionPagination.setPage}
+                onPerPageChange={(value) => {
+                  exceptionPagination.setPerPage(value)
+                  exceptionPagination.setPage(1)
+                }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'ledger' && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
@@ -655,7 +1302,7 @@ export default function FinanceBillManagement() {
               />
             </div>
             <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-              {STATUS_TABS.map(({ k, l }) => (
+              {LEDGER_STATUS_TABS.map(({ k, l }) => (
                 <button
                   key={k}
                   onClick={() => setAllStatus(k)}
@@ -679,21 +1326,21 @@ export default function FinanceBillManagement() {
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-md overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{allFiltered.length} bills found</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{ledgerFiltered.length} bills found</p>
               <Filter className="w-4 h-4 text-slate-400" />
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                    {['Invoice ID', 'Tenant', 'Unit', 'Month', 'Due Date', 'Electricity', 'Water', 'Thermal', 'Total', 'Status', 'Action'].map((header) => (
+                    {['Invoice ID', 'Tenant', 'Unit', 'Month', 'Due Date', 'Electricity', 'Water', 'Thermal', 'Total', 'Status', 'Adjustment', 'Action'].map((header) => (
                       <th key={header} className="px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 text-left whitespace-nowrap">{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {allFiltered.length === 0 ? (
-                    <tr><td colSpan={11}><EmptyState title="No bills match your filters" message="Try adjusting the search or status filter." /></td></tr>
+                  {ledgerFiltered.length === 0 ? (
+                    <tr><td colSpan={12}><EmptyState title="No bills match your filters" message="Try adjusting the search or status filter." /></td></tr>
                   ) : allBillsPagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">{bill.id}</td>
@@ -707,12 +1354,27 @@ export default function FinanceBillManagement() {
                       <td className="px-4 py-3 font-semibold tabular-nums text-slate-700 dark:text-slate-200 whitespace-nowrap">PHP {bill.amount.toLocaleString()}</td>
                       <td className="px-4 py-3"><BillStatusBadge status={bill.status} /></td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => detailModal.open(bill)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
-                        >
-                          <Eye className="w-3 h-3" /> View
-                        </button>
+                        {bill.adjustmentState?.latestAdjustment ? <AdjustmentStatusBadge status={bill.adjustmentState.latestAdjustment.status} /> : <span className="text-xs text-slate-300 dark:text-slate-600">-</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => openBillDetail(bill)}
+                            title="View the full bill details and utility breakdown."
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-all"
+                          >
+                            <Eye className="w-3 h-3" /> View Bill
+                          </button>
+                          {bill.adjustmentHistory?.length > 0 && (
+                            <button
+                              onClick={() => openHistory(bill)}
+                              title="Review all adjustment actions previously recorded for this bill."
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 transition-all whitespace-nowrap"
+                            >
+                              <Eye className="w-3 h-3" /> View Adjustment History
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -743,6 +1405,8 @@ export default function FinanceBillManagement() {
         initial={editBill}
         onSave={handleSave}
         saving={saving}
+        isMonthLocked={isMonthLocked}
+        getMonthLock={getMonthLock}
       />
 
       <GenerateAllBillsModal
@@ -750,12 +1414,38 @@ export default function FinanceBillManagement() {
         onClose={batchModal.close}
         onSubmit={handleGenerateAll}
         saving={saving}
+        isMonthLocked={isMonthLocked}
+        getMonthLock={getMonthLock}
       />
 
       {detailModal.isOpen && (
         <BillDetailModal bill={detailModal.selectedItem} onClose={detailModal.close} />
       )}
+
+      <PaymentReviewModal
+        bill={reviewModal.selectedItem}
+        isOpen={reviewModal.isOpen}
+        onClose={reviewModal.close}
+        onApprove={handleApprovePayment}
+        onReject={handleRejectPayment}
+      />
+
+      <BillAdjustmentDrawer
+        bill={adjustmentDrawer.selectedItem}
+        isOpen={adjustmentDrawer.isOpen}
+        onClose={adjustmentDrawer.close}
+        onSaveDraft={handleSaveAdjustmentDraft}
+        onSubmit={handleSubmitAdjustment}
+        onApply={handleApplyAdjustment}
+        saving={saving}
+      />
+
+      <BillAdjustmentHistoryModal
+        bill={historyModal.selectedItem}
+        history={historyModal.selectedItem?.adjustmentHistory || []}
+        isOpen={historyModal.isOpen}
+        onClose={historyModal.close}
+      />
     </div>
   )
 }
-

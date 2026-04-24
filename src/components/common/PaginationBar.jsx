@@ -44,7 +44,7 @@ export default function PaginationBar({
   const items = buildPageItems(currentPage, lastPage)
 
   return (
-    <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className}`.trim()}>
+    <div data-print-hide="true" className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className}`.trim()}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <p className="text-xs text-slate-400">
           Showing {from || 0} to {to || 0} of {total} records

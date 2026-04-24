@@ -1,23 +1,20 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
 import { Search, Ticket, Eye, Search as SearchIcon, CheckCircle2, DollarSign, Filter } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
+import { useModalState } from '@/hooks/useModalState'
 import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
+import BillAdjustmentDrawer from '@/components/billing/adjustments/BillAdjustmentDrawer'
+import { useFinanceBills } from '@/hooks/financeHooks/useFinanceBills'
 import api from '@/lib/api'
+import { addLocalActivityLog } from '@/services/activityLogService'
+import PaginationBar from '@/components/common/PaginationBar'
+import { useClientPagination } from '@/hooks/useClientPagination'
 
 const FINANCE_STATUSES = ['all', 'assigned', 'investigating', 'resolved', 'closed', 'rejected']
 
-function formatDate(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function mapStatus(status) {
   const raw = String(status || '').toLowerCase()
@@ -26,7 +23,7 @@ function mapStatus(status) {
   return raw || 'assigned'
 }
 
-function buildTimeline(row) {
+function buildTimeline(row, linkedAdjustments = []) {
   const timeline = []
   if (row?.created_at) {
     timeline.push({
@@ -61,10 +58,33 @@ function buildTimeline(row) {
     })
   }
 
+  linkedAdjustments.forEach((adjustment) => {
+    const actorName = adjustment?.adjustedBy?.name || adjustment?.approvedBy?.name || 'Finance'
+    const actionLabel = {
+      draft: 'Adjustment draft saved',
+      pending_approval: 'Adjustment submitted for approval',
+      approved: 'Adjustment approved',
+      applied: 'Bill adjustment applied',
+      rejected: 'Adjustment request rejected',
+      cancelled: 'Adjustment cancelled',
+    }[adjustment?.status] || 'Adjustment updated'
+
+    timeline.push({
+      id: `adjustment-${adjustment.id}`,
+      role: adjustment?.approvedBy ? 'admin' : 'finance',
+      action: actionLabel,
+      by: actorName,
+      date: formatDate(adjustment?.effectiveAt || adjustment?.approvedAt || adjustment?.submittedAt || adjustment?.createdAt),
+      note: adjustment?.reason || adjustment?.notes || '',
+    })
+  })
+
+  timeline.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
+
   return timeline
 }
 
-function normalizeConcern(row = {}) {
+function normalizeConcern(row = {}, linkedAdjustments = []) {
   return {
     id: String(row?.id ?? ''),
     billId: String(row?.bill_id ?? row?.bill?.id ?? ''),
@@ -79,11 +99,11 @@ function normalizeConcern(row = {}) {
     rawStatus: row?.status || 'pending',
     assignedTo: row?.assignee?.name || 'finance',
     adminNotes: row?.admin_notes || '',
-    financeNotes: row?.admin_notes || '',
+    financeNotes: row?.finance_notes || '',
     dateSubmitted: formatDate(row?.created_at),
     createdAt: row?.created_at || '',
     updatedAt: row?.updated_at || '',
-    timeline: buildTimeline(row),
+    timeline: Array.isArray(row?.timeline) && row.timeline.length > 0 ? row.timeline : buildTimeline(row, linkedAdjustments),
     raw: row,
   }
 }
@@ -91,6 +111,7 @@ function normalizeConcern(row = {}) {
 export default function FinanceBillingTickets() {
   const pageLoading = usePageLoader(600)
   const { addToast } = useApp()
+  const { getBillById, saveBillAdjustmentDraft, submitBillAdjustment, applyBillAdjustmentDirect, adjustments, saving } = useFinanceBills()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [detailOpen, setDetailOpen] = useState(false)
@@ -99,13 +120,22 @@ export default function FinanceBillingTickets() {
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState('')
+  const adjustmentDrawer = useModalState()
+  const [adjustmentConcern, setAdjustmentConcern] = useState(null)
 
   const loadConcerns = async () => {
     try {
       setLoading(true)
       setError('')
       const response = await api.get('/api/finance/billing-concerns')
-      setConcerns((Array.isArray(response?.data?.data) ? response.data.data : []).map(normalizeConcern))
+      const rows = Array.isArray(response?.data?.data) ? response.data.data : []
+      setConcerns(rows.map((row) => {
+        const linkedAdjustments = adjustments.filter((item) =>
+          String(item?.concernId || '') === String(row?.id || '')
+          || (row?.bill_id && String(item?.billId || '') === String(row.bill_id))
+        )
+        return normalizeConcern(row, linkedAdjustments)
+      }))
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load finance billing tickets.')
       setConcerns([])
@@ -116,10 +146,10 @@ export default function FinanceBillingTickets() {
 
   useEffect(() => {
     loadConcerns()
-  }, [])
+  }, [adjustments])
 
   const filtered = useMemo(() => concerns.filter((concern) => {
-    const q = search.toLowerCase()
+    const q = search.toLowerCase().trim()
     const matchSearch = !q ||
       concern.id.toLowerCase().includes(q) ||
       concern.tenantName.toLowerCase().includes(q) ||
@@ -129,6 +159,8 @@ export default function FinanceBillingTickets() {
     const matchStatus = statusFilter === 'all' || concern.status === statusFilter
     return matchSearch && matchStatus
   }), [concerns, search, statusFilter])
+
+  const { pagedItems, meta, page, perPage, setPage, setPerPage } = useClientPagination(filtered, 15)
 
   const counts = useMemo(() => ({
     total: concerns.length,
@@ -152,7 +184,6 @@ export default function FinanceBillingTickets() {
       investigate: 'investigate',
       respond: 'respond',
       resolve: 'resolve',
-      adjust: 'adjust',
     }
 
     const endpoint = endpointMap[action]
@@ -161,6 +192,14 @@ export default function FinanceBillingTickets() {
     try {
       setActing(true)
       await api.post(`/api/finance/billing-concerns/${id}/${endpoint}`, { note })
+      addLocalActivityLog({
+        action: `billing_concern_${action}`,
+        description: `Finance marked concern ${id} as ${action}.${note ? ` Note: ${note}` : ''}`,
+        entity_type: 'billing_concern',
+        entity_id: id,
+        method: 'POST',
+        path: `/finance/billing-concerns/${id}/${endpoint}`,
+      })
       await loadConcerns()
       addToast({
         investigate: 'Investigation started.',
@@ -183,7 +222,19 @@ export default function FinanceBillingTickets() {
   }
 
   const quickAction = async (concern, action) => {
+    if (action === 'adjust') {
+      const fullBill = await getBillById(concern.billId)
+      setAdjustmentConcern(concern)
+      adjustmentDrawer.open(fullBill)
+      return
+    }
     await handleAction(concern.id, action, '')
+  }
+
+  const openAdjustmentFromConcern = async (concern) => {
+    const fullBill = await getBillById(concern.billId)
+    setAdjustmentConcern(concern)
+    adjustmentDrawer.open(fullBill)
   }
 
   return (
@@ -237,7 +288,7 @@ export default function FinanceBillingTickets() {
                 type="text"
                 placeholder="Search..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 className="pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all w-40"
               />
             </div>
@@ -246,7 +297,7 @@ export default function FinanceBillingTickets() {
               {FINANCE_STATUSES.map((status) => (
                 <button
                   key={status}
-                  onClick={() => setStatusFilter(status)}
+                  onClick={() => { setStatusFilter(status); setPage(1) }}
                   className={`px-2.5 py-1 rounded-lg text-[10px] font-medium capitalize transition-all ${statusFilter === status ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                 >
                   {status}
@@ -272,7 +323,7 @@ export default function FinanceBillingTickets() {
                     {concerns.length === 0 ? 'No tickets assigned yet.' : 'No matching tickets found.'}
                   </td>
                 </tr>
-              ) : filtered.map((concern) => (
+              ) : pagedItems.map((concern) => (
                 <tr key={concern.id} className="border-b border-slate-100 dark:border-slate-700/30 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-4 py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{concern.id}</td>
                   <td className="px-4 py-3.5 font-mono text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">{concern.billId}</td>
@@ -308,6 +359,17 @@ export default function FinanceBillingTickets() {
             </tbody>
           </table>
         </div>
+        {meta.last_page > 1 && (
+          <div className="border-t border-slate-200 dark:border-slate-800 px-4 py-3">
+            <PaginationBar
+              meta={meta}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              onPerPageChange={(val) => { setPerPage(val); setPage(1) }}
+            />
+          </div>
+        )}
       </div>
 
       <ConcernDetails
@@ -316,6 +378,42 @@ export default function FinanceBillingTickets() {
         onClose={() => setDetailOpen(false)}
         role="finance"
         onAction={handleAction}
+        onAdjustBill={openAdjustmentFromConcern}
+      />
+
+      <BillAdjustmentDrawer
+        bill={adjustmentDrawer.selectedItem}
+        concern={adjustmentConcern}
+        isOpen={adjustmentDrawer.isOpen}
+        onClose={() => {
+          adjustmentDrawer.close()
+          setAdjustmentConcern(null)
+        }}
+        onSaveDraft={async (payload) => {
+          const result = await saveBillAdjustmentDraft(adjustmentDrawer.selectedItem, payload)
+          addToast(result?.success ? 'Adjustment draft saved from ticket.' : result?.message || 'Failed to save draft.', result?.success ? 'success' : 'error')
+          if (result?.success) {
+            await handleAction(adjustmentConcern.id, 'investigate', 'Adjustment draft prepared.')
+            adjustmentDrawer.close()
+          }
+        }}
+        onSubmit={async (payload) => {
+          const result = await submitBillAdjustment(adjustmentDrawer.selectedItem, payload)
+          addToast(result?.success ? 'Adjustment request submitted from ticket.' : result?.message || 'Failed to submit request.', result?.success ? 'success' : 'error')
+          if (result?.success) {
+            await handleAction(adjustmentConcern.id, 'respond', 'Adjustment proposed and sent for approval.')
+            adjustmentDrawer.close()
+          }
+        }}
+        onApply={async (payload) => {
+          const result = await applyBillAdjustmentDirect(adjustmentDrawer.selectedItem, payload)
+          addToast(result?.success ? 'Adjustment applied and ticket updated.' : result?.message || 'Failed to apply adjustment.', result?.success ? 'success' : 'error')
+          if (result?.success) {
+            await handleAction(adjustmentConcern.id, 'resolve', 'Bill adjustment applied and concern resolved.')
+            adjustmentDrawer.close()
+          }
+        }}
+        saving={saving || acting}
       />
     </div>
   )

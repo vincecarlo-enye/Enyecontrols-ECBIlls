@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchAdminOmniPage,
   fetchAdminOmniPages,
+  getAdminOmniPageSnapshot,
+  getAdminOmniPagesSnapshot,
   syncAdminOmniPage,
 } from '../../services/adminService/adminUsageService'
 
@@ -24,39 +26,69 @@ function normalizeShowResponse(response) {
   }
 }
 
-export function useAdminUsageReports() {
-  const [pages, setPages] = useState([])
-  const [selectedPage, setSelectedPage] = useState('')
-  const [pageData, setPageData] = useState([])
-  const [dailyHistory, setDailyHistory] = useState({
-    electricity: [],
-    water: [],
-    thermal: [],
-  })
-  const [monthlyOverview, setMonthlyOverview] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [pageLoading, setPageLoading] = useState(false)
+export function useAdminUsageReports(options = {}) {
+  const { preferredPage = '', skipPagesLoad = false } = options
+  const rawInitialPageSnapshot = preferredPage ? getAdminOmniPageSnapshot(preferredPage) : null
+  const initialPageSnapshot = rawInitialPageSnapshot ? normalizeShowResponse(rawInitialPageSnapshot) : null
+  const initialPagesSnapshot = normalizePages(getAdminOmniPagesSnapshot())
+  const hasInitialPageSnapshot = Boolean(rawInitialPageSnapshot)
+  const initialSelectedPage =
+    preferredPage ||
+    initialPagesSnapshot?.[0]?.PageName ||
+    initialPagesSnapshot?.[0]?.page_name ||
+    initialPagesSnapshot?.[0]?.name ||
+    ''
+
+  const [pages, setPages] = useState(initialPagesSnapshot)
+  const [selectedPage, setSelectedPage] = useState(initialSelectedPage)
+  const [pageData, setPageData] = useState(initialPageSnapshot?.currentData || [])
+  const [dailyHistory, setDailyHistory] = useState(
+    initialPageSnapshot?.dailyHistory || {
+      electricity: [],
+      water: [],
+      thermal: [],
+    }
+  )
+  const [monthlyOverview, setMonthlyOverview] = useState(initialPageSnapshot?.monthlyOverview || [])
+  const [loading, setLoading] = useState(skipPagesLoad ? false : !initialPagesSnapshot.length)
+  const [pageLoading, setPageLoading] = useState(!hasInitialPageSnapshot)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
 
   const loadPages = useCallback(async () => {
+    if (skipPagesLoad) {
+      setLoading(false)
+      return
+    }
+
     try {
-      setLoading(true)
+      setLoading((current) => current || pages.length === 0)
       setError('')
 
       const response = await fetchAdminOmniPages()
       const rawPages = normalizePages(response)
       setPages(rawPages)
 
+      const matchingPreferredPage = preferredPage
+        ? rawPages.find((page) => {
+            const pageName = page?.PageName || page?.page_name || page?.name || ''
+            return pageName === preferredPage
+          })
+        : null
+
       const firstPage =
+        matchingPreferredPage?.PageName ||
+        matchingPreferredPage?.page_name ||
+        matchingPreferredPage?.name ||
         rawPages?.[0]?.PageName ||
         rawPages?.[0]?.page_name ||
         rawPages?.[0]?.name ||
         ''
 
       if (firstPage) {
-        setSelectedPage(firstPage)
+        setSelectedPage((currentPage) => (currentPage === firstPage ? currentPage : firstPage))
       } else {
+        setSelectedPage('')
         setPageData([])
       }
     } catch (err) {
@@ -64,7 +96,7 @@ export function useAdminUsageReports() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pages.length, preferredPage, skipPagesLoad])
 
   const loadPageData = useCallback(async (pageName) => {
     if (!pageName) {
@@ -75,7 +107,7 @@ export function useAdminUsageReports() {
     }
 
     try {
-      setPageLoading(true)
+      setPageLoading((current) => current || pageData.length === 0)
       setError('')
 
       const response = await fetchAdminOmniPage(pageName)
@@ -117,16 +149,21 @@ export function useAdminUsageReports() {
   )
 
   useEffect(() => {
-    loadPages()
-  }, [loadPages])
+    if (!skipPagesLoad) {
+      loadPages()
+      return
+    }
+
+    setLoading(false)
+    if (preferredPage) {
+      setSelectedPage((currentPage) => (currentPage === preferredPage ? currentPage : preferredPage))
+    }
+  }, [loadPages, preferredPage, skipPagesLoad])
 
   useEffect(() => {
     if (!selectedPage) return
-
-    syncPage(selectedPage, { silent: true }).catch(() => {
-      loadPageData(selectedPage)
-    })
-  }, [selectedPage, loadPageData, syncPage])
+    loadPageData(selectedPage)
+  }, [selectedPage, loadPageData])
 
   const summaryCards = useMemo(
     () => [
@@ -146,7 +183,7 @@ export function useAdminUsageReports() {
         key: 'thermal',
         label: 'Thermal',
         total: dailyHistory.thermal.reduce((sum, item) => sum + Number(item?.usage || 0), 0),
-        unit: 'kBTU/h',
+        unit: 'kBTU',
       },
     ],
     [dailyHistory]
@@ -174,7 +211,7 @@ export function useAdminUsageReports() {
         title: 'Thermal',
         data: dailyHistory.thermal,
         key: 'usage',
-        unit: 'kBTU/h',
+        unit: 'kBTU',
         color: '#f43f5e',
         grad: 'thermR',
       },

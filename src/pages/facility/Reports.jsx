@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { formatDateTime } from '@/utils/filterUtils'
+﻿import { useMemo, useRef, useState } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell,
@@ -8,7 +9,9 @@ import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import { useFacilityReports } from '@/hooks/facilityHooks/useFacilityReports'
 import PageActionBar from '@/components/common/PageActionBar'
-import { downloadCsv, printElement } from '@/utils/reporting'
+import ChartExportButton from '@/components/common/ChartExportButton'
+import { downloadCsv } from '@/utils/exportCsv'
+import { printElement } from '@/utils/reporting'
 
 const TYPE_LABELS = {
   electricity: 'Electricity',
@@ -29,19 +32,6 @@ const APPROVAL_BADGES = {
   no_data: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300',
 }
 
-function formatDateTime(value) {
-  if (!value) return 'No reading yet'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function formatApprovalLabel(value) {
   if (!value) return 'No data'
@@ -111,11 +101,48 @@ export default function Reports() {
   if (loadingState) return <ReportsSkeleton />
 
   const handleExport = () => {
-    const exportData = currentData.length > 0 ? currentData : filteredMeterReadings
+    const rows = [
+      ['Facility Operational Reports'],
+      ['Selected Report', selected],
+      [],
+      ['Overview'],
+      ['Metric', 'Value'],
+      ['Total Meters', overview.totalMeters],
+      ['With Recent Reading', overview.withRecentReading],
+      ['Pending Approval', overview.pendingApproval],
+      ['Latest Sync', overview.latestRecordedAt ? formatDateTime(overview.latestRecordedAt) : 'No reading yet'],
+      [],
+      [selected],
+      currentData.length > 0 && typeof currentData[0] === 'object'
+        ? Object.keys(currentData[0])
+        : ['Value'],
+      ...currentData.map((row) =>
+        typeof row === 'object'
+          ? Object.keys(currentData[0]).map((key) => row?.[key] ?? '')
+          : [row]
+      ),
+      [],
+      ['Efficiency Summary'],
+      ['Metric', 'Value', 'Difference'],
+      ...summary.map((row) => [row.metric, row.value, row.diff]),
+      [],
+      ['Latest Meter Readings'],
+      ['Meter', 'Type', 'Page', 'Unit', 'Floor', 'Current Reading', 'Reading Unit', 'Latest Usage', 'Recorded At', 'Approval'],
+      ...filteredMeterReadings.map((row) => [
+        row.meter_name,
+        TYPE_LABELS[row.type] || row.type || 'Unknown',
+        row.page_name || '-',
+        row.unit_label || '-',
+        row.floor_label || '-',
+        row.current_reading ?? '-',
+        row.reading_unit || '',
+        row.latest_usage ?? '-',
+        formatDateTime(row.recorded_at),
+        formatApprovalLabel(row.approval_status),
+      ]),
+    ]
 
-    if (!exportData.length) return
-
-    downloadCsv(`facility-report-${selected.toLowerCase().replace(/\s+/g, '-')}.csv`, exportData)
+    downloadCsv(`facility-report-${selected.toLowerCase().replace(/\s+/g, '-')}.csv`, rows)
   }
 
   const handlePrint = () => {
@@ -123,6 +150,7 @@ export default function Reports() {
       title: 'Facility Operational Reports',
       subtitle: `${selected} report and latest meter readings`,
       element: printRef.current,
+      mode: 'visual',
     })
   }
 
@@ -143,7 +171,7 @@ export default function Reports() {
       )}
 
       <div ref={printRef} className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 print-facility-overview">
         {[
           { label: 'Total Meters', value: overview.totalMeters, icon: Gauge, tone: 'text-blue-600 dark:text-blue-400' },
           { label: 'With Recent Reading', value: overview.withRecentReading, icon: CheckCircle2, tone: 'text-emerald-600 dark:text-emerald-400' },
@@ -164,8 +192,8 @@ export default function Reports() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+      <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr] print-facility-report-main">
+        <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm print-facility-chart-card">
           <div className="flex flex-wrap gap-2 mb-5">
             {reportTypes.map((reportType) => (
               <button
@@ -182,17 +210,32 @@ export default function Reports() {
             ))}
           </div>
 
-          <div className="mb-5">
-            <h2 className="font-semibold text-slate-800 dark:text-white">{selected}</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {selected === 'Daily Energy' && 'Electricity consumption for today by hour.'}
-              {selected === 'Monthly Water' && 'Three-month water comparison per floor.'}
-              {selected === 'Thermal Distribution' && 'Thermal usage share by monitored system.'}
-              {selected === 'Peak Usage' && 'Peak utility hours across the last 7 days.'}
-            </p>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-800 dark:text-white">{selected}</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {selected === 'Daily Energy' && 'Electricity consumption for today by hour.'}
+                {selected === 'Monthly Water' && 'Three-month water comparison per floor.'}
+                {selected === 'Thermal Distribution' && 'Thermal usage share by monitored system.'}
+                {selected === 'Peak Usage' && 'Peak utility hours across the last 7 days.'}
+              </p>
+            </div>
+            <ChartExportButton
+              title={selected}
+              getRows={() => (
+                selected === 'Daily Energy'
+                  ? dailyEnergy
+                  : selected === 'Monthly Water'
+                    ? monthlyWater
+                    : selected === 'Thermal Distribution'
+                      ? thermalDistribution
+                      : peakUsage
+              )}
+            />
           </div>
 
           {selected === 'Daily Energy' && (
+            <div className="print-facility-chart-wrap">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={dailyEnergy}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
@@ -202,9 +245,11 @@ export default function Reports() {
                 <Bar dataKey="usage" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Electricity (kWh)" />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
 
           {selected === 'Monthly Water' && (
+            <div className="print-facility-chart-wrap">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={monthlyWater}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
@@ -217,10 +262,11 @@ export default function Reports() {
                 <Bar dataKey="current" fill="#1d4ed8" radius={[4, 4, 0, 0]} name={monthlyWater[0]?.current_label || 'Current'} />
               </BarChart>
             </ResponsiveContainer>
+            </div>
           )}
 
           {selected === 'Thermal Distribution' && (
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center print-facility-chart-wrap">
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie data={thermalDistribution} cx="50%" cy="50%" outerRadius={110} innerRadius={60} paddingAngle={3} dataKey="value">
@@ -242,6 +288,7 @@ export default function Reports() {
           )}
 
           {selected === 'Peak Usage' && (
+            <div className="print-facility-chart-wrap">
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={peakUsage}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
@@ -254,10 +301,11 @@ export default function Reports() {
                 <Line type="monotone" dataKey="thermal" stroke="#f43f5e" strokeWidth={2} dot={false} name="Thermal" />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           )}
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm print-facility-summary-card">
           <h2 className="font-semibold text-slate-800 dark:text-white mb-4">Efficiency Summary</h2>
           <div className="space-y-3">
             {summary.map((row) => (
@@ -278,7 +326,7 @@ export default function Reports() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-200/70 dark:border-slate-700/50">
           <h2 className="font-semibold text-slate-800 dark:text-white">Latest Meter Readings</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Clear view of each meterâ€™s latest reading, latest usage delta, and approval state.</p>
+          <p className="text-xs text-slate-400 mt-0.5">Clear view of each meter's latest reading, latest usage delta, and approval state.</p>
         </div>
         <div className="grid gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50 md:grid-cols-[minmax(0,1.2fr),180px,180px]">
           <input

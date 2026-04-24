@@ -1,9 +1,3 @@
-/**
- * BillingConcernContext.jsx
- * Shared state for Billing Concern / Dispute Ticket System.
- * Simulates interaction between Tenant, Admin, and Finance roles.
- */
-
 import { createContext, useContext, useState } from 'react'
 import initialConcerns from '@/data/mock/billingConcerns.json'
 
@@ -12,8 +6,15 @@ const BillingConcernContext = createContext()
 export function BillingConcernProvider({ children }) {
   const [concerns, setConcerns] = useState(initialConcerns)
 
-  /** Tenant submits a new billing concern */
+  const formatToday = () =>
+    new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+  const patchConcern = (id, mutate) => {
+    setConcerns((prev) => prev.map((concern) => (concern.id === id ? mutate(concern) : concern)))
+  }
+
   const submitConcern = ({ billId, category, message, attachment, user }) => {
+    const today = formatToday()
     const newConcern = {
       id: `BC-${Date.now()}`,
       billId,
@@ -28,8 +29,8 @@ export function BillingConcernProvider({ children }) {
       status: 'pending',
       assignedTo: null,
       priority: 'medium',
-      dateSubmitted: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      dateSubmitted: today,
+      dateUpdated: today,
       adminNotes: '',
       financeNotes: '',
       timeline: [
@@ -38,162 +39,138 @@ export function BillingConcernProvider({ children }) {
           action: 'Ticket submitted',
           by: user?.name || 'Tenant',
           role: 'tenant',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          note: message.slice(0, 80) + (message.length > 80 ? '…' : ''),
+          date: today,
+          note: `${message}`.slice(0, 80) + (message.length > 80 ? '...' : ''),
         },
       ],
     }
+
     setConcerns((prev) => [newConcern, ...prev])
     return newConcern
   }
 
-  /** Admin assigns ticket to Finance */
   const assignToFinance = (id, adminNote = '') => {
-    setConcerns((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c
-        const timelineEntry = {
+    patchConcern(id, (concern) => ({
+      ...concern,
+      status: 'assigned',
+      assignedTo: 'finance',
+      adminNotes: adminNote,
+      dateUpdated: formatToday(),
+      timeline: [
+        ...concern.timeline,
+        {
           id: `t-${Date.now()}`,
           action: 'Assigned to Finance',
           by: 'Admin Enye',
           role: 'admin',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          date: formatToday(),
           note: adminNote,
-        }
-        return {
-          ...c,
-          status: 'assigned',
-          assignedTo: 'finance',
-          adminNotes: adminNote,
-          dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          timeline: [...c.timeline, timelineEntry],
-        }
-      })
-    )
+        },
+      ],
+    }))
   }
 
-  /** Admin rejects a ticket */
   const rejectTicket = (id, adminNote = '') => {
-    setConcerns((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c
-        const timelineEntry = {
+    patchConcern(id, (concern) => ({
+      ...concern,
+      status: 'rejected',
+      adminNotes: adminNote,
+      dateUpdated: formatToday(),
+      timeline: [
+        ...concern.timeline,
+        {
           id: `t-${Date.now()}`,
           action: 'Ticket rejected by admin',
           by: 'Admin Enye',
           role: 'admin',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          date: formatToday(),
           note: adminNote,
-        }
-        return {
-          ...c,
-          status: 'rejected',
-          adminNotes: adminNote,
-          dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          timeline: [...c.timeline, timelineEntry],
-        }
-      })
-    )
+        },
+      ],
+    }))
   }
 
-  /** Admin requests more information */
   const requestMoreInfo = (id, adminNote = '') => {
-    setConcerns((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c
-        const timelineEntry = {
+    patchConcern(id, (concern) => ({
+      ...concern,
+      status: 'pending',
+      adminNotes: adminNote,
+      dateUpdated: formatToday(),
+      timeline: [
+        ...concern.timeline,
+        {
           id: `t-${Date.now()}`,
           action: 'More information requested',
           by: 'Admin Enye',
           role: 'admin',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          date: formatToday(),
           note: adminNote,
-        }
-        return {
-          ...c,
-          status: 'pending',
-          adminNotes: adminNote,
-          dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          timeline: [...c.timeline, timelineEntry],
-        }
-      })
-    )
+        },
+      ],
+    }))
   }
 
-  /** Finance updates ticket status */
   const updateTicketStatus = (id, status, financeNote = '') => {
-    setConcerns((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c
-        const actionLabel = {
-          investigating: 'Started investigation',
-          resolved: 'Ticket resolved',
-          adjusted: 'Bill adjusted',
-          closed: 'Ticket closed',
-        }[status] || `Status changed to ${status}`
-        const timelineEntry = {
+    patchConcern(id, (concern) => ({
+      ...concern,
+      status,
+      financeNotes: financeNote,
+      dateUpdated: formatToday(),
+      timeline: [
+        ...concern.timeline,
+        {
           id: `t-${Date.now()}`,
-          action: actionLabel,
+          action: {
+            investigating: 'Started investigation',
+            resolved: 'Ticket resolved',
+            adjusted: 'Bill adjusted',
+            closed: 'Ticket closed',
+          }[status] || `Status changed to ${status}`,
           by: 'Finance Officer',
           role: 'finance',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          date: formatToday(),
           note: financeNote,
-        }
-        return {
-          ...c,
-          status,
-          financeNotes: financeNote,
-          dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          timeline: [...c.timeline, timelineEntry],
-        }
-      })
-    )
+        },
+      ],
+    }))
   }
 
-  /** Finance responds to tenant */
   const respondToTenant = (id, financeNote) => {
-    setConcerns((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c
-        const timelineEntry = {
+    patchConcern(id, (concern) => ({
+      ...concern,
+      financeNotes: financeNote,
+      dateUpdated: formatToday(),
+      timeline: [
+        ...concern.timeline,
+        {
           id: `t-${Date.now()}`,
           action: 'Response sent to tenant',
           by: 'Finance Officer',
           role: 'finance',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          date: formatToday(),
           note: financeNote,
-        }
-        return {
-          ...c,
-          financeNotes: financeNote,
-          dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          timeline: [...c.timeline, timelineEntry],
-        }
-      })
-    )
+        },
+      ],
+    }))
   }
 
-  /** Tenant reopens a resolved/closed ticket */
   const reopenTicket = (id, note = '') => {
-    setConcerns((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c
-        const timelineEntry = {
+    patchConcern(id, (concern) => ({
+      ...concern,
+      status: 'reopened',
+      dateUpdated: formatToday(),
+      timeline: [
+        ...concern.timeline,
+        {
           id: `t-${Date.now()}`,
           action: 'Ticket reopened by tenant',
           by: 'Tenant',
           role: 'tenant',
-          date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+          date: formatToday(),
           note,
-        }
-        return {
-          ...c,
-          status: 'reopened',
-          dateUpdated: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-          timeline: [...c.timeline, timelineEntry],
-        }
-      })
-    )
+        },
+      ],
+    }))
   }
 
   return (

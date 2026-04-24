@@ -1,8 +1,20 @@
+import { unwrapPayload } from '@/utils/apiUtils'
 import { useCallback, useEffect, useState } from 'react'
 import { fetchFacilityConsumption } from '@/services/facilityService/facilityConsumptionService'
 
+
+/**
+ * Maps the UI filter key ('1D' | '1M' | '1Y') to an API-friendly range string.
+ * The backend receives 'daily', 'monthly', or 'yearly'.
+ */
+function mapFilterToRange(filter) {
+  if (filter === '1D') return 'daily'
+  if (filter === '1Y') return 'yearly'
+  return 'monthly'
+}
+
 export function useFacilityConsumption(filters = {}) {
-  const { year, month } = filters
+  const { year, month, timeRange } = filters
   const [summary, setSummary] = useState({
     electricity: 0,
     water: 0,
@@ -23,8 +35,9 @@ export function useFacilityConsumption(filters = {}) {
       const response = await fetchFacilityConsumption({
         year,
         month,
+        range: mapFilterToRange(timeRange),
       })
-      const data = response?.data || {}
+      const data = unwrapPayload(response)
 
       setSummary({
         electricity: Number(data?.summary?.electricity || 0),
@@ -45,7 +58,7 @@ export function useFacilityConsumption(filters = {}) {
     } finally {
       setLoading(false)
     }
-  }, [month, year])
+  }, [month, timeRange, year])
 
   useEffect(() => {
     loadConsumption()

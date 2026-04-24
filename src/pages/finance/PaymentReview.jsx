@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CreditCard, CheckCircle2, XCircle, Clock, Search,
@@ -11,22 +12,13 @@ import { useModalState } from '@/hooks/useModalState'
 import EmptyState from '@/components/ui/EmptyState'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import { useApp } from '@/context/AppContext'
-import api from '@/lib/api'
 import PaginationBar from '@/components/common/PaginationBar'
 import { useClientPagination } from '@/hooks/useClientPagination'
 import PageActionBar from '@/components/common/PageActionBar'
-import { downloadCsv, printElement } from '@/utils/reporting'
+import { exportTableCsv, printElement } from '@/utils/reporting'
+import { resolveStorageAssetUrl } from '@/utils/billing'
+import { fetchFinanceBills, fetchFinancePayments, rejectFinancePayment, verifyFinancePayment } from '@/services/financeService/financeBillService'
 
-function formatDate(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function formatMonth(value) {
   if (!value) return ''
@@ -56,12 +48,7 @@ function normalizePayment(row = {}) {
   const bill = row?.bill || {}
   const tenant = row?.tenant || bill?.tenant || {}
   const unit = bill?.unit || tenant?.unit || {}
-  const apiBaseUrl = String(api?.defaults?.baseURL || '').replace(/\/+$/, '')
-  const proofImage = row?.proof_image
-    ? row.proof_image.startsWith('http')
-      ? row.proof_image
-      : `${apiBaseUrl}/storage/${String(row.proof_image).replace(/^\/?storage\/?/, '')}`
-    : ''
+  const proofImage = resolveStorageAssetUrl(row?.proof_image)
 
   return {
     id: String(bill?.id ?? row?.bill_id ?? row?.id ?? ''),
@@ -121,12 +108,12 @@ export default function FinancePaymentReview() {
       setLoading(true)
       setError('')
       const [paymentsRes, billsRes] = await Promise.all([
-        api.get('/api/finance/payments'),
-        api.get('/api/finance/bills'),
+        fetchFinancePayments(),
+        fetchFinanceBills(),
       ])
 
-      setPayments((Array.isArray(paymentsRes?.data?.data) ? paymentsRes.data.data : []).map(normalizePayment))
-      setBills((Array.isArray(billsRes?.data?.data) ? billsRes.data.data : []).map(normalizeBill))
+      setPayments((Array.isArray(paymentsRes?.data) ? paymentsRes.data : []).map(normalizePayment))
+      setBills((Array.isArray(billsRes?.data) ? billsRes.data : []).map(normalizeBill))
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load payment review data.')
       setPayments([])
@@ -143,7 +130,7 @@ export default function FinancePaymentReview() {
   const approvePayment = async (paymentId) => {
     try {
       setActing(true)
-      await api.post(`/api/finance/payments/${paymentId}/verify`)
+      await verifyFinancePayment(paymentId)
       addToast('Payment verified successfully.', 'success')
       await loadData()
       return { success: true }
@@ -160,7 +147,7 @@ export default function FinancePaymentReview() {
   const rejectPayment = async (paymentId) => {
     try {
       setActing(true)
-      await api.post(`/api/finance/payments/${paymentId}/reject`, { notes: '' })
+      await rejectFinancePayment(paymentId, { notes: '' })
       addToast('Payment rejected successfully.', 'info')
       await loadData()
       return { success: true }
@@ -184,16 +171,16 @@ export default function FinancePaymentReview() {
   const collectionRate = bills.length ? Math.round((paidBills.length / bills.length) * 100) : 0
 
   const queueBase = reviewTab === 'pending' ? pendingPayments : payments
-  const queueFiltered = queueBase.filter((payment) => {
-    const q = reviewSearch.toLowerCase()
+  const queueFiltered = useMemo(() => queueBase.filter((payment) => {
+    const q = reviewSearch.trim().toLowerCase()
     return !q || payment.tenant.toLowerCase().includes(q) || payment.unit.toLowerCase().includes(q) || payment.id.toLowerCase().includes(q)
-  })
+  }), [queueBase, reviewSearch])
 
-  const ledgerFiltered = payments.filter((payment) => {
-    const q = ledgerSearch.toLowerCase()
+  const ledgerFiltered = useMemo(() => payments.filter((payment) => {
+    const q = ledgerSearch.trim().toLowerCase()
     return (!q || payment.tenant.toLowerCase().includes(q) || payment.unit.toLowerCase().includes(q) || payment.id.toLowerCase().includes(q))
       && (ledgerStatus === 'all' || payment.status === ledgerStatus)
-  })
+  }), [payments, ledgerSearch, ledgerStatus])
 
   const queuePagination = useClientPagination(queueFiltered, 10)
   const ledgerPagination = useClientPagination(ledgerFiltered, 10)
@@ -223,7 +210,7 @@ export default function FinancePaymentReview() {
       thermal: Number(payment.breakdown?.thermal || 0),
     }))
 
-    downloadCsv(`finance-payment-${activeTab}.csv`, rows)
+    exportTableCsv(`finance-payment-${activeTab}.csv`, rows)
   }
 
   const handlePrint = () => {
@@ -516,4 +503,3 @@ export default function FinancePaymentReview() {
     </div>
   )
 }
-

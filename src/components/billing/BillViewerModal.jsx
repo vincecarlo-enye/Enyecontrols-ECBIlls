@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { jsPDF } from 'jspdf'
+import { formatLongDate, formatShortPeriodDate } from '@/utils/filterUtils'
+import { useRef, useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import {
   Printer,
@@ -72,31 +72,7 @@ function peso(value) {
   })
 }
 
-function formatLongDate(value) {
-  if (!value) return '—'
 
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
-
-function formatShortPeriodDate(value) {
-  if (!value) return '—'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
 
 function mapStatus(status) {
   if (status === 'published') return 'pending'
@@ -107,11 +83,40 @@ function mapStatus(status) {
 function getUtilityLabel(type) {
   const t = String(type || '').toLowerCase()
 
-  if (t.includes('electric')) return 'Electricity'
+  if (t.includes('electric') || t.includes('power')) return 'Electricity'
   if (t.includes('water')) return 'Water'
-  if (t.includes('thermal')) return 'Thermal Energy'
+  if (t.includes('thermal') || t.includes('btu')) return 'Thermal Energy'
 
   return type || 'Utility'
+}
+
+function getUnitLabel(unit) {
+  if (!unit) return ''
+  if (typeof unit === 'string') return String(unit).trim()
+
+  return String(
+    unit?.unit_number ||
+    unit?.name ||
+    unit?.label ||
+    unit?.unit ||
+    ''
+  ).trim()
+}
+
+function collectBillUnits(bill) {
+  const raw = bill?.raw || {}
+  const candidates = [
+    bill?.unit,
+    raw?.unit,
+    ...(Array.isArray(bill?.units) ? bill.units : []),
+    ...(Array.isArray(raw?.units) ? raw.units : []),
+    ...(Array.isArray(bill?.linkedUnits) ? bill.linkedUnits : []),
+    ...(Array.isArray(raw?.linkedUnits) ? raw.linkedUnits : []),
+    ...(Array.isArray(bill?.tenant?.units) ? bill.tenant.units : []),
+    ...(Array.isArray(raw?.tenant?.units) ? raw.tenant.units : []),
+  ]
+
+  return Array.from(new Set(candidates.map(getUnitLabel).filter(Boolean)))
 }
 
 function inferChargesFromBreakdown(breakdown = {}) {
@@ -147,7 +152,7 @@ function inferChargesFromBreakdown(breakdown = {}) {
       particular: 'Thermal Energy',
       prev: '—',
       curr: '—',
-      used: thermal > 0 ? `${(thermal / 11).toFixed(1)} kBTU/h` : '—',
+      used: thermal > 0 ? `${(thermal / 11).toFixed(1)} kBTU` : '—',
       rate: thermal > 0 ? '₱11.00/kBTU' : '—',
       amount: thermal,
     },
@@ -236,6 +241,8 @@ function normalizeBill(bill) {
       ? bill.unit
       : bill.unit?.unit_number || bill.unit?.name || bill.unit_name || '—'
 
+  const units = collectBillUnits(bill)
+  const primaryUnitName = units[0] || unitName
   const items = Array.isArray(bill.items) ? bill.items : []
   const fallbackBreakdown = bill.breakdown || {}
 
@@ -288,6 +295,7 @@ function normalizeBill(bill) {
     null
 
   const dueDateRaw =
+    bill.dueDateRaw ||
     bill.dueDate ||
     bill.due_date ||
     null
@@ -312,7 +320,9 @@ function normalizeBill(bill) {
   return {
     invoiceNo: bill.id,
     tenantName,
-    unit: unitName,
+    unit: primaryUnitName,
+    units,
+    unitsLabel: units.length > 0 ? units.join(', ') : primaryUnitName,
     billDate: formatLongDate(billDateRaw),
     dueDate: formatLongDate(dueDateRaw),
     billingPeriod,
@@ -323,11 +333,15 @@ function normalizeBill(bill) {
     previousBalance,
     paymentsReceived,
     grandTotal,
+    adjustmentState: bill?.adjustmentState || null,
+    adjustmentHistory: bill?.adjustmentHistory || [],
+    receipt: bill?.receipt || null,
   }
 }
 
 function BillContent({ bill }) {
   const pdfRef = useRef(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
   const d = normalizeBill(bill)
   const st = STATUS_CFG[d.status] || STATUS_CFG.unpaid
 
@@ -370,7 +384,7 @@ function BillContent({ bill }) {
         <div class="section">
           <p class="lbl">Account Information</p>
           <div class="kv"><span class="k">Tenant</span><span class="v">${d.tenantName}</span></div>
-          <div class="kv"><span class="k">Unit</span><span class="v">${d.unit}</span></div>
+          <div class="kv"><span class="k">${d.units.length > 1 ? 'Units' : 'Unit'}</span><span class="v">${d.unitsLabel}</span></div>
           <div class="kv"><span class="k">Invoice No.</span><span class="v">${d.invoiceNo}</span></div>
         </div>
         <div class="section">
@@ -451,7 +465,7 @@ function BillContent({ bill }) {
       [],
       ['Invoice No.', d.invoiceNo],
       ['Tenant', d.tenantName],
-      ['Unit', d.unit],
+      [d.units.length > 1 ? 'Units' : 'Unit', d.unitsLabel],
       ['Bill Date', d.billDate],
       ['Due Date', d.dueDate],
       ['Period', d.billingPeriod],
@@ -492,208 +506,215 @@ function BillContent({ bill }) {
     URL.revokeObjectURL(url)
   }
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF({
-      unit: 'pt',
-      format: 'a4',
-      orientation: 'portrait',
-    })
-
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 40
-    const contentWidth = pageWidth - margin * 2
-    let y = 40
-
-    const ensureSpace = (needed = 20) => {
-      if (y + needed > pageHeight - 40) {
-        doc.addPage()
-        y = 40
-      }
-    }
-
-    const row = (label, value, bold = false) => {
-      ensureSpace(18)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.setTextColor(100, 116, 139)
-      doc.text(String(label), margin, y)
-
-      doc.setFont('helvetica', bold ? 'bold' : 'normal')
-      doc.setTextColor(30, 41, 59)
-      const valueLines = doc.splitTextToSize(String(value ?? '-'), 180)
-      doc.text(valueLines, pageWidth - margin, y, { align: 'right' })
-      y += Math.max(16, valueLines.length * 12)
-    }
-
-    doc.setFillColor(37, 99, 235)
-    doc.roundedRect(margin, y, contentWidth, 64, 12, 12, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    doc.text('Enyecontrols', margin + 18, y + 24)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.text('Official Statement of Account', margin + 18, y + 40)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.text(String(d.invoiceNo), pageWidth - margin - 18, y + 24, { align: 'right' })
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.text(`Bill Date: ${d.billDate}`, pageWidth - margin - 18, y + 40, { align: 'right' })
-    y += 84
-
-    doc.setDrawColor(226, 232, 240)
-    doc.setFillColor(248, 250, 252)
-    doc.roundedRect(margin, y, contentWidth / 2 - 8, 88, 10, 10, 'FD')
-    doc.roundedRect(margin + contentWidth / 2 + 8, y, contentWidth / 2 - 8, 88, 10, 10, 'FD')
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(148, 163, 184)
-    doc.text('ACCOUNT INFORMATION', margin + 14, y + 16)
-    doc.text('BILL DETAILS', margin + contentWidth / 2 + 22, y + 16)
-
-    let leftY = y + 34
-    let rightY = y + 34
-    const smallRow = (x, yy, label, value) => {
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.setTextColor(100, 116, 139)
-      doc.text(label, x, yy)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(30, 41, 59)
-      const lines = doc.splitTextToSize(String(value ?? '-'), 150)
-      doc.text(lines, x + 145, yy, { align: 'right' })
-      return yy + Math.max(16, lines.length * 11)
-    }
-
-    leftY = smallRow(margin + 14, leftY, 'Tenant', d.tenantName)
-    leftY = smallRow(margin + 14, leftY, 'Unit', d.unit)
-    leftY = smallRow(margin + 14, leftY, 'Invoice No.', d.invoiceNo)
-
-    rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Bill Date', d.billDate)
-    rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Due Date', d.dueDate)
-    rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Period', d.billingPeriod)
-    y += 108
-
-    ensureSpace(30)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(148, 163, 184)
-    doc.text('UTILITY CHARGES', margin, y)
-    y += 12
-
-    const columns = [
-      { key: 'particular', label: 'Description', width: 110, align: 'left' },
-      { key: 'prev', label: 'Prev', width: 65, align: 'left' },
-      { key: 'curr', label: 'Current', width: 65, align: 'left' },
-      { key: 'used', label: 'Consumption', width: 95, align: 'left' },
-      { key: 'rate', label: 'Rate', width: 85, align: 'left' },
-      { key: 'amount', label: 'Amount', width: 70, align: 'right' },
-    ]
-
-    doc.setFillColor(248, 250, 252)
-    doc.setDrawColor(226, 232, 240)
-    doc.rect(margin, y, contentWidth, 24, 'FD')
-    let x = margin + 8
-    columns.forEach((col) => {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(148, 163, 184)
-      doc.text(col.label, col.align === 'right' ? x + col.width - 8 : x, y + 15, {
-        align: col.align === 'right' ? 'right' : 'left',
+  const handleDownloadPDF = async () => {
+    try {
+      setPdfLoading(true)
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({
+        unit: 'pt',
+        format: 'a4',
+        orientation: 'portrait',
       })
-      x += col.width
-    })
-    y += 24
 
-    const rows = d.charges.length > 0
-      ? d.charges
-      : [{ particular: 'No utility charges available.', prev: '', curr: '', used: '', rate: '', amount: '' }]
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 40
+      const contentWidth = pageWidth - margin * 2
+      let y = 40
 
-    rows.forEach((charge) => {
-      const values = {
-        particular: charge.particular,
-        prev: charge.prev,
-        curr: charge.curr,
-        used: charge.used,
-        rate: charge.rate,
-        amount: charge.amount === '' ? '' : `PHP ${peso(charge.amount)}`,
+      const ensureSpace = (needed = 20) => {
+        if (y + needed > pageHeight - 40) {
+          doc.addPage()
+          y = 40
+        }
       }
 
-      const lineCounts = columns.map((col) =>
-        doc.splitTextToSize(String(values[col.key] ?? ''), col.width - 10).length
-      )
-      const rowHeight = Math.max(24, Math.max(...lineCounts) * 12 + 8)
-      ensureSpace(rowHeight + 2)
+      const row = (label, value, bold = false) => {
+        ensureSpace(18)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(100, 116, 139)
+        doc.text(String(label), margin, y)
 
-      doc.setDrawColor(241, 245, 249)
-      doc.rect(margin, y, contentWidth, rowHeight)
+        doc.setFont('helvetica', bold ? 'bold' : 'normal')
+        doc.setTextColor(30, 41, 59)
+        const valueLines = doc.splitTextToSize(String(value ?? '-'), 180)
+        doc.text(valueLines, pageWidth - margin, y, { align: 'right' })
+        y += Math.max(16, valueLines.length * 12)
+      }
 
-      let cellX = margin + 8
+      doc.setFillColor(37, 99, 235)
+      doc.roundedRect(margin, y, contentWidth, 64, 12, 12, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.text('Enyecontrols', margin + 18, y + 24)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text('Official Statement of Account', margin + 18, y + 40)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text(String(d.invoiceNo), pageWidth - margin - 18, y + 24, { align: 'right' })
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text(`Bill Date: ${d.billDate}`, pageWidth - margin - 18, y + 40, { align: 'right' })
+      y += 84
+
+      doc.setDrawColor(226, 232, 240)
+      doc.setFillColor(248, 250, 252)
+      doc.roundedRect(margin, y, contentWidth / 2 - 8, 88, 10, 10, 'FD')
+      doc.roundedRect(margin + contentWidth / 2 + 8, y, contentWidth / 2 - 8, 88, 10, 10, 'FD')
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(148, 163, 184)
+      doc.text('ACCOUNT INFORMATION', margin + 14, y + 16)
+      doc.text('BILL DETAILS', margin + contentWidth / 2 + 22, y + 16)
+
+      let leftY = y + 34
+      let rightY = y + 34
+      const smallRow = (x, yy, label, value) => {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(100, 116, 139)
+        doc.text(label, x, yy)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(30, 41, 59)
+        const lines = doc.splitTextToSize(String(value ?? '-'), 150)
+        doc.text(lines, x + 145, yy, { align: 'right' })
+        return yy + Math.max(16, lines.length * 11)
+      }
+
+      leftY = smallRow(margin + 14, leftY, 'Tenant', d.tenantName)
+      leftY = smallRow(margin + 14, leftY, d.units.length > 1 ? 'Units' : 'Unit', d.unitsLabel)
+      leftY = smallRow(margin + 14, leftY, 'Invoice No.', d.invoiceNo)
+
+      rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Bill Date', d.billDate)
+      rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Due Date', d.dueDate)
+      rightY = smallRow(margin + contentWidth / 2 + 22, rightY, 'Period', d.billingPeriod)
+      y += 108
+
+      ensureSpace(30)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(148, 163, 184)
+      doc.text('UTILITY CHARGES', margin, y)
+      y += 12
+
+      const columns = [
+        { key: 'particular', label: 'Description', width: 110, align: 'left' },
+        { key: 'prev', label: 'Prev', width: 65, align: 'left' },
+        { key: 'curr', label: 'Current', width: 65, align: 'left' },
+        { key: 'used', label: 'Consumption', width: 95, align: 'left' },
+        { key: 'rate', label: 'Rate', width: 85, align: 'left' },
+        { key: 'amount', label: 'Amount', width: 70, align: 'right' },
+      ]
+
+      doc.setFillColor(248, 250, 252)
+      doc.setDrawColor(226, 232, 240)
+      doc.rect(margin, y, contentWidth, 24, 'FD')
+      let x = margin + 8
       columns.forEach((col) => {
-        doc.setFont('helvetica', col.key === 'amount' || col.key === 'particular' ? 'bold' : 'normal')
-        doc.setFontSize(8.5)
-        doc.setTextColor(51, 65, 85)
-        const lines = doc.splitTextToSize(String(values[col.key] ?? ''), col.width - 10)
-        doc.text(lines, col.align === 'right' ? cellX + col.width - 8 : cellX, y + 14, {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.setTextColor(148, 163, 184)
+        doc.text(col.label, col.align === 'right' ? x + col.width - 8 : x, y + 15, {
           align: col.align === 'right' ? 'right' : 'left',
         })
-        cellX += col.width
+        x += col.width
       })
 
-      y += rowHeight
-    })
+      y += 24
 
-    y += 14
-    ensureSpace(100)
-    doc.setFillColor(248, 250, 252)
-    doc.roundedRect(margin, y, contentWidth, 82, 10, 10, 'FD')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(148, 163, 184)
-    doc.text('SUMMARY', margin + 14, y + 16)
-    y += 34
+      const rows = d.charges.length > 0
+        ? d.charges
+        : [{ particular: 'No utility charges available.', prev: '', curr: '', used: '', rate: '', amount: '' }]
 
-    row('Subtotal', `PHP ${peso(d.subtotal)}`)
-    row('VAT (12%)', `PHP ${peso(d.tax)}`)
-    row('Previous Balance', `PHP ${peso(d.previousBalance)}`)
-    row('Payments Received', `PHP ${peso(d.paymentsReceived)}`)
-    y += 10
+      rows.forEach((charge) => {
+        const values = {
+          particular: charge.particular,
+          prev: charge.prev,
+          curr: charge.curr,
+          used: charge.used,
+          rate: charge.rate,
+          amount: charge.amount === '' ? '' : `PHP ${peso(charge.amount)}`,
+        }
 
-    ensureSpace(54)
-    doc.setFillColor(37, 99, 235)
-    doc.roundedRect(margin, y, contentWidth, 54, 10, 10, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text('TOTAL AMOUNT DUE', margin + 16, y + 18)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.text(`Due by ${d.dueDate}`, margin + 16, y + 34)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(20)
-    doc.text(`PHP ${peso(d.grandTotal)}`, pageWidth - margin - 16, y + 30, { align: 'right' })
-    y += 72
+        const lineCounts = columns.map((col) =>
+          doc.splitTextToSize(String(values[col.key] ?? ''), col.width - 10).length
+        )
+        const rowHeight = Math.max(24, Math.max(...lineCounts) * 12 + 8)
+        ensureSpace(rowHeight + 2)
 
-    ensureSpace(44)
-    doc.setDrawColor(226, 232, 240)
-    doc.roundedRect(margin, y, contentWidth, 44, 10, 10)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(71, 85, 105)
-    doc.text('Payment Instructions', margin + 14, y + 16)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(100, 116, 139)
-    const foot = doc.splitTextToSize(
-      'Pay at any authorized payment center or via bank transfer to Enyecontrols Management (BDO #1234-5678-90). Inquiries: billing@enye.ph | +63 2 8888 0000',
-      contentWidth - 28
-    )
-    doc.text(foot, margin + 14, y + 30)
+        doc.setDrawColor(241, 245, 249)
+        doc.rect(margin, y, contentWidth, rowHeight)
 
-    doc.save(`SOA_${String(d.tenantName).replace(/\s+/g, '_')}.pdf`)
+        let cellX = margin + 8
+        columns.forEach((col) => {
+          doc.setFont('helvetica', col.key === 'amount' || col.key === 'particular' ? 'bold' : 'normal')
+          doc.setFontSize(8.5)
+          doc.setTextColor(51, 65, 85)
+          const lines = doc.splitTextToSize(String(values[col.key] ?? ''), col.width - 10)
+          doc.text(lines, col.align === 'right' ? cellX + col.width - 8 : cellX, y + 14, {
+            align: col.align === 'right' ? 'right' : 'left',
+          })
+          cellX += col.width
+        })
+
+        y += rowHeight
+      })
+
+      y += 14
+      ensureSpace(100)
+      doc.setFillColor(248, 250, 252)
+      doc.roundedRect(margin, y, contentWidth, 82, 10, 10, 'FD')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(148, 163, 184)
+      doc.text('SUMMARY', margin + 14, y + 16)
+      y += 34
+
+      row('Subtotal', `PHP ${peso(d.subtotal)}`)
+      row('VAT (12%)', `PHP ${peso(d.tax)}`)
+      row('Previous Balance', `PHP ${peso(d.previousBalance)}`)
+      row('Payments Received', `PHP ${peso(d.paymentsReceived)}`)
+      y += 10
+
+      ensureSpace(54)
+      doc.setFillColor(37, 99, 235)
+      doc.roundedRect(margin, y, contentWidth, 54, 10, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text('TOTAL AMOUNT DUE', margin + 16, y + 18)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.text(`Due by ${d.dueDate}`, margin + 16, y + 34)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(20)
+      doc.text(`PHP ${peso(d.grandTotal)}`, pageWidth - margin - 16, y + 30, { align: 'right' })
+      y += 72
+
+      ensureSpace(44)
+      doc.setDrawColor(226, 232, 240)
+      doc.roundedRect(margin, y, contentWidth, 44, 10, 10)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(71, 85, 105)
+      doc.text('Payment Instructions', margin + 14, y + 16)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(100, 116, 139)
+      const foot = doc.splitTextToSize(
+        'Pay at any authorized payment center or via bank transfer to Enyecontrols Management (BDO #1234-5678-90). Inquiries: billing@enye.ph | +63 2 8888 0000',
+        contentWidth - 28
+      )
+      doc.text(foot, margin + 14, y + 30)
+
+      doc.save(`SOA_${String(d.tenantName).replace(/\s+/g, '_')}.pdf`)
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   return (
@@ -720,26 +741,33 @@ function BillContent({ bill }) {
 
             <button
               onClick={handlePrint}
+              title="Print"
+              aria-label="Print statement of account"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
-              Print
+              <span className="hidden sm:inline">Print</span>
             </button>
 
             <button
               onClick={handleDownloadCSV}
+              title="Export CSV"
+              aria-label="Export statement of account as CSV"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              CSV
+              <span className="hidden sm:inline">CSV</span>
             </button>
 
             <button
               onClick={handleDownloadPDF}
+              disabled={pdfLoading}
+              title={pdfLoading ? 'Preparing PDF' : 'Export PDF'}
+              aria-label={pdfLoading ? 'Preparing PDF export' : 'Export statement of account as PDF'}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
             >
               <FileText className="w-3.5 h-3.5" />
-              PDF
+              <span className="hidden sm:inline">{pdfLoading ? 'Preparing PDF...' : 'PDF'}</span>
             </button>
           </div>
         </div>
@@ -754,7 +782,7 @@ function BillContent({ bill }) {
             <div className="space-y-2">
               {[
                 ['Tenant', d.tenantName],
-                ['Unit', d.unit],
+                [d.units.length > 1 ? 'Units' : 'Unit', d.unitsLabel],
                 ['Invoice No.', d.invoiceNo],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-2">
@@ -892,6 +920,91 @@ function BillContent({ bill }) {
             ₱{peso(d.grandTotal)}
           </p>
         </div>
+
+        {d.adjustmentState?.latestAdjustment ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-amber-500">Adjustment Summary</p>
+                <p className="mt-1 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  {d.adjustmentState.isAdjusted ? 'Adjusted Bill' : 'Adjustment Pending Approval'}
+                </p>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  {d.adjustmentState.latestAdjustment.otherReason || d.adjustmentState.latestAdjustment.reason || 'Adjustment details recorded by Finance.'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-amber-500">Original Total</p>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">PHP {peso(d.adjustmentState.originalAmount)}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[
+                ['Adjusted Total', d.adjustmentState.adjustedAmount],
+                ['Net Difference', d.adjustmentState.totalAdjustmentAmount],
+                ['Remaining Balance', d.adjustmentState.remainingBalance],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl bg-white/70 px-3 py-3 dark:bg-slate-900/40">
+                  <p className="text-[10px] font-mono uppercase tracking-wide text-amber-500">{label}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-100">
+                    PHP {peso(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {d.receipt ? (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-3">
+              Payment Receipt
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                {[
+                  ['Reference No.', d.receipt.referenceNumber || '—'],
+                  ['Payment Date', d.receipt.paymentDate || '—'],
+                  ['Submitted By', d.receipt.submittedBy || '—'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2">
+                    <span className="text-xs text-slate-400 flex-shrink-0">{k}</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200 text-right break-all">
+                      {v}
+                    </span>
+                  </div>
+                ))}
+
+                {d.receipt.note ? (
+                  <div className="pt-1">
+                    <p className="text-xs text-slate-400 mb-1">Note</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {d.receipt.note}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div>
+                {d.receipt.receiptImage ? (
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 p-2 dark:bg-slate-800">
+                    <img
+                      src={d.receipt.receiptImage}
+                      alt="Payment receipt"
+                      className="block h-auto max-h-72 w-full rounded-lg object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-6 text-center text-xs text-slate-400">
+                    No receipt image available.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-xs text-slate-400 leading-relaxed">
           <p className="font-semibold text-slate-600 dark:text-slate-300 mb-1">

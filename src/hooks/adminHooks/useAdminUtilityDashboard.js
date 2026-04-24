@@ -1,35 +1,8 @@
+import { unwrapPayload } from '@/utils/apiUtils'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchUtilityDaily, fetchUtilitySummary } from '../../services/adminService/adminUtilityService'
+import { fetchUtilityComparison, fetchUtilityDaily, fetchUtilitySummary, getUtilityComparisonSnapshot, getUtilityDailySnapshot, getUtilitySummarySnapshot } from '../../services/adminService/adminUtilityService'
+import { badgeMeta, computeTrendPercent, normalizeSeries } from '../../utils/seriesUtils'
 
-function normalizeSeries(rows = []) {
-  return rows.map((item, index) => ({
-    day: item.day || item.label || item.date || `Day ${index + 1}`,
-    date: item.date || null,
-    usage: Number(item.usage ?? item.value ?? item.total ?? 0),
-  }))
-}
-
-function computeTrendPercent(series = []) {
-  if (!Array.isArray(series) || series.length < 2) return 0
-
-  const last = Number(series[series.length - 1]?.usage ?? 0)
-  const prev = Number(series[series.length - 2]?.usage ?? 0)
-
-  if (prev === 0) {
-    if (last === 0) return 0
-    return 100
-  }
-
-  return Number((((last - prev) / prev) * 100).toFixed(1))
-}
-
-function badgeMeta(value, positiveClass, negativeClass) {
-  const sign = value > 0 ? '+' : ''
-  return {
-    text: `${sign}${value}%`,
-    className: value >= 0 ? positiveClass : negativeClass,
-  }
-}
 
 function normalizeSummaryCard(card = {}, fallbackUnit = '') {
   return {
@@ -49,59 +22,142 @@ function normalizeSummaryCard(card = {}, fallbackUnit = '') {
 }
 
 export function useAdminUtilityDashboard() {
-  const [summary, setSummary] = useState({
-    electric: {},
-    water: {},
-    thermal: {},
-  })
+  const summarySnapshot = getUtilitySummarySnapshot()
+  const dailySnapshot = getUtilityDailySnapshot()
+  const comparison7DSnapshot = getUtilityComparisonSnapshot('7D')
+  const hasHydratedSummary = Boolean(summarySnapshot)
+  const hasHydratedDaily = Boolean(dailySnapshot)
+  const summarySnapshotData = unwrapPayload(summarySnapshot)
+  const dailySnapshotData = unwrapPayload(dailySnapshot)
+  const comparison7DSnapshotData = unwrapPayload(comparison7DSnapshot)
 
-  const [daily, setDaily] = useState({
-    electric: [],
-    water: [],
-    thermal: [],
-  })
+  const initialSummary = {
+    electric: normalizeSummaryCard(
+      summarySnapshotData?.electric ?? summarySnapshotData?.electricity ?? {},
+      'kWh'
+    ),
+    water: normalizeSummaryCard(
+      summarySnapshotData?.water ?? {},
+      'mÂ³'
+    ),
+    thermal: normalizeSummaryCard(
+      summarySnapshotData?.thermal ?? {},
+      'kBTU'
+    ),
+  }
 
-  const [loading, setLoading] = useState(true)
+  const initialDaily = {
+    electric: normalizeSeries(
+      dailySnapshotData?.electric ?? dailySnapshotData?.electricity ?? []
+    ),
+    water: normalizeSeries(dailySnapshotData?.water ?? []),
+    thermal: normalizeSeries(dailySnapshotData?.thermal ?? []),
+  }
+
+  const initialComparison7D = {
+    electric: normalizeSeries(
+      comparison7DSnapshotData?.electric ?? comparison7DSnapshotData?.electricity ?? dailySnapshotData?.electric ?? dailySnapshotData?.electricity ?? []
+    ),
+    water: normalizeSeries(comparison7DSnapshotData?.water ?? dailySnapshotData?.water ?? []),
+    thermal: normalizeSeries(comparison7DSnapshotData?.thermal ?? dailySnapshotData?.thermal ?? []),
+  }
+
+  const [summary, setSummary] = useState(initialSummary)
+  const [daily, setDaily] = useState(initialDaily)
+  const [comparison, setComparison] = useState({
+    '7D': initialComparison7D,
+    '1M': { electric: [], water: [], thermal: [] },
+    '1Y': { electric: [], water: [], thermal: [] },
+  })
+  const [loadedComparisonRanges, setLoadedComparisonRanges] = useState(
+    () => new Set(comparison7DSnapshot || dailySnapshot ? ['7D'] : [])
+  )
+
+  const [loading, setLoading] = useState(!(hasHydratedSummary && hasHydratedDaily))
   const [error, setError] = useState('')
+
+  const applyComparisonRange = useCallback((range, response) => {
+    const payload = unwrapPayload(response)
+    const normalized = {
+      electric: normalizeSeries(payload?.electric ?? payload?.electricity ?? []),
+      water: normalizeSeries(payload?.water ?? []),
+      thermal: normalizeSeries(payload?.thermal ?? []),
+    }
+
+    setComparison((prev) => ({
+      ...prev,
+      [range]: normalized,
+    }))
+    setLoadedComparisonRanges((prev) => {
+      const next = new Set(prev)
+      next.add(range)
+      return next
+    })
+
+    return normalized
+  }, [])
 
   const loadUtilityDashboard = useCallback(async () => {
     try {
-      setLoading(true)
+      setLoading((current) => current || (!hasHydratedSummary && !hasHydratedDaily))
       setError('')
 
       const [summaryRes, dailyRes] = await Promise.all([
         fetchUtilitySummary(),
         fetchUtilityDaily(),
       ])
+      const summaryPayload = unwrapPayload(summaryRes)
+      const dailyPayload = unwrapPayload(dailyRes)
 
       setSummary({
         electric: normalizeSummaryCard(
-          summaryRes?.data?.electric ?? summaryRes?.data?.electricity ?? {},
+          summaryPayload?.electric ?? summaryPayload?.electricity ?? {},
           'kWh'
         ),
         water: normalizeSummaryCard(
-          summaryRes?.data?.water ?? {},
+          summaryPayload?.water ?? {},
           'm³'
         ),
         thermal: normalizeSummaryCard(
-          summaryRes?.data?.thermal ?? {},
-          'kBUTh'
+          summaryPayload?.thermal ?? {},
+          'kBTU'
         ),
       })
 
       setDaily({
         electric: normalizeSeries(
-          dailyRes?.data?.electric ?? dailyRes?.data?.electricity ?? []
+          dailyPayload?.electric ?? dailyPayload?.electricity ?? []
         ),
-        water: normalizeSeries(dailyRes?.data?.water ?? []),
-        thermal: normalizeSeries(dailyRes?.data?.thermal ?? []),
+        water: normalizeSeries(dailyPayload?.water ?? []),
+        thermal: normalizeSeries(dailyPayload?.thermal ?? []),
       })
+
+      setComparison((prev) => ({
+        ...prev,
+        '7D': {
+          electric: normalizeSeries(dailyPayload?.electric ?? dailyPayload?.electricity ?? []),
+          water: normalizeSeries(dailyPayload?.water ?? []),
+          thermal: normalizeSeries(dailyPayload?.thermal ?? []),
+        },
+      }))
+      setLoadedComparisonRanges(new Set(['7D']))
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load utility data.')
     } finally {
       setLoading(false)
     }
   }, [])
+
+  const ensureComparisonRange = useCallback(async (range) => {
+    if (!range || range === '7D' || loadedComparisonRanges.has(range)) return
+
+    try {
+      const response = await fetchUtilityComparison(range)
+      applyComparisonRange(range, response)
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load utility comparison data.')
+    }
+  }, [applyComparisonRange, loadedComparisonRanges])
 
   useEffect(() => {
     loadUtilityDashboard()
@@ -137,9 +193,11 @@ export function useAdminUtilityDashboard() {
   return {
     summary,
     daily,
+    comparison,
     trends,
     loading,
     error,
     refreshUtilities: loadUtilityDashboard,
+    ensureComparisonRange,
   }
 }

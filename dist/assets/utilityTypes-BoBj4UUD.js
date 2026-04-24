@@ -1,0 +1,1 @@
+function r(e){const t=String(e||"").toLowerCase();return t==="electric"||t==="electricity"||t.includes("power")?"electricity":t==="water"?"water":t==="thermal"||t.includes("btu")?"thermal":""}function i(e){const t=r(e);return t==="electricity"?"electric":t==="water"?"water":t==="thermal"?"thermal":"electric"}export{i as a,r as n};

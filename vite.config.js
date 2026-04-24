@@ -18,6 +18,20 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, 'src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return null
+            if (id.includes('react-router')) return 'router'
+            if (id.includes('recharts')) return 'charts-vendor'
+            if (id.includes('jspdf')) return 'pdf-vendor'
+            if (id.includes('lucide-react')) return 'icons-vendor'
+            return null
+          },
+        },
+      },
+    },
     server: {
       host: true,
       port: 5173,

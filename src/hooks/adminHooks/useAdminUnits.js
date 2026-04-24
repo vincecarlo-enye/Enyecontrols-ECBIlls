@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createAdminUnit, deleteAdminUnit, fetchAdminUnits, updateAdminUnit } from '../../services/adminService/adminUnitService'
+import { getSharedAdminUnits } from '@/services/adminService/adminDirectoryStore'
 
 
 export function useAdminUnits() {
@@ -12,8 +13,8 @@ export function useAdminUnits() {
         try {
             setLoading(true)
             setError('')
-            const res = await fetchAdminUnits()
-            setUnits(Array.isArray(res?.data) ? res.data : [])
+            const rows = await getSharedAdminUnits()
+            setUnits(rows)
         } catch (err) {
             setError(err?.response?.data?.message || 'Failed to load units.')
         } finally {
@@ -56,9 +57,8 @@ export function useAdminUnits() {
                 setUnits((prev) =>
                     prev.map((unit) => (String(unit.id) === String(id) ? updated : unit))
                 )
-            } else {
-                await loadUnits()
             }
+            await loadUnits()
             return res
         } catch (err) {
             const message = err?.response?.data?.message || 'Failed to update unit.'
@@ -75,6 +75,7 @@ export function useAdminUnits() {
             setError('')
             const res = await deleteAdminUnit(id)
             setUnits((prev) => prev.filter((unit) => String(unit.id) !== String(id)))
+            await loadUnits()
             return res
         } catch (err) {
             const message = err?.response?.data?.message || 'Failed to delete unit.'

@@ -6,6 +6,8 @@ import { NewBillSkeleton } from '@/components/skeletons'
 import api from '@/lib/api'
 import { ArrowLeft, CalendarRange, Building2, Info, Zap, Droplets, Flame } from 'lucide-react'
 import { generateAdminBill } from '../../services/adminService/adminBillingService'
+import { fetchAdminTenants } from '../../services/adminService/adminTenantService'
+import { fetchSharedRates } from '../../services/financeService/financeBillService'
 import { useAuth } from '@/context/AuthContext'
 
 const EMPTY = {
@@ -34,7 +36,7 @@ const RATE_META = {
     icon: Flame,
     color: 'text-rose-500',
     label: 'Thermal',
-    unit: 'kBTU/h',
+    unit: 'kBTU',
   },
 }
 
@@ -72,16 +74,16 @@ export default function NewBillPage() {
         setLoadingTenants(true)
         setLoadingRates(true)
 
-        const [tenantRes, rateRes] = await Promise.all([
-          api.get('/api/admin/tenants'),
-          api.get('/api/rates'),
+        const [tenantData, rateData] = await Promise.all([
+          fetchAdminTenants(),
+          fetchSharedRates(),
         ])
 
-        const tenantRows = Array.isArray(tenantRes?.data?.data) ? tenantRes.data.data : []
-        const rateRows = Array.isArray(rateRes?.data)
-          ? rateRes.data
-          : Array.isArray(rateRes?.data?.data)
-            ? rateRes.data.data
+        const tenantRows = Array.isArray(tenantData?.data) ? tenantData.data : []
+        const rateRows = Array.isArray(rateData)
+          ? rateData
+          : Array.isArray(rateData?.data)
+            ? rateData.data
             : []
 
         setTenants(tenantRows)
@@ -114,6 +116,16 @@ export default function NewBillPage() {
 
     return grouped
   }, [rates])
+
+  const billingReadyTenants = useMemo(
+    () => tenants.filter((tenant) => tenant?.is_billing_ready),
+    [tenants]
+  )
+
+  const pendingSetupTenants = useMemo(
+    () => tenants.filter((tenant) => !tenant?.is_billing_ready),
+    [tenants]
+  )
 
   const validate = () => {
     const e = {}
@@ -193,6 +205,12 @@ export default function NewBillPage() {
           </p>
         </div>
 
+        {pendingSetupTenants.length > 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+            {pendingSetupTenants.length} tenant account(s) need profile completion before they can be billed.
+          </div>
+        ) : null}
+
         <div className="grid sm:grid-cols-3 gap-3">
           {Object.entries(RATE_META).map(([type, meta]) => {
             const rate = activeRates[type]
@@ -240,19 +258,24 @@ export default function NewBillPage() {
                 className={`${field(errs.tenantId)} pl-9`}
               >
                 <option value="">— Select tenant —</option>
-                {tenants.map((tenant) => (
-                  <option key={tenant.id} value={tenant.id}>
-                    {tenant.name}
-                    {tenant.unit
+                 {billingReadyTenants.map((tenant) => (
+                   <option key={tenant.id} value={tenant.id}>
+                     {tenant.name}
+                     {Array.isArray(tenant.units) && tenant.units.length > 0
+                      ? ` — ${tenant.units.map((unit) => unit?.unit_number || `Unit #${unit?.id}`).filter(Boolean).join(', ')}`
+                      : tenant.unit
                       ? ` — ${tenant.unit.name || tenant.unit.unit_number || `Unit #${tenant.unit.id}`}`
                       : ''}
-                  </option>
-                ))}
+                </option>
+                 ))}
               </select>
             </div>
             {errs.tenantId && (
               <p className="text-xs text-red-500 mt-1">{errs.tenantId}</p>
             )}
+            {billingReadyTenants.length === 0 ? (
+              <p className="text-xs text-amber-600 mt-1">No billing-ready tenants found. Complete tenant setup in the Tenants page first.</p>
+            ) : null}
           </div>
 
           <div>

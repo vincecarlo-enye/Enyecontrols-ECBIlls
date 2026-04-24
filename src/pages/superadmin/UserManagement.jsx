@@ -2,8 +2,8 @@
  * pages/superadmin/UserManagement.jsx
  * Full user & role management - Super Admin only.
  */
-import { useEffect, useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Shield, Lock, RefreshCw, UserX, UserCheck, X, Eye, EyeOff, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Users, Plus, Pencil, Trash2, Shield, Lock, RefreshCw, UserX, UserCheck, X, Search } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -25,18 +25,16 @@ function getRoleBadge(role) {
   return ROLE_OPTIONS.find((r) => r.value === role) || ROLE_OPTIONS[4]
 }
 
-const EMPTY_FORM = { name: '', email: '', password: '', role: 'tenant', title: '' }
+const EMPTY_FORM = { name: '', email: '', role: 'tenant', title: '' }
 
 function UserFormModal({ open, onClose, onSave, initial }) {
   const [form, setForm] = useState(initial || EMPTY_FORM)
   const [errors, setErrors] = useState({})
-  const [showPw, setShowPw] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setForm(initial ? { ...initial, password: '' } : EMPTY_FORM)
+    setForm(initial ? { ...initial } : EMPTY_FORM)
     setErrors({})
-    setShowPw(false)
   }, [open, initial])
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
@@ -45,7 +43,6 @@ function UserFormModal({ open, onClose, onSave, initial }) {
     const e = {}
     if (!form.name.trim()) e.name = 'Name is required'
     if (!form.email.trim() || !form.email.includes('@')) e.email = 'Valid email is required'
-    if (!initial && !form.password.trim()) e.password = 'Password is required'
     if (!form.role) e.role = 'Role is required'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -76,17 +73,11 @@ function UserFormModal({ open, onClose, onSave, initial }) {
             </div>
           ))}
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">{initial ? 'Password (leave blank to keep)' : 'Password *'}</label>
-            <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={form.password || ''} onChange={(e) => set('password', e.target.value)} placeholder="Enter password"
-                className={`w-full px-3 py-2 pr-10 text-sm rounded-xl border bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none transition-all ${errors.password ? 'border-red-400' : 'border-slate-200 dark:border-slate-600 focus:border-blue-400'}`} />
-              <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+          {!initial && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+              A temporary password will be generated automatically and sent to this email address. The user will be required to change it on first login.
             </div>
-            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
-          </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Role</label>
@@ -99,6 +90,11 @@ function UserFormModal({ open, onClose, onSave, initial }) {
               ))}
             </div>
             {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
+            {form.role === 'tenant' && (
+              <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+                Saving this user will automatically create a matching tenant record. Complete unit assignments and occupancy details in the Tenants page after the account is created.
+              </div>
+            )}
           </div>
         </div>
         <div className="flex justify-end gap-2 px-6 pb-5">
@@ -112,23 +108,13 @@ function UserFormModal({ open, onClose, onSave, initial }) {
   )
 }
 
-function ResetPasswordModal({ open, onClose, onSave, userName }) {
-  const [pw, setPw] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [showPw, setShowPw] = useState(false)
-  const [err, setErr] = useState('')
+function ResetPasswordModal({ open, onClose, onSave, userName, saving }) {
   if (!open) return null
 
   const handleSave = async () => {
-    if (!pw.trim()) return setErr('Password is required')
-    if (pw !== confirm) return setErr('Passwords do not match')
-    if (pw.length < 6) return setErr('Minimum 6 characters')
-    const result = await onSave(pw)
+    const result = await onSave()
     if (!result?.success) return
     onClose()
-    setPw('')
-    setConfirm('')
-    setErr('')
   }
 
   return (
@@ -142,26 +128,13 @@ function ResetPasswordModal({ open, onClose, onSave, userName }) {
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-400 transition-colors"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">New Password</label>
-            <div className="relative">
-              <input type={showPw ? 'text' : 'password'} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Minimum 6 characters"
-                className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-blue-400 transition-all" />
-              <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300">
+            A temporary password will be emailed to this user. They will be forced to create a new private password the next time they sign in.
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Confirm Password</label>
-            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirm new password"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-blue-400 transition-all" />
-          </div>
-          {err && <p className="text-xs text-red-500">{err}</p>}
         </div>
         <div className="flex justify-end gap-2 px-6 pb-5">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
-          <button onClick={handleSave} className="px-5 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all">Reset Password</button>
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all disabled:opacity-60">Send Temporary Password</button>
         </div>
       </div>
     </div>
@@ -198,6 +171,13 @@ export default function UserManagement() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [confirmSuspend, setConfirmSuspend] = useState(null)
 
+  const filtered = useMemo(() => (users || []).filter((u) => {
+    const q = search.toLowerCase().trim()
+    const matchSearch = !q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+    const matchRole = roleFilter === 'all' || u.role === roleFilter
+    return matchSearch && matchRole
+  }), [users, search, roleFilter])
+
   if ((loading && users.length === 0) || (usersLoading && users.length === 0)) return <DashboardSkeleton />
   if (!isSuperAdmin) return (
     <div className="flex flex-col items-center justify-center py-24">
@@ -207,27 +187,20 @@ export default function UserManagement() {
     </div>
   )
 
-  const filtered = (users || []).filter((u) => {
-    const q = search.toLowerCase()
-    const matchSearch = !q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
-    const matchRole = roleFilter === 'all' || u.role === roleFilter
-    return matchSearch && matchRole
-  })
-
   const handleAdd = async (data) => {
     const res = await createUser(data)
     if (!res.success) {
       addToast(res.message || 'Failed to add user.', 'error')
       return res
     }
-    addToast(`${data.name} added successfully`, 'success')
+    addToast(`Temporary password sent to ${data.email}`, 'success')
     return res
   }
 
   const handleEdit = (u) => { setEditingUser(u); setShowForm(true) }
   const handleSaveEdit = async (data) => {
     const payload = { ...data }
-    if (!payload.password) delete payload.password
+    delete payload.password
 
     const res = await updateUser(editingUser.id, payload)
     if (!res.success) {
@@ -259,13 +232,13 @@ export default function UserManagement() {
     setConfirmSuspend(null)
   }
 
-  const handleResetPassword = async (newPw) => {
-    const res = await resetPassword(resetTarget.id, newPw)
+  const handleResetPassword = async () => {
+    const res = await resetPassword(resetTarget.id)
     if (!res.success) {
       addToast(res.message || 'Failed to reset password.', 'error')
       return
     }
-    addToast(`Password reset for ${resetTarget.name}`, 'success')
+    addToast(`Temporary password sent to ${resetTarget.name}`, 'success')
     return res
   }
 
@@ -296,12 +269,12 @@ export default function UserManagement() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)}
+          <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all" />
         </div>
         <div className="flex gap-2 flex-wrap">
           {[{ value: 'all', label: 'All' }, ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))].map((f) => (
-            <button key={f.value} onClick={() => setRoleFilter(f.value)}
+            <button key={f.value} onClick={() => { setRoleFilter(f.value); setPage(1) }}
               className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${roleFilter === f.value ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'}`}>
               {f.label}
             </button>
@@ -407,7 +380,7 @@ export default function UserManagement() {
       <UserFormModal open={showForm} onClose={() => { setShowForm(false); setEditingUser(null) }}
         onSave={editingUser ? handleSaveEdit : handleAdd} initial={editingUser} />
       <ResetPasswordModal open={!!resetTarget} onClose={() => setResetTarget(null)}
-        onSave={handleResetPassword} userName={resetTarget?.name} />
+        onSave={handleResetPassword} userName={resetTarget?.name} saving={saving} />
       <ConfirmModal isOpen={!!confirmDelete} title="Delete User"
         message={`Are you sure you want to permanently delete ${confirmDelete?.name}? This action cannot be undone.`}
         confirmLabel="Delete" confirmClass="bg-red-500 hover:bg-red-600 text-white"

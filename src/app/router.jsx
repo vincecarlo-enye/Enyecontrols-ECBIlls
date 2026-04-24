@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 
-import { AuthRedirect, RootRedirect } from './guards'
+import { AuthRedirect, RequirePasswordChange, RootRedirect } from './guards'
 import { adminRoutes } from './adminRoutes'
 import { superAdminRoutes } from './superAdminRoutes'
 import { tenantRoutes } from './tenantRoutes'
@@ -10,6 +10,9 @@ import { financeRoutes } from './financeRoutes'
 import AppLoadingScreen from '@/components/common/AppLoadingScreen'
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
+const ForcePasswordChangePage = lazy(() => import('@/pages/auth/ForcePasswordChange'))
+const UnauthorizedPage = lazy(() => import('@/pages/common/Unauthorized'))
+const NotFoundPage = lazy(() => import('@/pages/common/NotFound'))
 
 export default function AppRouter() {
   return (
@@ -25,13 +28,25 @@ export default function AppRouter() {
           }
         />
 
+        <Route
+          path="/force-password-change"
+          element={(
+            <RequirePasswordChange>
+              <ForcePasswordChangePage />
+            </RequirePasswordChange>
+          )}
+        />
+
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
         {adminRoutes()}
         {superAdminRoutes()}
         {tenantRoutes()}
         {facilityRoutes()}
         {financeRoutes()}
 
-        <Route path="*" element={<RootRedirect />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   )

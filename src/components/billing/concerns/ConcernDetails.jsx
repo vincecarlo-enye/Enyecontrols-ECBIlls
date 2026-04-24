@@ -10,7 +10,7 @@ import { X, UserCheck, XCircle, Info, Search, CheckCircle2, DollarSign, Send, Ro
 import TicketStatusBadge from './TicketStatusBadge'
 import TicketTimeline from './TicketTimeline'
 
-export default function ConcernDetails({ concern, isOpen, onClose, role, onAction }) {
+export default function ConcernDetails({ concern, isOpen, onClose, role, onAction, onAdjustBill }) {
   const [note, setNote] = useState('')
   const [activeAction, setActiveAction] = useState(null)
 
@@ -32,7 +32,7 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
     adjust: 'Adjustment details',
     respond: 'Response to tenant',
     reopen: 'Reason for reopening',
-  }[activeAction] || 'Add a note…'
+  }[activeAction] || 'Add a note...'
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -41,14 +41,13 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
         onClick={(e) => e.stopPropagation()}
         className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700 animate-in"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Ticket Details</h2>
               <TicketStatusBadge status={concern.status} />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 font-mono">{concern.id} · Bill: {concern.billId}</p>
+            <p className="text-xs text-slate-400 mt-0.5 font-mono">{concern.id} - Bill: {concern.billId}</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <X className="w-4 h-4" />
@@ -56,7 +55,6 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Ticket Info */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
               ['Tenant', concern.tenantName],
@@ -68,12 +66,11 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             ].map(([label, val]) => (
               <div key={label}>
                 <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400">{label}</p>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5">{val || '—'}</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mt-0.5">{val || '--'}</p>
               </div>
             ))}
           </div>
 
-          {/* Message */}
           <div>
             <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-1.5">Concern Description</p>
             <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed border border-slate-100 dark:border-slate-700/50">
@@ -81,7 +78,6 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             </div>
           </div>
 
-          {/* Notes from admin/finance */}
           {(concern.adminNotes || concern.financeNotes) && (
             <div className="space-y-3">
               {concern.adminNotes && (
@@ -103,13 +99,11 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             </div>
           )}
 
-          {/* Timeline */}
           <div>
             <p className="text-[10px] font-mono uppercase tracking-wide text-slate-400 mb-3">Activity Timeline</p>
             <TicketTimeline timeline={concern.timeline} />
           </div>
 
-          {/* Action area */}
           {activeAction && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800/40 space-y-3">
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">{noteLabel}</p>
@@ -117,7 +111,7 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
                 rows={3}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Enter your note here…"
+                placeholder="Enter your note here..."
                 className="w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 resize-none"
               />
               <div className="flex gap-2">
@@ -138,9 +132,7 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
           )}
         </div>
 
-        {/* Footer actions */}
         <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-          {/* Admin actions */}
           {(role === 'admin' || role === 'super_admin') && !activeAction && (
             <div className="flex flex-wrap gap-2">
               {(concern.status === 'pending' || concern.status === 'reopened') && (
@@ -170,7 +162,6 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             </div>
           )}
 
-          {/* Finance actions */}
           {role === 'finance' && !activeAction && (
             <div className="flex flex-wrap gap-2">
               {concern.status === 'assigned' && (
@@ -196,7 +187,14 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
                     <CheckCircle2 className="w-3.5 h-3.5" /> Resolve
                   </button>
                   <button
-                    onClick={() => setActiveAction('adjust')}
+                    onClick={() => {
+                      if (onAdjustBill) {
+                        onAdjustBill(concern)
+                        onClose()
+                        return
+                      }
+                      setActiveAction('adjust')
+                    }}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition-colors"
                   >
                     <DollarSign className="w-3.5 h-3.5" /> Adjust Bill
@@ -206,7 +204,6 @@ export default function ConcernDetails({ concern, isOpen, onClose, role, onActio
             </div>
           )}
 
-          {/* Tenant actions */}
           {role === 'tenant' && !activeAction && (
             <div className="flex gap-2">
               {(concern.status === 'resolved' || concern.status === 'adjusted' || concern.status === 'closed') && (

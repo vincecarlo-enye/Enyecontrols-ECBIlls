@@ -199,9 +199,8 @@ export default function useTenantBillingReports() {
 
     try {
       const response = await getTenantBillingReports()
-
       const normalizedConcerns = Array.isArray(response?.concerns)
-        ? response.concerns.map(normalizeConcern)
+        ? response.concerns.map((concern) => normalizeConcern(concern))
         : []
 
       setConcerns(normalizedConcerns)

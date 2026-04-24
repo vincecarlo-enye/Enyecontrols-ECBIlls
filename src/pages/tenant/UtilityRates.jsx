@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/filterUtils'
 /**
  * pages/tenant/UtilityRates.jsx
  * Tenant view of utility rates from backend, always read-only.
@@ -28,18 +29,6 @@ const config = {
   },
 }
 
-function formatDate(value) {
-  if (!value) return ''
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function RateViewCard({ type, rate, unit, effectiveFrom, description }) {
   const cfg = config[type]

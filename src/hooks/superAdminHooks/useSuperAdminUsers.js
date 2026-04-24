@@ -3,6 +3,7 @@ import {
   createSuperAdminUser,
   deleteSuperAdminUser,
   fetchSuperAdminUsers,
+  getSuperAdminUsersSnapshot,
   resetSuperAdminUserPassword,
   updateSuperAdminUser,
   updateSuperAdminUserStatus,
@@ -31,17 +32,23 @@ const DEFAULT_META = {
 }
 
 export function useSuperAdminUsers() {
-  const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
-  const [meta, setMeta] = useState(DEFAULT_META)
+  const initialSnapshot = getSuperAdminUsersSnapshot({
+    page: 1,
+    per_page: DEFAULT_PER_PAGE,
+  })
+  const initialUsers = normalizeUsers(Array.isArray(initialSnapshot?.data) ? initialSnapshot.data : [])
+  const hasInitialUsers = initialUsers.length > 0
+  const [users, setUsers] = useState(initialUsers)
+  const [loading, setLoading] = useState(!hasInitialUsers)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
 
   const loadUsers = useCallback(async (nextPage = page, nextPerPage = perPage) => {
     try {
-      setLoading(true)
+      setLoading((current) => current || !hasInitialUsers)
       setError('')
       const response = await fetchSuperAdminUsers({
         page: nextPage,
@@ -134,11 +141,12 @@ export function useSuperAdminUsers() {
     }
   }, [loadUsers, page, perPage, users.length])
 
-  const resetPassword = useCallback(async (id, password) => {
+  const resetPassword = useCallback(async (id) => {
     try {
       setSaving(true)
       setError('')
-      await resetSuperAdminUserPassword(id, password)
+      await resetSuperAdminUserPassword(id)
+      await loadUsers(page, perPage)
       return { success: true }
     } catch (err) {
       const message = err?.response?.data?.message || 'Failed to reset password.'
@@ -147,7 +155,7 @@ export function useSuperAdminUsers() {
     } finally {
       setSaving(false)
     }
-  }, [])
+  }, [loadUsers, page, perPage])
 
   return {
     users,

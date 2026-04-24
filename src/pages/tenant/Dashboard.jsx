@@ -1,3 +1,4 @@
+import { formatPeso } from '@/utils/filterUtils'
 import { useMemo, useState } from 'react'
 import {
   Zap,
@@ -9,7 +10,11 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
-import { useUnitFilter } from '@/context/UnitFilterContext'
+import {
+  TENANT_TIME_RANGE_OPTIONS,
+  isDateWithinTenantTimeRange,
+  useUnitFilter,
+} from '@/context/UnitFilterContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { TenantDashboardSkeleton } from '@/components/skeletons'
 import AnnouncementPanel from '@/components/common/AnnouncementPanel'
@@ -21,11 +26,9 @@ import UtilityCard from '@/components/common/UtilityCard'
 import TenantUtilityRates from '@/pages/tenant/UtilityRates'
 import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import { useBills } from '@/components/billing/hooks/useBills'
+import { useTenantDashboardData } from '@/hooks/tenantHooks/useTenantDashboardData'
+import useTenantRates from '@/hooks/tenantHooks/useTenantRates'
 
-function formatPeso(value) {
-  const amount = Number(value || 0)
-  return `PHP ${amount.toLocaleString()}`
-}
 
 function formatReadableDate(value) {
   if (!value) return ''
@@ -45,6 +48,15 @@ function getVisibleBills(rows = []) {
   return rows.filter((bill) => visible.includes(bill.status))
 }
 
+function getBillTimelineDate(bill) {
+  const raw = bill?.raw ?? {}
+  const value = raw?.billing_end || raw?.due_date || raw?.created_at || bill?.dueDate || null
+  if (!value) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 function getBreakdownTotals(bill) {
   if (!bill) {
     return { electricity: 0, water: 0, thermal: 0 }
@@ -59,9 +71,106 @@ function getBreakdownTotals(bill) {
   }
 }
 
+function getRateValue(billingRates, type) {
+  if (!billingRates) return 0
+  if (type === 'electricity') return Number(billingRates?.electricity?.rate ?? billingRates?.electric?.rate ?? 0)
+  if (type === 'water') return Number(billingRates?.water?.rate ?? 0)
+  if (type === 'thermal') return Number(billingRates?.thermal?.rate ?? 0)
+  return 0
+}
+
+function getUtilityKey(value) {
+  const type = String(value || '').toLowerCase()
+  if (type.includes('electric') || type.includes('power')) return 'electricity'
+  if (type.includes('water')) return 'water'
+  if (type.includes('thermal') || type.includes('btu')) return 'thermal'
+  return null
+}
+
+function getBillUtilityMetrics(bill, billingRates) {
+  const metrics = {
+    electricity: { usage: 0, amount: 0 },
+    water: { usage: 0, amount: 0 },
+    thermal: { usage: 0, amount: 0 },
+  }
+
+  if (!bill) return metrics
+
+  const raw = bill?.raw || {}
+  const items = Array.isArray(raw?.items)
+    ? raw.items
+    : Array.isArray(raw?.bill_items)
+      ? raw.bill_items
+      : Array.isArray(bill?.items)
+        ? bill.items
+        : []
+
+  if (items.length > 0) {
+    items.forEach((item) => {
+      const key = getUtilityKey(
+        item?.rate?.type ||
+        item?.meter?.type ||
+        item?.utility_type ||
+        item?.type ||
+        item?.name,
+      )
+      if (!key) return
+
+      const explicitRate = Number(
+        item?.rate?.price_per_unit ??
+        item?.rate_value ??
+        item?.rate_amount ??
+        item?.unit_price ??
+        0,
+      )
+      const currentRate = getRateValue(billingRates, key)
+      const appliedRate = explicitRate > 0 ? explicitRate : currentRate
+      const amount = Number(item?.amount ?? item?.total ?? item?.charge_amount ?? 0)
+      const explicitUsage = Number(item?.consumption ?? item?.usage ?? item?.quantity ?? 0)
+      const usage = explicitUsage > 0
+        ? explicitUsage
+        : appliedRate > 0 && amount > 0
+          ? amount / appliedRate
+          : 0
+
+      metrics[key].usage += usage
+      metrics[key].amount += amount > 0 ? amount : usage * appliedRate
+    })
+
+    return metrics
+  }
+
+  const breakdown = getBreakdownTotals(bill)
+  ;[
+    ['electricity', breakdown.electricity],
+    ['water', breakdown.water],
+    ['thermal', breakdown.thermal],
+  ].forEach(([key, amount]) => {
+    const numericAmount = Number(amount || 0)
+    const currentRate = getRateValue(billingRates, key)
+    metrics[key].amount += numericAmount
+    metrics[key].usage += currentRate > 0 ? numericAmount / currentRate : 0
+  })
+
+  return metrics
+}
+
 function average(values = []) {
   if (!values.length) return 0
   return values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length
+}
+
+function computeTrendFromValues(values = []) {
+  if (!Array.isArray(values) || values.length < 2) return 0
+  const last = Number(values[values.length - 1] || 0)
+  const prev = Number(values[values.length - 2] || 0)
+
+  if (prev === 0) {
+    if (last === 0) return 0
+    return 100
+  }
+
+  return Number((((last - prev) / prev) * 100).toFixed(1))
 }
 
 function getBillingPeriod(bill) {
@@ -101,7 +210,9 @@ export default function TenantDashboard() {
   const pageLoading = usePageLoader(700)
   const { user } = useAuth()
   const { addToast } = useApp()
-  const { selectedUnit } = useUnitFilter()
+  const { selectedUnit, selectedTimeRange } = useUnitFilter()
+  const { rates: billingRates } = useTenantRates()
+  const { rawSnapshots } = useTenantDashboardData(selectedUnit)
   const {
     bills,
     loading: billsLoading,
@@ -136,6 +247,13 @@ export default function TenantDashboard() {
     return visibleBills.filter((bill) => String(bill.unit) === String(selectedUnit))
   }, [selectedUnit, tenantUnits, visibleBills])
 
+  const rangeBills = useMemo(() => {
+    return unitBills.filter((bill) => {
+      const billDate = getBillTimelineDate(bill)
+      return billDate ? isDateWithinTenantTimeRange(billDate, selectedTimeRange) : false
+    })
+  }, [selectedTimeRange, unitBills])
+
   const latestBillsByUnit = useMemo(() => {
     const seen = new Set()
 
@@ -148,30 +266,28 @@ export default function TenantDashboard() {
   }, [unitBills])
 
   const recentBills = useMemo(() => {
-    return [...unitBills]
+    return [...rangeBills]
       .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
       .slice(0, 7)
-  }, [unitBills])
+  }, [rangeBills])
 
   const currentBill = useMemo(() => {
     return unitBills.find((bill) => bill.status === 'published') || unitBills[0] || null
   }, [unitBills])
 
   const selectedSummary = useMemo(() => {
-    const sourceBills = selectedUnit === 'all' ? latestBillsByUnit : currentBill ? [currentBill] : []
-
-    return sourceBills.reduce((acc, bill) => {
-      const totals = getBreakdownTotals(bill)
-      acc.electric.consumption += totals.electricity
-      acc.water.consumption += totals.water
-      acc.thermal.consumption += totals.thermal
+    return rangeBills.reduce((acc, bill) => {
+      const metrics = getBillUtilityMetrics(bill, billingRates)
+      acc.electric.consumption += metrics.electricity.usage
+      acc.water.consumption += metrics.water.usage
+      acc.thermal.consumption += metrics.thermal.usage
       return acc
     }, {
       electric: { consumption: 0, unit: 'kWh' },
       water: { consumption: 0, unit: 'm3' },
       thermal: { consumption: 0, unit: 'kBTU' },
     })
-  }, [currentBill, latestBillsByUnit, selectedUnit])
+  }, [billingRates, rangeBills])
 
   const currentBillValue = useMemo(() => {
     if (selectedUnit === 'all') {
@@ -194,7 +310,7 @@ export default function TenantDashboard() {
   }, [currentBill, latestBillsByUnit, selectedUnit])
 
   const prediction = useMemo(() => {
-    const history = [...unitBills]
+    const history = [...rangeBills]
       .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
       .slice(0, 3)
 
@@ -207,15 +323,32 @@ export default function TenantDashboard() {
       }
     }
 
-    const totals = history.map((bill) => getBreakdownTotals(bill))
+    const totals = history.map((bill) => getBillUtilityMetrics(bill, billingRates))
 
     return {
       nextBill: Number(average(history.map((bill) => bill.amount)).toFixed(2)),
-      nextElectric: Number(average(totals.map((row) => row.electricity)).toFixed(2)),
-      nextWater: Number(average(totals.map((row) => row.water)).toFixed(2)),
-      nextThermal: Number(average(totals.map((row) => row.thermal)).toFixed(2)),
+      nextElectric: Number(average(totals.map((row) => row.electricity.usage)).toFixed(2)),
+      nextWater: Number(average(totals.map((row) => row.water.usage)).toFixed(2)),
+      nextThermal: Number(average(totals.map((row) => row.thermal.usage)).toFixed(2)),
     }
-  }, [unitBills])
+  }, [billingRates, rangeBills])
+
+  const liveSnapshotSummary = useMemo(() => {
+    const current = rawSnapshots?.current || {}
+    const snapshots = [
+      current.electric?.captured_at,
+      current.water?.captured_at,
+      current.thermal?.captured_at,
+    ].filter(Boolean)
+
+    if (!rawSnapshots?.available || snapshots.length === 0) {
+      return null
+    }
+
+    const latest = [...snapshots].sort().at(-1)
+    const formattedLatest = latest ? formatReadableDate(latest) : 'recently'
+    return rawSnapshots?.message || `Live meter snapshots updated ${formattedLatest}.`
+  }, [rawSnapshots])
 
   if ((pageLoading && bills.length === 0) || (billsLoading && bills.length === 0)) {
     return <TenantDashboardSkeleton />
@@ -232,6 +365,8 @@ export default function TenantDashboard() {
         ? `Unit ${tenantUnits[0]}`
         : 'Assigned Unit'
     : `Unit ${selectedUnit}`
+  const selectedRangeLabel =
+    TENANT_TIME_RANGE_OPTIONS.find((option) => option.value === selectedTimeRange)?.label || '1M'
 
   const stats = [
     {
@@ -245,7 +380,7 @@ export default function TenantDashboard() {
     {
       label: 'Electricity',
       value: `${Number(electric.consumption || 0).toLocaleString()} ${electric.unit || 'kWh'}`,
-      sub: 'This billing period',
+      sub: `${selectedRangeLabel} consumption`,
       icon: Zap,
       grad: 'from-amber-500 to-amber-600',
       glow: 'shadow-amber-500/20',
@@ -253,7 +388,7 @@ export default function TenantDashboard() {
     {
       label: 'Water',
       value: `${Number(water.consumption || 0).toLocaleString()} ${water.unit || 'm3'}`,
-      sub: 'This billing period',
+      sub: `${selectedRangeLabel} consumption`,
       icon: Droplets,
       grad: 'from-cyan-500 to-cyan-600',
       glow: 'shadow-cyan-500/20',
@@ -261,7 +396,7 @@ export default function TenantDashboard() {
     {
       label: 'Thermal',
       value: `${Number(thermal.consumption || 0).toLocaleString()} ${thermal.unit || 'kBTU'}`,
-      sub: 'This billing period',
+      sub: `${selectedRangeLabel} consumption`,
       icon: Flame,
       grad: 'from-rose-500 to-rose-600',
       glow: 'shadow-rose-500/20',
@@ -280,20 +415,20 @@ export default function TenantDashboard() {
     electric: {
       usage: Number(electric.consumption || 0),
       unit: electric.unit || 'kWh',
-      estimatedCost: Number(currentBill?.breakdown?.electricity ?? 0),
-      trend: prediction.nextElectric > Number(electric.consumption || 0) ? 4.1 : -2.4,
+      estimatedCost: Number((Number(electric.consumption || 0) * getRateValue(billingRates, 'electricity')).toFixed(2)),
+      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).electricity.usage || 0))),
     },
     water: {
       usage: Number(water.consumption || 0),
       unit: water.unit || 'm3',
-      estimatedCost: Number(currentBill?.breakdown?.water ?? 0),
-      trend: prediction.nextWater > Number(water.consumption || 0) ? 2.8 : -1.9,
+      estimatedCost: Number((Number(water.consumption || 0) * getRateValue(billingRates, 'water')).toFixed(2)),
+      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).water.usage || 0))),
     },
     thermal: {
       usage: Number(thermal.consumption || 0),
-      unit: thermal.unit || 'BTU',
-      estimatedCost: Number(currentBill?.breakdown?.thermal ?? 0),
-      trend: prediction.nextThermal > Number(thermal.consumption || 0) ? 3.5 : -1.4,
+      unit: thermal.unit || 'kBTU',
+      estimatedCost: Number((Number(thermal.consumption || 0) * getRateValue(billingRates, 'thermal')).toFixed(2)),
+      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).thermal.usage || 0))),
     },
   }
 
@@ -331,16 +466,23 @@ export default function TenantDashboard() {
 
   return (
     <div className="section-gap animate-in">
-      <div>
-        <h1 className="page-title">
-          Welcome back, {user?.name?.split(' ')[0] || 'Tenant'}
-        </h1>
-        <p className="muted-text mt-0.5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="page-title">Welcome back, {user?.name?.split(' ')[0] || 'Tenant'}</h1>
+          <p className="muted-text mt-0.5">
           {user?.tenant?.unit?.building_name || user?.company || 'Your account'} · Here&apos;s your billing summary · {unitLabel}
-        </p>
+          </p>
+        </div>
       </div>
 
-      <UnitFilterBar />
+      <UnitFilterBar showTimeRange />
+
+      {liveSnapshotSummary ? (
+        <div className="rounded-2xl border border-cyan-200/70 bg-cyan-50/80 px-4 py-3 text-sm text-cyan-700 dark:border-cyan-700/40 dark:bg-cyan-900/20 dark:text-cyan-200">
+          {liveSnapshotSummary}
+        </div>
+      ) : null}
+
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <UtilityCard type="electric" {...utilityMeters.electric} />
@@ -366,28 +508,28 @@ export default function TenantDashboard() {
           {
             label: 'Predicted Next Bill',
             value: prediction.nextBill > 0 ? formatPeso(prediction.nextBill) : '-',
-            sub: `Estimate based on recent ${unitLabel.toLowerCase()} bills`,
+            sub: `Estimate based on ${selectedRangeLabel.toLowerCase()} ${unitLabel.toLowerCase()} bills`,
             icon: Receipt,
             tone: 'from-violet-500 to-indigo-600',
           },
           {
             label: 'Expected Next Electric Usage',
             value: `${prediction.nextElectric.toLocaleString()} kWh`,
-            sub: 'Average recent billed electric consumption',
+            sub: `Average billed electric use across ${selectedRangeLabel.toLowerCase()}`,
             icon: Zap,
             tone: 'from-amber-500 to-orange-600',
           },
           {
             label: "Expected Next Month's Water",
             value: `${prediction.nextWater.toLocaleString()} m3`,
-            sub: 'Average recent billed water consumption',
+            sub: `Average billed water use across ${selectedRangeLabel.toLowerCase()}`,
             icon: Droplets,
             tone: 'from-cyan-500 to-blue-600',
           },
           {
             label: 'Expected Next Thermal Usage',
             value: `${prediction.nextThermal.toLocaleString()} kBTU`,
-            sub: 'Average recent billed thermal consumption',
+            sub: `Average billed thermal use across ${selectedRangeLabel.toLowerCase()}`,
             icon: Flame,
             tone: 'from-rose-500 to-pink-600',
           },
@@ -428,7 +570,7 @@ export default function TenantDashboard() {
             <h2 className="text-[15px] font-semibold text-slate-800 dark:text-white">
               My Recent Bills
             </h2>
-            <p className="mt-0.5 text-xs text-slate-400">{unitLabel} billing history</p>
+            <p className="mt-0.5 text-xs text-slate-400">{unitLabel} billing history · {selectedRangeLabel}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ minWidth: '480px' }}>
@@ -448,7 +590,7 @@ export default function TenantDashboard() {
                 {recentBills.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
-                      No recent bills found.
+                      No recent bills found for {selectedRangeLabel}.
                     </td>
                   </tr>
                 ) : (

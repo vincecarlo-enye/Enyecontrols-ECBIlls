@@ -6,7 +6,7 @@ import {
   fetchAvailableMeterWatches,
   updateAdminMeter,
 } from '../../services/adminService/adminMeterService'
-import { fetchAdminUnits } from '../../services/adminService/adminUnitService'
+import { getSharedAdminUnits } from '@/services/adminService/adminDirectoryStore'
 
 function parseAssignedUnitIds(value, fallbackUnitId = null) {
   if (Array.isArray(value)) {
@@ -181,10 +181,10 @@ export function useAdminMeters() {
 
       const [metersRes, unitsRes] = await Promise.all([
         fetchAdminMeters({ page: nextPage, per_page: nextPerPage }),
-        fetchAdminUnits(),
+        getSharedAdminUnits(),
       ])
 
-      const normalizedUnits = mapUnits(Array.isArray(unitsRes?.data) ? unitsRes.data : [])
+      const normalizedUnits = mapUnits(unitsRes)
       const normalizedMeters = mapMeters(Array.isArray(metersRes?.data) ? metersRes.data : [])
 
       setUnits(normalizedUnits)

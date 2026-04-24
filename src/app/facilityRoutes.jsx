@@ -19,6 +19,7 @@ const FacilityReports     = lazy(() => import('@/pages/facility/Reports'))
 const FacilityAnomalies   = lazy(() => import('@/pages/facility/Anomalies'))
 const NotificationsPage   = lazy(() => import('@/pages/common/Notifications'))
 const ActivityLogsPage    = lazy(() => import('@/pages/common/ActivityLogs'))
+const GlobalSearchPage = lazy(() => import('@/pages/common/GlobalSearch'))
 
 export function facilityRoutes() {
   return (
@@ -39,6 +40,7 @@ export function facilityRoutes() {
       <Route path="anomalies"   element={<FacilityAnomalies />} />
       <Route path="activity-logs" element={<ActivityLogsPage />} />
       <Route path="notifications" element={<NotificationsPage />} />
+      <Route path="search" element={<GlobalSearchPage />} />
     </Route>
   )
 }

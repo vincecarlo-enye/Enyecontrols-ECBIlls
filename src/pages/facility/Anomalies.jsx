@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { formatDate } from '@/utils/filterUtils'
+﻿import { useMemo, useState } from 'react'
 import {
   AlertTriangle, CheckCircle2, LineChart as LineChartIcon, MessageSquareText, Save, Lightbulb,
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { FacilityPageSkeleton } from '@/components/skeletons'
+import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityAnomalies } from '@/hooks/facilityHooks/useFacilityAnomalies'
 import { useApp } from '@/context/AppContext'
 
@@ -19,11 +21,6 @@ const statusCls = {
   resolved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 }
 
-function formatDate(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
 
 export default function FacilityAnomalies() {
   const pageLoading = usePageLoader(700)
@@ -71,10 +68,13 @@ export default function FacilityAnomalies() {
         ))}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <LineChartIcon className="w-4 h-4 text-blue-500" />
-          <h2 className="font-semibold text-slate-800 dark:text-white">Recurring Trend</h2>
+      <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <LineChartIcon className="w-4 h-4 text-blue-500" />
+            <h2 className="font-semibold text-slate-800 dark:text-white">Recurring Trend</h2>
+          </div>
+          <ChartExportButton title="Recurring Trend" rows={analytics.trend || []} />
         </div>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={analytics.trend || []}>
@@ -103,7 +103,7 @@ export default function FacilityAnomalies() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{row.title}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">{row.meterName} Ãƒâ€šÃ‚Â· {row.floor}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{row.meterName} - {row.floor}</p>
                   </div>
                   <span className={`px-2 py-1 rounded-lg text-[10px] font-medium uppercase ${severityCls[row.severity] || severityCls.medium}`}>{row.severity}</span>
                 </div>
@@ -124,7 +124,7 @@ export default function FacilityAnomalies() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <h2 className="font-semibold text-slate-800 dark:text-white">{selected.title}</h2>
-                  <p className="text-sm text-slate-400 mt-0.5">{selected.meterName} Ãƒâ€šÃ‚Â· {selected.unit} Ãƒâ€šÃ‚Â· {selected.floor}</p>
+                  <p className="text-sm text-slate-400 mt-0.5">{selected.meterName} - {selected.unit} - {selected.floor}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-medium uppercase ${severityCls[selected.severity] || severityCls.medium}`}>{selected.severity}</span>

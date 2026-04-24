@@ -48,6 +48,11 @@ const PERMISSIONS = {
   'bills:edit':     ['super_admin','admin','finance'],
   'bills:delete':   ['super_admin','admin'],
   'bills:approve':  ['super_admin','finance'],
+  'bill-adjustments:view': ['super_admin','admin','finance','tenant'],
+  'bill-adjustments:create': ['finance'],
+  'bill-adjustments:submit': ['finance'],
+  'bill-adjustments:approve': ['super_admin','admin'],
+  'bill-adjustments:reject': ['super_admin','admin'],
 
   'dashboard:system-wide': ['super_admin'],
   'dashboard:building':    ['super_admin','admin'],

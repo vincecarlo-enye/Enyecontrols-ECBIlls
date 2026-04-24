@@ -59,8 +59,8 @@ export const PAGE_CONTEXTS = {
       'How do I export this report?',
     ],
   },
-  '/admin/tenant-reports': {
-    page: 'Tenant Reports',
+  '/admin/billing-concerns': {
+    page: 'Billing Concerns',
     role: 'admin',
     description: 'Review tenant billing concerns and dispute handling.',
     suggestions: [
@@ -89,7 +89,7 @@ export const PAGE_CONTEXTS = {
       'Summarize system activity',
       'Show critical anomalies today',
       'What needs executive attention?',
-      'Open billing overview',
+      'Summarize adjustment review',
     ],
   },
   '/super-admin/billing': {
@@ -145,6 +145,17 @@ export const PAGE_CONTEXTS = {
       'Who can see announcements?',
       'Show active announcements',
       'Explain announcement visibility',
+    ],
+  },
+  '/super-admin/billing-concerns': {
+    page: 'Billing Concerns',
+    role: 'super_admin',
+    description: 'Review tenant billing concerns and dispute handling.',
+    suggestions: [
+      'Show unresolved billing concerns',
+      'Explain concern statuses',
+      'How do I assign a concern?',
+      'What is pending today?',
     ],
   },
   '/tenant': {

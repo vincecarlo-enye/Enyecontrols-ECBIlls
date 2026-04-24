@@ -7,7 +7,6 @@ import { X } from 'lucide-react'
  * Stays in DOM (never unmounts) so close animation plays cleanly.
  */
 export default function Modal({ isOpen, onClose, title, subtitle, children, size = 'max-w-3xl' }) {
-  if (!isOpen) return null
   useEffect(() => {
     if (!isOpen) return
     const fn = (e) => { if (e.key === 'Escape') onClose() }
@@ -19,6 +18,8 @@ export default function Modal({ isOpen, onClose, title, subtitle, children, size
     document.body.style.overflow = isOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
+
+  if (!isOpen) return null
 
   return createPortal (
     <div

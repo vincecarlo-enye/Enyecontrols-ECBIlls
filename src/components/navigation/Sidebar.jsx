@@ -3,18 +3,23 @@ import {
   LayoutDashboard, Receipt, Users, Building2, BarChart3,
   Settings, ChevronLeft, ChevronRight, X, FileText, Activity, User,
   TrendingUp, ClipboardList, Zap, Wrench, Cpu,
-  FileBarChart, Ticket, CheckSquare, Send, Gauge, Shield,
-  UserCog, Megaphone, Siren, Bell,
+  FileBarChart, Ticket, CheckSquare, Send, Gauge, Shield, Scale,
+  CalendarClock, HeartPulse, Eye,
+  UserCog, Megaphone, Siren, Bell, Wallet,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
 const adminNavItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/admin/billing', label: 'Billing', icon: Receipt },
+  { path: '/admin/billing', label: 'Billing Oversight', icon: Receipt },
+  { path: '/admin/bill-adjustments', label: 'Adjustment Review', icon: Wallet },
   { path: '/admin/tenants', label: 'Tenants', icon: Users },
   { path: '/admin/units', label: 'Units', icon: Building2 },
   { path: '/admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
-  { path: '/admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
+  { path: '/admin/reconciliation', label: 'Reconciliation', icon: Scale },
+  { path: '/admin/occupancy-timeline', label: 'Occupancy Timeline', icon: CalendarClock },
+  { path: '/admin/owner-portal', label: 'Owner Portal', icon: Eye },
+  { path: '/admin/billing-concerns', label: 'Billing Concerns', icon: ClipboardList },
   { path: '/admin/anomalies', label: 'Anomalies', icon: Siren },
   { path: '/admin/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
@@ -23,15 +28,20 @@ const adminNavItems = [
 
 const superAdminNavItems = [
   { path: '/super-admin', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/super-admin/billing', label: 'Billing', icon: Receipt },
+  { path: '/super-admin/billing', label: 'Billing Oversight', icon: Receipt },
+  { path: '/super-admin/bill-adjustments', label: 'Adjustment Review', icon: Wallet },
   { path: '/super-admin/tenants', label: 'Tenants', icon: Users },
   { path: '/super-admin/units', label: 'Units', icon: Building2 },
   { path: '/super-admin/usage-reports', label: 'Usage Reports', icon: BarChart3 },
-  { path: '/super-admin/tenant-reports', label: 'Tenant Reports', icon: ClipboardList },
+  { path: '/super-admin/reconciliation', label: 'Reconciliation', icon: Scale },
+  { path: '/super-admin/occupancy-timeline', label: 'Occupancy Timeline', icon: CalendarClock },
+  { path: '/super-admin/owner-portal', label: 'Owner Portal', icon: Eye },
+  { path: '/super-admin/billing-concerns', label: 'Billing Concerns', icon: ClipboardList },
   { path: '/super-admin/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/super-admin/notifications', label: 'Notifications', icon: Bell },
   { path: '/super-admin/meters', label: 'Meter Management', icon: Gauge, superAdminOnly: true },
   { path: '/super-admin/billing-rates', label: 'Billing Rates', icon: Zap, superAdminOnly: true },
+  { path: '/super-admin/system-health', label: 'System Health', icon: HeartPulse, superAdminOnly: true },
   { path: '/super-admin/users', label: 'User Management', icon: UserCog, superAdminOnly: true },
   { path: '/super-admin/announcements', label: 'Announcements', icon: Megaphone, superAdminOnly: true },
 ]
@@ -50,6 +60,7 @@ const tenantNavItems = [
 const financeNavItems = [
   { path: '/finance/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/finance/billing', label: 'Billing Management', icon: Send },
+  { path: '/finance/bill-adjustments', label: 'Adjustment Ledger', icon: Receipt },
   { path: '/finance/payment-review', label: 'Payment Review', icon: CheckSquare },
   { path: '/finance/billing-tickets', label: 'Billing Tickets', icon: Ticket },
   { path: '/finance/reports', label: 'Financial Reports', icon: BarChart3 },

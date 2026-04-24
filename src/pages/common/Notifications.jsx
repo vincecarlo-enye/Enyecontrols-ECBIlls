@@ -1,25 +1,12 @@
+import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Bell, CheckCheck, Clock3, RefreshCw } from 'lucide-react'
-import { fetchNotification, fetchNotifications, markNotificationAsRead } from '@/services/notificationService'
+import { fetchNotification, fetchNotifications, getNotificationsSnapshot, markNotificationAsRead } from '@/services/notificationService'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { ReportsSkeleton } from '@/components/skeletons'
 import PaginationBar from '@/components/common/PaginationBar'
 
-function formatDate(value) {
-  if (!value) return ''
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 const DEFAULT_PER_PAGE = 10
 const DEFAULT_META = {
@@ -34,20 +21,31 @@ const DEFAULT_META = {
 export default function NotificationsPage() {
   const location = useLocation()
   const pageLoading = usePageLoader(120)
-  const [notifications, setNotifications] = useState([])
+  const initialSnapshot = getNotificationsSnapshot({ page: 1, per_page: DEFAULT_PER_PAGE })
+  const hasInitialSnapshot = initialSnapshot != null
+  const initialNotifications = Array.isArray(initialSnapshot?.data) ? initialSnapshot.data : []
+  const initialSelectedId = location.state?.selectedNotificationId ?? initialNotifications[0]?.id ?? null
+  const initialSelected = initialNotifications.find((item) => item.id === initialSelectedId) || null
+  const [notifications, setNotifications] = useState(initialNotifications)
   const [selectedId, setSelectedId] = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState(initialSelected)
+  const [loading, setLoading] = useState(!hasInitialSnapshot)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
-  const [meta, setMeta] = useState(DEFAULT_META)
+  const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
   const preselectedId = location.state?.selectedNotificationId ?? null
+
+  useEffect(() => {
+    if (initialSelectedId) {
+      setSelectedId(initialSelectedId)
+    }
+  }, [initialSelectedId])
 
   const loadNotifications = async (nextPage = page, nextPerPage = perPage) => {
     try {
-      setLoading(true)
+      setLoading((current) => current || (!hasInitialSnapshot && nextPage === 1 && nextPerPage === DEFAULT_PER_PAGE))
       setError('')
       const res = await fetchNotifications({ page: nextPage, per_page: nextPerPage })
       const rows = Array.isArray(res?.data) ? res.data : []
@@ -60,8 +58,10 @@ export default function NotificationsPage() {
 
       if (preselectedId && rows.some((item) => item.id === preselectedId)) {
         setSelectedId(preselectedId)
+        setSelected(rows.find((item) => item.id === preselectedId) || null)
       } else if (!rows.some((item) => item.id === selectedId)) {
         setSelectedId(rows[0]?.id || null)
+        setSelected(rows[0] || null)
       }
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Failed to load notifications.')
@@ -87,6 +87,10 @@ export default function NotificationsPage() {
     const loadDetail = async () => {
       try {
         setDetailLoading(true)
+        const fallback = notifications.find((item) => item.id === selectedId) || null
+        if (fallback) {
+          setSelected(fallback)
+        }
         const res = await fetchNotification(selectedId)
         if (cancelled) return
 
@@ -120,6 +124,7 @@ export default function NotificationsPage() {
 
   const handleSelect = async (notification) => {
     setSelectedId(notification.id)
+    setSelected(notification)
 
     if (!notification.is_read) {
       setNotifications((prev) =>

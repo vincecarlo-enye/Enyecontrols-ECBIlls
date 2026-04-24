@@ -7,13 +7,13 @@ import RateHistoryPanel from '@/components/common/RateHistoryPanel'
 const config = {
   electricity: { label: 'Electricity Rate', icon: Zap, color: 'text-amber-500', gradient: 'from-amber-400 to-orange-500', formula: 'Usage × Rate = Charge', barColor: 'bg-amber-400' },
   water: { label: 'Water Rate', icon: Droplets, color: 'text-cyan-500', gradient: 'from-cyan-400 to-blue-500', formula: 'Usage × Rate = Charge', barColor: 'bg-cyan-400' },
-  thermal: { label: 'Thermal Rate', icon: Flame, color: 'text-rose-500', gradient: 'from-rose-400 to-pink-500', formula: 'kBTU/h × Rate = Charge', barColor: 'bg-rose-400' },
+  thermal: { label: 'Thermal Rate', icon: Flame, color: 'text-rose-500', gradient: 'from-rose-400 to-pink-500', formula: 'kBTU × Rate = Charge', barColor: 'bg-rose-400' },
 }
 
 const fallbackRates = {
   electricity: { rate: 0, unit: '/kWh', completeness: 0 },
   water: { rate: 0, unit: '/m³', completeness: 0 },
-  thermal: { rate: 0, unit: '/kBTU/h', completeness: 0 },
+  thermal: { rate: 0, unit: '/kBTU', completeness: 0 },
 }
 
 function RateCard({ type, rate, unit, completeness, canEdit, onSave }) {
@@ -145,3 +145,4 @@ export default function RateConfigCard({ rates: propRates, onSaveRate, onSaveAll
     </div>
   )
 }
+

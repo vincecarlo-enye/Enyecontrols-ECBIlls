@@ -1,4 +1,4 @@
-/**
+﻿/**
  * pages/tenant/BillingReports.jsx
  * Tenant's "My Billing Reports" page shows submitted billing concerns.
  */
@@ -15,7 +15,8 @@ import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernModal from '@/components/billing/concerns/ConcernModal'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 import PageActionBar from '@/components/common/PageActionBar'
-import { downloadCsv, printElement } from '@/utils/reporting'
+import { downloadCsv } from '@/utils/exportCsv'
+import { printElement } from '@/utils/reporting'
 
 const FILTERS = [
   'all',
@@ -41,7 +42,7 @@ export default function TenantBillingReports() {
   } = useTenantBillingReports()
   const { user } = useAuth()
   const { addToast } = useApp()
-  const { bills } = useBills()
+  const { bills, getBillById } = useBills()
 
   const [filter, setFilter] = useState('all')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -50,17 +51,6 @@ export default function TenantBillingReports() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedConcern, setSelectedConcern] = useState(null)
   const [search, setSearch] = useState('')
-
-  if ((pageLoading && concerns.length === 0) || (concernsLoading && concerns.length === 0)) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-48" />
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-28 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-        ))}
-      </div>
-    )
-  }
 
   const tenantUnit =
     user?.unit?.unit_number ??
@@ -91,10 +81,10 @@ export default function TenantBillingReports() {
     })
   }, [filter, myConcerns, search])
 
-  const myBills = bills.filter((bill) => {
+  const myBills = useMemo(() => bills.filter((bill) => {
     if (!tenantUnit) return true
     return String(bill?.unit ?? '').trim() === String(tenantUnit).trim()
-  })
+  }), [bills, tenantUnit])
 
   const handlePickBill = (bill) => {
     setConcernBill(bill)
@@ -104,15 +94,34 @@ export default function TenantBillingReports() {
 
   const handleSubmit = async (data) => {
     try {
-      if (!concernBill?.id) {
+      const resolvedBill = concernBill?.id
+        ? await getBillById(concernBill.id)
+        : null
+
+      const rawBillId =
+        resolvedBill?.raw?.id ??
+        resolvedBill?.raw?.bill_id ??
+        concernBill?.raw?.id ??
+        concernBill?.raw?.bill_id ??
+        concernBill?.id ??
+        null
+
+      const billId =
+        typeof rawBillId === 'string' && /^\d+$/.test(rawBillId)
+          ? Number(rawBillId)
+          : rawBillId
+
+      if (!billId) {
         addToast('Invalid bill selected.', 'error')
         return
       }
 
       await submitConcern({
-        bill_id: Number(concernBill.id),
+        bill_id: billId,
+        billId: billId,
         subject: data?.subject || 'Billing Concern',
         message: data?.message ?? data?.description ?? '',
+        description: data?.message ?? data?.description ?? '',
         category: data?.category ?? 'general',
         priority: data?.priority ?? 'medium',
       })
@@ -121,7 +130,11 @@ export default function TenantBillingReports() {
       setConcernOpen(false)
       setConcernBill(null)
     } catch (err) {
-      addToast(err?.message || 'Failed to submit billing concern.', 'error')
+      const validationErrors = err?.response?.data?.errors
+      const validationMessage = validationErrors
+        ? Object.values(validationErrors).flat().filter(Boolean).join(' ')
+        : null
+      addToast(validationMessage || err?.message || 'Failed to submit billing concern.', 'error')
     }
   }
 
@@ -154,7 +167,23 @@ export default function TenantBillingReports() {
     ).length,
   }
 
+  if ((pageLoading && concerns.length === 0) || (concernsLoading && concerns.length === 0)) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-48" />
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-28 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
+        ))}
+      </div>
+    )
+  }
+
   const handleExport = () => {
+    if (!filtered.length) {
+      addToast('No tickets to export.', 'info')
+      return
+    }
+
     downloadCsv('tenant-billing-concerns.csv', filtered.map((concern) => ({
       id: concern.id,
       subject: concern.subject,
@@ -171,6 +200,7 @@ export default function TenantBillingReports() {
       title: 'My Billing Reports',
       subtitle: 'Submitted billing concerns and statuses',
       element: printRef.current,
+      mode: 'visual',
     })
   }
 
@@ -203,7 +233,13 @@ export default function TenantBillingReports() {
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           />
         </div>
-        <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Tickets" printLabel="Print Tickets" />
+        <PageActionBar
+          onExport={handleExport}
+          onPrint={handlePrint}
+          exportLabel="Export Tickets"
+          printLabel="Print Tickets"
+          mobileIconOnly
+        />
       </div>
 
       {error && (
@@ -213,18 +249,18 @@ export default function TenantBillingReports() {
       )}
 
       <div ref={printRef} className="space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 print-billing-summary">
         {[
           { label: 'Total Tickets', value: counts.total, cls: 'text-blue-600 dark:text-blue-400' },
           { label: 'Needs Attention', value: counts.pending, cls: 'text-amber-600 dark:text-amber-400' },
           { label: 'In Progress', value: counts.active, cls: 'text-purple-600 dark:text-purple-400' },
           { label: 'Resolved', value: counts.resolved, cls: 'text-emerald-600 dark:text-emerald-400' },
         ].map((item) => (
-          <div key={item.label} className="glass rounded-2xl p-4 shadow-md">
-            <p className="text-xs text-slate-400 font-mono uppercase tracking-wide">
+          <div key={item.label} className="glass rounded-2xl p-4 shadow-md print-billing-summary-card">
+            <p className="text-xs text-slate-400 font-mono uppercase tracking-wide print-billing-summary-label">
               {item.label}
             </p>
-            <p className={`text-2xl font-bold mt-1 ${item.cls}`}>{item.value}</p>
+            <p className={`text-2xl font-bold mt-1 print-billing-summary-value ${item.cls}`}>{item.value}</p>
           </div>
         ))}
       </div>
@@ -319,7 +355,7 @@ export default function TenantBillingReports() {
                         {bill.month}
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
-                        â‚±{bill.amount?.toLocaleString()}
+                        PHP {bill.amount?.toLocaleString()}
                       </div>
                     </button>
                   ))}
@@ -350,3 +386,4 @@ export default function TenantBillingReports() {
     </div>
   )
 }
+

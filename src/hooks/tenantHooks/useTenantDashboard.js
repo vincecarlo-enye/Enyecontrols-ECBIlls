@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getTenantDashboard } from '@/services/tenantService/tenantDashboardService'
+import { getTenantDashboard, getTenantDashboardSnapshot } from '@/services/tenantService/tenantDashboardService'
 
 export default function useTenantDashboard() {
-  const [dashboard, setDashboard] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const initialDashboard = getTenantDashboardSnapshot()
+  const [dashboard, setDashboard] = useState(initialDashboard)
+  const [loading, setLoading] = useState(!initialDashboard)
   const [error, setError] = useState('')
 
   const loadDashboard = useCallback(async () => {
     try {
-      setLoading(true)
+      setLoading((current) => current || !getTenantDashboardSnapshot())
       setError('')
       const data = await getTenantDashboard()
       setDashboard(data)

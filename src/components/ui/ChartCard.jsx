@@ -1,3 +1,5 @@
+import ChartExportButton from '@/components/common/ChartExportButton'
+
 export default function ChartCard({
   title,
   subtitle,
@@ -6,12 +8,17 @@ export default function ChartCard({
   accent,
   accentHex,
   action,
+  exportable = false,
+  exportTitle,
+  exportRows = [],
+  exportFilename,
   className = '',
   children,
   noPad = false,
 }) {
   return (
     <div
+      data-chart-export-panel={exportable ? 'true' : undefined}
       className={[
         'relative overflow-hidden rounded-[24px]',
         'border border-slate-200/80 bg-white text-slate-900 shadow-[0_10px_30px_rgba(15,23,42,0.08)]',
@@ -41,6 +48,7 @@ export default function ChartCard({
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-2">
+          {exportable ? <ChartExportButton title={exportTitle || title} rows={exportRows} filename={exportFilename} /> : null}
           {action}
           {badge && (
             <span className={`inline-flex min-h-8 items-center rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.06em] shadow-sm ${badgeCls}`}>

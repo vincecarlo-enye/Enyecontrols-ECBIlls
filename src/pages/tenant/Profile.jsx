@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { formatDate } from '@/utils/filterUtils'
+﻿import { useEffect, useState } from 'react'
 import {
   User,
   Mail,
@@ -70,18 +71,6 @@ function mergeProfileIntoUser(baseUser, profile) {
   return nextUser
 }
 
-function formatDate(value) {
-  if (!value) return 'â€”'
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
 
 export default function TenantProfile() {
   const pageLoading = usePageLoader(700)
@@ -93,6 +82,8 @@ export default function TenantProfile() {
   const [saved, setSaved] = useState(false)
   const [pwSaving, setPwSaving] = useState(false)
   const [pwSaved, setPwSaved] = useState(false)
+  const [showEditInformation, setShowEditInformation] = useState(false)
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState(() => getProfileState(user))
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
@@ -138,7 +129,6 @@ export default function TenantProfile() {
 
       const updated = await updateTenantProfile({
         name: form.name,
-        email: form.email,
         phone: form.phone,
       })
 
@@ -202,11 +192,11 @@ export default function TenantProfile() {
   }
 
   const details = [
-    { icon: User, label: 'Full Name', value: form.name || 'â€”' },
-    { icon: Mail, label: 'Email', value: form.email || 'â€”' },
-    { icon: Phone, label: 'Phone', value: form.phone || 'â€”' },
-    { icon: Building2, label: 'Building', value: form.building || 'â€”' },
-    { icon: MapPin, label: 'Unit', value: form.unit || 'â€”' },
+    { icon: User, label: 'Full Name', value: form.name || '--' },
+    { icon: Mail, label: 'Email', value: form.email || '--' },
+    { icon: Phone, label: 'Phone', value: form.phone || '--' },
+    { icon: Building2, label: 'Building', value: form.building || '--' },
+    { icon: MapPin, label: 'Unit', value: form.unit || '--' },
     { icon: Calendar, label: 'Member Since', value: formatDate(form.memberSince) },
   ]
 
@@ -262,7 +252,24 @@ export default function TenantProfile() {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          <div className="glass rounded-2xl p-5 shadow-lg">
+          <div className="space-y-3 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setShowEditInformation((prev) => !prev)}
+              className="w-full rounded-2xl text-center border border-slate-200 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-3  text-sm font-semibold shadow-sm transition-all hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:bg-slate-800 hover:opacity-90"
+            >
+              {showEditInformation ? 'Hide Edit Information' : 'Edit Information'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowChangePassword((prev) => !prev)}
+              className="w-full rounded-2xl border text-center border-slate-200 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-3 text-sm font-semibold shadow-sm transition-all hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:bg-slate-800 hover:opacity-90"
+            >
+              {showChangePassword ? 'Hide Change Password' : 'Change Password'}
+            </button>
+          </div>
+
+          <div className={`${showEditInformation ? 'block' : 'hidden'} lg:block glass rounded-2xl p-5 shadow-lg`}>
             <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-4">
               Personal Information
             </h2>
@@ -271,7 +278,10 @@ export default function TenantProfile() {
                 { key: 'name', label: 'Full Name', type: 'text' },
                 { key: 'email', label: 'Email Address', type: 'email' },
                 { key: 'phone', label: 'Phone Number', type: 'tel' },
-              ].map(({ key, label, type }) => (
+              ].map(({ key, label, type }) => {
+                const isEmailField = key === 'email'
+
+                return (
                 <div key={key}>
                   <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">
                     {label}
@@ -279,13 +289,28 @@ export default function TenantProfile() {
                   <input
                     type={type}
                     value={form[key]}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, [key]: e.target.value }))
+                    onChange={
+                      isEmailField
+                        ? undefined
+                        : (e) =>
+                            setForm((prev) => ({ ...prev, [key]: e.target.value }))
                     }
-                    className="w-full px-4 py-2.5 rounded-xl text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all"
+                    readOnly={isEmailField}
+                    disabled={isEmailField}
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm border transition-all ${
+                      isEmailField
+                        ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400'
+                    }`}
                   />
+                  {isEmailField && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Email address cannot be changed.
+                    </p>
+                  )}
                 </div>
-              ))}
+                )
+              })}
 
               <div>
                 <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">
@@ -321,7 +346,7 @@ export default function TenantProfile() {
             </div>
           </div>
 
-          <div className="glass rounded-2xl p-5 shadow-lg">
+          <div className={`${showChangePassword ? 'block' : 'hidden'} lg:block glass rounded-2xl p-5 shadow-lg`}>
             <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white mb-4">
               Change Password
             </h2>

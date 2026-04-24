@@ -1,7 +1,8 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { DashboardSkeleton } from '@/components/skeletons'
 import UtilityCard from '@/components/common/UtilityCard'
+import FilterPills from '@/components/common/FilterPills'
 import BillsTable from '@/components/billing/BillsTable'
 import ChartCard from '@/components/ui/ChartCard'
 import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
@@ -17,7 +18,15 @@ import { BarChart2, TrendingUp, Building2, Users, AlertTriangle, Siren, ShieldAl
 import { useAuth } from '@/context/AuthContext'
 import { useAdminDashboard } from '@/hooks/adminHooks/useAdminDashboard'
 import { useAdminAnomalies } from '@/hooks/adminHooks/useAdminAnomalies'
-import { deleteAdminBill, fetchAdminBill } from '../../services/adminService/adminBillingService'
+import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
+import {
+  buildUtilityComparisonRows,
+  computeUsageTrend,
+  getBillingStatusCounts,
+  getPaymentReviewCounts,
+} from '@/utils/dashboardCharts'
+import { buildUtilityCardMetric } from '@/utils/utilityCards'
+import { fetchAdminBill } from '../../services/adminService/adminBillingService'
 import { useAdminUtilityDashboard } from '../../hooks/adminHooks/useAdminUtilityDashboard'
 import {
   BarChart,
@@ -45,55 +54,6 @@ const UTILITY_META = [
   { key: 'thermal', label: 'Thermal', color: '#f43f5e' },
 ]
 
-function safeUsageAt(series = [], index = 0) {
-  return Number(series?.[index]?.usage ?? 0)
-}
-
-function buildComparisonRows(filter, electric = [], water = [], thermal = []) {
-  if (filter === '7D') {
-    const labels = electric.length
-      ? electric.map((item, index) => item.day || `Day ${index + 1}`)
-      : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-    return labels.map((label, index) => ({
-      label,
-      electricity: safeUsageAt(electric, index),
-      water: safeUsageAt(water, index),
-      thermal: safeUsageAt(thermal, index),
-    }))
-  }
-
-  const average = (series) => {
-    if (!series.length) return 0
-    return series.reduce((sum, item) => sum + Number(item?.usage ?? 0), 0) / series.length
-  }
-
-  const electricAvg = average(electric)
-  const waterAvg = average(water)
-  const thermalAvg = average(thermal)
-
-  if (filter === '1M') {
-    const weeklyFactors = [0.92, 1.08, 1.01, 1.14]
-
-    return weeklyFactors.map((factor, index) => ({
-      label: `Week ${index + 1}`,
-      electricity: Number((electricAvg * 7 * factor).toFixed(1)),
-      water: Number((waterAvg * 7 * (factor * 0.96)).toFixed(1)),
-      thermal: Number((thermalAvg * 7 * (factor * 1.04)).toFixed(1)),
-    }))
-  }
-
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const yearlyFactors = [0.94, 0.91, 0.98, 1.02, 1.08, 1.12, 1.18, 1.16, 1.07, 1.01, 0.97, 0.93]
-
-  return months.map((label, index) => ({
-    label,
-    electricity: Number((electricAvg * 30 * yearlyFactors[index]).toFixed(1)),
-    water: Number((waterAvg * 30 * (yearlyFactors[index] * 0.95)).toFixed(1)),
-    thermal: Number((thermalAvg * 30 * (yearlyFactors[index] * 1.06)).toFixed(1)),
-  }))
-}
-
 const MemoCharts = memo(function Charts({
   electricityDaily,
   waterDaily,
@@ -103,7 +63,7 @@ const MemoCharts = memo(function Charts({
 }) {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const comparisonData = useMemo(
-    () => buildComparisonRows(filter, electricityDaily, waterDaily, thermalDaily),
+    () => buildUtilityComparisonRows(filter, electricityDaily, waterDaily, thermalDaily),
     [filter, electricityDaily, thermalDaily, waterDaily]
   )
 
@@ -124,6 +84,8 @@ const MemoCharts = memo(function Charts({
       <ChartCard
         className="lg:col-span-2"
         title="Consumption Comparison"
+        exportable
+        exportRows={comparisonData}
         subtitle={
           filter === '7D'
             ? 'Daily comparison across utilities'
@@ -132,23 +94,7 @@ const MemoCharts = memo(function Charts({
               : 'Monthly consumption view for the year'
         }
         action={(
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-white/5">
-            {FILTER_OPTIONS.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setFilter(option.key)}
-                className={[
-                  'rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors',
-                  filter === option.key
-                    ? 'bg-slate-900 text-white dark:bg-cyan-400 dark:text-slate-950'
-                    : 'text-slate-500 hover:bg-white dark:text-slate-400 dark:hover:bg-white/10',
-                ].join(' ')}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <FilterPills options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
         )}
       >
         <ResponsiveContainer width="100%" height={280}>
@@ -170,6 +116,8 @@ const MemoCharts = memo(function Charts({
 
       <ChartCard
         title="Most Use Consumption"
+        exportable
+        exportRows={pieData}
         subtitle="Share of usage by utility"
         badge={topUtility ? topUtility.name : 'N/A'}
         badgeCls="border border-cyan-200/90 bg-gradient-to-b from-white to-cyan-50 text-cyan-800 shadow-[0_8px_20px_rgba(34,211,238,0.14)] dark:border-cyan-400/25 dark:bg-[linear-gradient(180deg,rgba(34,211,238,0.18),rgba(34,211,238,0.08))] dark:text-cyan-200 dark:shadow-[0_0_0_1px_rgba(34,211,238,0.12),0_10px_24px_rgba(8,145,178,0.18)]"
@@ -216,13 +164,16 @@ export default function Dashboard() {
     error,
     metrics,
     bills,
-    refreshDashboard,
+    payments,
   } = useAdminDashboard()
+  const { rates: billingRates } = useAdminRates()
 
   const {
     summary: utilityStats,
     daily,
+    comparison,
     loading: utilityLoading,
+    ensureComparisonRange,
   } = useAdminUtilityDashboard()
 
   const {
@@ -249,12 +200,87 @@ export default function Dashboard() {
     }
   }
 
-  const handleDeleteBill = async (bill) => {
-    if (!bill?.id) return
+  const filteredUtilityCards = useMemo(() => {
+    const activeSeries = comparison?.[comparisonFilter] || {
+      electric: daily.electric,
+      water: daily.water,
+      thermal: daily.thermal,
+    }
 
-    await deleteAdminBill(bill.id)
-    await refreshDashboard()
-  }
+    const comparisonRows = buildUtilityComparisonRows(
+      comparisonFilter,
+      activeSeries.electric,
+      activeSeries.water,
+      activeSeries.thermal,
+    )
+
+    const electricityRows = comparisonRows.map((row) => ({ value: Number(row.electricity || 0) }))
+    const waterRows = comparisonRows.map((row) => ({ value: Number(row.water || 0) }))
+    const thermalRows = comparisonRows.map((row) => ({ value: Number(row.thermal || 0) }))
+    const electricitySeries = comparisonRows.map((row) => ({ label: row.label, value: Number(row.electricity || 0) }))
+    const waterSeries = comparisonRows.map((row) => ({ label: row.label, value: Number(row.water || 0) }))
+    const thermalSeries = comparisonRows.map((row) => ({ label: row.label, value: Number(row.thermal || 0) }))
+
+    return {
+      electric: {
+        ...utilityStats.electric,
+        ...buildUtilityCardMetric({
+          type: 'electricity',
+          usage: electricityRows.reduce((sum, row) => sum + row.value, 0),
+          unit: utilityStats.electric?.unit || 'kWh',
+          trend: computeUsageTrend(electricityRows),
+          rates: billingRates,
+          fallbackEstimatedCost: utilityStats.electric?.estimatedCost,
+          series: electricitySeries,
+        }),
+      },
+      water: {
+        ...utilityStats.water,
+        ...buildUtilityCardMetric({
+          type: 'water',
+          usage: waterRows.reduce((sum, row) => sum + row.value, 0),
+          unit: utilityStats.water?.unit || 'm3',
+          trend: computeUsageTrend(waterRows),
+          rates: billingRates,
+          fallbackEstimatedCost: utilityStats.water?.estimatedCost,
+          series: waterSeries,
+        }),
+      },
+      thermal: {
+        ...utilityStats.thermal,
+        ...buildUtilityCardMetric({
+          type: 'thermal',
+          usage: thermalRows.reduce((sum, row) => sum + row.value, 0),
+          unit: utilityStats.thermal?.unit || 'kBTU',
+          trend: computeUsageTrend(thermalRows),
+          rates: billingRates,
+          fallbackEstimatedCost: utilityStats.thermal?.estimatedCost,
+          series: thermalSeries,
+        }),
+      },
+    }
+  }, [billingRates, comparison, comparisonFilter, daily.electric, daily.thermal, daily.water, utilityStats.electric, utilityStats.thermal, utilityStats.water])
+
+  const billingStatusData = useMemo(() => {
+    const counts = getBillingStatusCounts(bills)
+
+    return [
+      { name: 'Paid', value: counts.paid, color: '#10b981' },
+      { name: 'Unpaid', value: counts.open, color: '#3b82f6' },
+      { name: 'Overdue', value: counts.overdue, color: '#f43f5e' },
+      { name: 'Submitted', value: counts.submitted, color: '#f59e0b' },
+    ]
+  }, [bills])
+
+  const paymentReviewData = useMemo(() => {
+    const counts = getPaymentReviewCounts(Array.isArray(payments) ? payments : [])
+
+    return [
+      { name: 'Pending Review', value: counts.pending },
+      { name: 'Approved', value: counts.verified },
+      { name: 'Rejected', value: counts.rejected },
+    ]
+  }, [payments])
 
   const summaryCards = useMemo(() => {
     const kpi = [
@@ -331,6 +357,10 @@ export default function Dashboard() {
     ]
   }, [anomalyLoading, anomalySummary, safeMetrics.activeTenants, safeMetrics.occupiedUnits, safeMetrics.pendingConcerns, safeMetrics.totalRevenue, safeMetrics.totalUnits, safeMetrics.unpaidBills, user?.role])
 
+  useEffect(() => {
+    ensureComparisonRange(comparisonFilter)
+  }, [comparisonFilter, ensureComparisonRange])
+
   if (((loading || dashboardLoading) && bills.length === 0 && !metrics)
     || (utilityLoading && !utilityStats?.electric && !utilityStats?.water && !utilityStats?.thermal)) {
     return <DashboardSkeleton />
@@ -338,6 +368,14 @@ export default function Dashboard() {
 
   return (
     <PageSection>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="page-title">Admin Dashboard</h1>
+          <p className="muted-text mt-0.5">Building-wide billing, utility, and tenant performance overview.</p>
+        </div>
+        <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
+      </div>
+
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           <AlertTriangle className="h-4 w-4" />
@@ -346,9 +384,9 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <UtilityCard type="electric" {...utilityStats.electric} />
-        <UtilityCard type="thermal" {...utilityStats.thermal} />
-        <UtilityCard type="water" {...utilityStats.water} />
+        <UtilityCard type="electric" {...filteredUtilityCards.electric} />
+        <UtilityCard type="thermal" {...filteredUtilityCards.thermal} />
+        <UtilityCard type="water" {...filteredUtilityCards.water} />
       </div>
 
       {user?.role === 'super_admin' && anomalyError && (
@@ -360,14 +398,73 @@ export default function Dashboard() {
       <SummaryCardStrip cards={summaryCards} />
 
       <MemoCharts
-        electricityDaily={daily.electric}
-        waterDaily={daily.water}
-        thermalDaily={daily.thermal}
+        electricityDaily={(comparison?.[comparisonFilter] || {}).electric || daily.electric}
+        waterDaily={(comparison?.[comparisonFilter] || {}).water || daily.water}
+        thermalDaily={(comparison?.[comparisonFilter] || {}).thermal || daily.thermal}
         filter={comparisonFilter}
         setFilter={setComparisonFilter}
       />
 
-      <BillsTable bills={bills} onView={handleViewBill} onDelete={handleDeleteBill} />
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <ChartCard
+          className="overflow-visible"
+          title="Billing Status"
+          exportable
+          exportRows={billingStatusData}
+          subtitle="Current bill distribution across the building"
+        >
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie
+                data={billingStatusData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={56}
+                outerRadius={92}
+                paddingAngle={4}
+                stroke="transparent"
+              >
+                {billingStatusData.map((item) => (
+                  <Cell key={item.name} fill={item.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                allowEscapeViewBox={{ x: false, y: false }}
+                reverseDirection={{ x: true, y: false }}
+                content={<ThemedChartTooltip constrainToViewBox isDark={typeof document !== 'undefined' && document.documentElement.classList.contains('dark')} formatter={(value, name) => [formatChartNumber(value), name]} />}
+                formatter={(value, name) => [formatChartNumber(value), name]}
+              />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard
+          title="Payment Review"
+          exportable
+          exportRows={paymentReviewData}
+          subtitle="Receipt review workload and outcomes"
+        >
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={paymentReviewData} margin={CHART_MARGIN_COMPACT}>
+              <CartesianGrid {...CHART_GRID_PROPS} />
+              <XAxis dataKey="name" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+              <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                content={<ThemedChartTooltip isDark={typeof document !== 'undefined' && document.documentElement.classList.contains('dark')} formatter={(value, name) => [formatChartNumber(value), name]} />}
+                formatter={(value, name) => [formatChartNumber(value), name]}
+              />
+              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                <Cell fill="#f59e0b" />
+                <Cell fill="#10b981" />
+                <Cell fill="#ef4444" />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <BillsTable bills={bills} onView={handleViewBill} />
     </PageSection>
   )
 }
