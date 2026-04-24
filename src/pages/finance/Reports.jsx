@@ -7,12 +7,11 @@ import {
 import {
   BarChart3, TrendingUp, AlertCircle, CheckCircle2, Zap, Droplets, Flame,
 } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
 import { fetchFinanceBills, fetchFinancePayments } from '@/services/financeService/financeBillService'
 import PageActionBar from '@/components/common/PageActionBar'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { exportTableCsv, printElement } from '@/utils/reporting'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const TOOLTIP_STYLE = {
   borderRadius: 12,
@@ -110,7 +109,6 @@ function CurrencyTooltip({ active, payload, label }) {
 }
 
 export default function FinanceReports() {
-  const pageLoading = usePageLoader(700)
   const printRef = useRef(null)
   const [bills, setBills] = useState([])
   const [payments, setPayments] = useState([])
@@ -305,9 +303,8 @@ export default function FinanceReports() {
     })
   }
 
-  const loadingState = (pageLoading && bills.length === 0 && payments.length === 0) || (loading && bills.length === 0 && payments.length === 0 && !error)
-  if (loadingState) return <ReportsSkeleton />
-
+  const isInitialLoading = loading && bills.length === 0 && payments.length === 0 && !error
+  const isRefreshing = loading && (bills.length > 0 || payments.length > 0)
   return (
     <div className="space-y-6 animate-in">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -338,6 +335,7 @@ export default function FinanceReports() {
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
             <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
           </div>
+          <UpdatingBadge show={isRefreshing} />
           <PageActionBar
             onExport={handleExport}
             onPrint={handlePrint}
@@ -364,7 +362,7 @@ export default function FinanceReports() {
         ].map((card) => (
           <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
             <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
-            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
             <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
           </div>
         ))}
@@ -381,27 +379,33 @@ export default function FinanceReports() {
           </div>
           <ChartExportButton title="Monthly Revenue Report" rows={rangedMonthly} />
         </div>
+        {rangedMonthly.length > 0 ? (
           <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={rangedMonthly} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.12} />
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gCol" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.12} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `PHP ${(v / 1000).toFixed(0)}K`} />
-            <Tooltip content={<CurrencyTooltip />} />
-            <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gRev)" dot={false} name="Revenue" />
-            <Area type="monotone" dataKey="collected" stroke="#10b981" strokeWidth={2} fill="url(#gCol)" dot={false} name="Collected" />
-            <Line type="monotone" dataKey="expenses" stroke="#f43f5e" strokeWidth={2} dot={false} strokeDasharray="5 4" name="Expenses" />
-          </AreaChart>
-        </ResponsiveContainer>
+            <AreaChart data={rangedMonthly} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.12} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gCol" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.12} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(v) => `PHP ${(v / 1000).toFixed(0)}K`} />
+              <Tooltip content={<CurrencyTooltip />} />
+              <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gRev)" dot={false} name="Revenue" />
+              <Area type="monotone" dataKey="collected" stroke="#10b981" strokeWidth={2} fill="url(#gCol)" dot={false} name="Collected" />
+              <Line type="monotone" dataKey="expenses" stroke="#f43f5e" strokeWidth={2} dot={false} strokeDasharray="5 4" name="Expenses" />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : isInitialLoading ? (
+          <ChartLoadingState className="h-[240px]" />
+        ) : (
+          <ChartLoadingState text="No chart data available yet." className="h-[240px]" />
+        )}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
@@ -429,18 +433,24 @@ export default function FinanceReports() {
               </div>
             ))}
           </div>
+          {rangedUtilityByMonth.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={rangedUtilityByMonth} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => `PHP ${(v / 1000).toFixed(0)}K`} />
-              <Tooltip content={<CurrencyTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="electricity" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Electricity" />
-              <Bar dataKey="water" fill="#06b6d4" radius={[4, 4, 0, 0]} name="Water" />
-              <Bar dataKey="thermal" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Thermal" />
-            </BarChart>
-          </ResponsiveContainer>
+              <BarChart data={rangedUtilityByMonth} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => `PHP ${(v / 1000).toFixed(0)}K`} />
+                <Tooltip content={<CurrencyTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="electricity" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Electricity" />
+                <Bar dataKey="water" fill="#06b6d4" radius={[4, 4, 0, 0]} name="Water" />
+                <Bar dataKey="thermal" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Thermal" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : isInitialLoading ? (
+            <ChartLoadingState className="h-[200px]" />
+          ) : (
+            <ChartLoadingState text="No chart data available yet." className="h-[200px]" />
+          )}
         </div>
 
         <div data-chart-export-panel="true" className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm flex flex-col">
@@ -452,14 +462,20 @@ export default function FinanceReports() {
             <ChartExportButton title="Revenue Distribution" rows={rangedUtilityPie} />
           </div>
           <div className="flex-1 flex flex-col items-center justify-center">
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie data={rangedUtilityPie} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={3} dataKey="value">
-                  {rangedUtilityPie.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(v) => [`${v}%`, 'Share']} contentStyle={TOOLTIP_STYLE} />
-              </PieChart>
-            </ResponsiveContainer>
+            {rangedUtilityPie.some((entry) => Number(entry.value) > 0) ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={rangedUtilityPie} cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={3} dataKey="value">
+                    {rangedUtilityPie.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => [`${v}%`, 'Share']} contentStyle={TOOLTIP_STYLE} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : isInitialLoading ? (
+              <ChartLoadingState className="h-[160px]" />
+            ) : (
+              <ChartLoadingState text="No chart data available yet." className="h-[160px]" />
+            )}
             <div className="space-y-2 w-full mt-3">
               {rangedUtilityPie.map(({ name, value, color }) => (
                 <div key={name} className="flex items-center justify-between text-sm">
@@ -487,7 +503,7 @@ export default function FinanceReports() {
             Payment Collection Rate
           </h2>
           <div className="text-center py-4">
-            <p className="text-6xl font-black text-emerald-600 dark:text-emerald-400">{collRate}%</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={`${collRate}%`} className="text-6xl font-black text-emerald-600 dark:text-emerald-400" spinnerClassName="h-6 w-6 text-slate-400" />
             <p className="text-sm text-slate-400 mt-1">of total bills collected</p>
           </div>
           <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-3">
@@ -500,7 +516,7 @@ export default function FinanceReports() {
               { label: 'Pending', count: unpaidBills.filter((bill) => ['submitted', 'partial', 'published'].includes(bill.status)).length, amount: unpaidBills.filter((bill) => ['submitted', 'partial', 'published'].includes(bill.status)).reduce((sum, bill) => sum + bill.amount, 0), cls: 'text-amber-600 dark:text-amber-400' },
             ].map((stat) => (
               <div key={stat.label} className="rounded-xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 text-center">
-                <p className={`text-xl font-bold ${stat.cls}`}>{stat.count}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={stat.count} className={`text-xl font-bold ${stat.cls}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] text-slate-400 capitalize">{stat.label}</p>
                 <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 mt-0.5">PHP {stat.amount.toLocaleString()}</p>
               </div>
@@ -589,7 +605,9 @@ export default function FinanceReports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredTransactions.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={7} />
+              ) : filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
                     No transactions matched the current filters.

@@ -13,7 +13,7 @@ import {
   Legend,
 } from 'recharts'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityPageSkeleton } from '@/components/skeletons'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useTenantUsageMonitoring } from '@/hooks/tenantHooks/useTenantUsageMonitoring'
 import {
@@ -79,9 +79,6 @@ export default function Usage() {
     refreshUsage(selectedUnit, selectedTimeRange)
   }, [refreshUsage, selectedTimeRange, selectedUnit])
 
-  const isLoading = (pageLoading && !summary?.electric && safeHourly.length === 0 && safeDaily.length === 0 && safeMonthly.length === 0)
-    || (loading && !summary?.electric && safeHourly.length === 0 && safeDaily.length === 0 && safeMonthly.length === 0)
-
   const safeHourly = useMemo(() => {
     return Array.isArray(hourly) && hourly.length > 0
       ? hourly
@@ -95,8 +92,8 @@ export default function Usage() {
   const safeMonthly = useMemo(() => {
     return Array.isArray(monthly) ? monthly : []
   }, [monthly])
-
-  if (isLoading) return <FacilityPageSkeleton />
+  const isInitialLoading = (pageLoading || loading) && !summary?.electric && safeDaily.length === 0 && safeMonthly.length === 0
+  const isRefreshing = !isInitialLoading && loading
 
   const unitLabel = selectedUnit === 'all'
     ? tenantUnits.length > 1
@@ -150,15 +147,18 @@ export default function Usage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-            Live data
-          </span>
+        <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              Live data
+            </span>
+          </div>
         </div>
       </div>
 
@@ -184,9 +184,7 @@ export default function Usage() {
                   <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wide">
                     {s.label}
                   </p>
-                  <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">
-                    {s.value}
-                  </p>
+                  <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={s.value} className="text-xl font-bold text-slate-800 dark:text-white mt-1" spinnerClassName="h-5 w-5 text-slate-400" />
                   <p className="text-[10px] text-slate-400 mt-1">
                     {s.previous} - {s.current} · {selectedRangeLabel}
                   </p>

@@ -12,6 +12,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react'
+import { UpdatingBadge } from '@/components/common/InlineLoadingState'
 import Modal from '@/components/ui/Modal'
 import { useAuth } from '@/context/AuthContext'
 import EmptyState from '@/components/ui/EmptyState'
@@ -459,9 +460,12 @@ export default function GlobalSearch() {
 
   return (
     <div className="space-y-5 animate-in">
-      <div>
-        <h1 className="font-bold text-xl text-slate-800 dark:text-white">Global Search</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Search exact records, tickets, bills, notifications, and other role-based content.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-bold text-xl text-slate-800 dark:text-white">Global Search</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Search exact records, tickets, bills, notifications, and other role-based content.</p>
+        </div>
+        <UpdatingBadge show={loading} />
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
@@ -624,4 +628,3 @@ export default function GlobalSearch() {
     </div>
   )
 }
-

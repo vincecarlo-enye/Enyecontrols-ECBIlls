@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ShieldAlert, Lightbulb } from 'lucide-react'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { useAdminAnomalies } from '@/hooks/adminHooks/useAdminAnomalies'
 import { useApp } from '@/context/AppContext'
 
@@ -20,12 +20,12 @@ export default function AdminAnomalies() {
   const { anomalies, summary, loading, saving, error, saveAnomaly } = useAdminAnomalies()
   const [statusFilter, setStatusFilter] = useState('all')
   const [severityFilter, setSeverityFilter] = useState('all')
+  const isInitialLoading = loading && anomalies.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const filtered = useMemo(() => anomalies.filter((row) => {
     return (statusFilter === 'all' || row.status === statusFilter) && (severityFilter === 'all' || row.severity === severityFilter)
   }), [anomalies, statusFilter, severityFilter])
-
-  if (loading) return <ReportsSkeleton />
 
   const handleUpdate = async (id, payload) => {
     const result = await saveAnomaly(id, payload)
@@ -34,9 +34,12 @@ export default function AdminAnomalies() {
 
   return (
     <div className="space-y-6 animate-in">
-      <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
         <h1 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-rose-500" />AI Anomaly Oversight</h1>
         <p className="text-sm text-slate-400 mt-0.5">Monitor anomaly handling, reclassify severity, and review history</p>
+        </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -50,7 +53,7 @@ export default function AdminAnomalies() {
         ].map((item) => (
           <div key={item.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
             <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{item.label}</p>
-            <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={item.value} className={`text-2xl font-bold ${item.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
           </div>
         ))}
       </div>
@@ -80,7 +83,9 @@ export default function AdminAnomalies() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filtered.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={8} />
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No anomalies match the current filters.</td>
                 </tr>

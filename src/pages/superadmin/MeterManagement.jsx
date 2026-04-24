@@ -4,9 +4,9 @@ import {
   AlertCircle, Shield, Lock,
 } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { DashboardSkeleton } from '@/components/skeletons'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import PaginationBar from '@/components/common/PaginationBar'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useAdminMeters } from '@/hooks/adminHooks/useAdminMeters'
 
@@ -395,8 +395,8 @@ export default function MeterManagement() {
 
     return matchType && matchSearch
   }), [meters, search, typeFilter])
-
-  if ((pageLoading && meters.length === 0) || (loading && meters.length === 0)) return <DashboardSkeleton />
+  const isInitialLoading = (pageLoading || loading) && meters.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   if (!isSuperAdmin) {
     return (
@@ -426,7 +426,7 @@ export default function MeterManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">Meter Management</h2>
@@ -437,16 +437,19 @@ export default function MeterManagement() {
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Manage all electric, water, and thermal energy meters across units</p>
         </div>
-        <button
-          onClick={() => {
-            setEditing(null)
-            setShowForm(true)
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Add Meter
-        </button>
+        <div className="flex items-center gap-3">
+          <UpdatingBadge show={isRefreshing} />
+          <button
+            onClick={() => {
+              setEditing(null)
+              setShowForm(true)
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add Meter
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -465,7 +468,13 @@ export default function MeterManagement() {
                   <Icon className={`w-5 h-5 ${item.color}`} />
                 </div>
                 <div>
-                  <p className="text-2xl font-display font-700 text-slate-800 dark:text-white">{counts[item.value] || 0}</p>
+                  <LoadingValue
+                    loading={isInitialLoading}
+                    updating={isRefreshing}
+                    value={counts[item.value] || 0}
+                    className="text-2xl font-display font-700 text-slate-800 dark:text-white"
+                    spinnerClassName="h-5 w-5 text-slate-400"
+                  />
                   <p className="text-xs text-slate-500 dark:text-slate-400">{item.label} Meters</p>
                 </div>
               </div>
@@ -502,7 +511,15 @@ export default function MeterManagement() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {isInitialLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700/40 flex items-center justify-center mb-4">
+            <Zap className="w-7 h-7 text-slate-400 animate-pulse" />
+          </div>
+          <p className="font-semibold text-slate-600 dark:text-slate-300 mb-1">Loading meters...</p>
+          <p className="text-sm text-slate-400">Meter data is on the way.</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-700/40 flex items-center justify-center mb-4">
             <Zap className="w-7 h-7 text-slate-400" />

@@ -1,9 +1,8 @@
 import { Wifi, WifiOff } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityPageSkeleton } from '@/components/skeletons'
 import { useFacilityEquipment } from '@/hooks/facilityHooks/useFacilityEquipment'
 import PaginationBar from '@/components/common/PaginationBar'
 import { useClientPagination } from '@/hooks/useClientPagination'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const statusIcon = {
   online: <Wifi className="w-4 h-4 text-emerald-500" />,
@@ -25,13 +24,11 @@ const typeBadge = {
 }
 
 export default function EquipmentStatus() {
-  const pageLoading = usePageLoader(700)
   const { meters, loading, error, stats } = useFacilityEquipment()
   const pagination = useClientPagination(meters, 10)
 
-  const loadingState = (pageLoading && meters.length === 0) || (loading && meters.length === 0 && !error)
-  if (loadingState) return <FacilityPageSkeleton />
-
+  const isInitialLoading = loading && meters.length === 0 && !error
+  const isRefreshing = loading && meters.length > 0
   return (
     <div className="space-y-6 animate-in">
       <div className="flex items-center justify-between gap-3">
@@ -39,6 +36,7 @@ export default function EquipmentStatus() {
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Equipment Status</h1>
           <p className="text-sm text-slate-400 mt-0.5">Manage meters, sensors, and equipment assignments</p>
         </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       {error && (
@@ -54,7 +52,7 @@ export default function EquipmentStatus() {
           { label: 'Warning', value: stats.warning, color: 'text-amber-500' },
         ].map((s) => (
           <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm text-center">
-            <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={s.value} className={`text-3xl font-bold ${s.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wider mt-1">{s.label}</p>
           </div>
         ))}
@@ -74,7 +72,9 @@ export default function EquipmentStatus() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {meters.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={6} />
+              ) : meters.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">No equipment records found.</td>
                 </tr>

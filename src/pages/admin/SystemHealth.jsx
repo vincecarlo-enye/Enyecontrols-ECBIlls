@@ -1,7 +1,7 @@
 import { formatDateTime } from '@/utils/filterUtils'
 import { AlertTriangle, CheckCircle2, RefreshCw, ServerCrash, ShieldCheck, WifiOff } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { useAdminSystemHealth } from '@/hooks/adminHooks/useAdminSystemHealth'
 
 
@@ -27,7 +27,7 @@ function ServiceBadge({ status }) {
   )
 }
 
-function SummaryCard({ label, value, sub, tone }) {
+function SummaryCard({ label, value, sub, tone, loading = false, updating = false }) {
   const toneMap = {
     amber: 'text-amber-600 dark:text-amber-400',
     blue: 'text-blue-600 dark:text-blue-400',
@@ -39,7 +39,7 @@ function SummaryCard({ label, value, sub, tone }) {
   return (
     <div className="glass rounded-2xl p-5 shadow-lg">
       <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`mt-2 font-display text-3xl font-700 ${toneMap[tone] || toneMap.slate}`}>{value}</p>
+      <LoadingValue loading={loading} updating={updating} value={value} className={`mt-2 font-display text-3xl font-700 ${toneMap[tone] || toneMap.slate}`} spinnerClassName="h-5 w-5 text-slate-400" />
       <p className="mt-1 text-xs text-slate-400">{sub}</p>
     </div>
   )
@@ -54,8 +54,8 @@ export default function SystemHealth() {
     summaryCards,
     reload,
   } = useAdminSystemHealth()
-
-  if (loadingScreen || loading) return <ReportsSkeleton />
+  const isInitialLoading = (loadingScreen || loading) && summaryCards.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const services = data.services || {}
   const pageHealth = Array.isArray(data.freshness?.page_health) ? data.freshness.page_health : []
@@ -72,13 +72,16 @@ export default function SystemHealth() {
           <p className="mt-1 text-xs text-slate-400">Last generated: {formatDateTime(data.generatedAt)}</p>
         </div>
 
-        <button
-          onClick={reload}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh Health
-        </button>
+        <div className="flex items-center gap-3">
+          <UpdatingBadge show={isRefreshing} />
+          <button
+            onClick={reload}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Health
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -89,7 +92,7 @@ export default function SystemHealth() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {summaryCards.map((card) => (
-          <SummaryCard key={card.key} {...card} />
+          <SummaryCard key={card.key} {...card} loading={isInitialLoading} updating={isRefreshing} />
         ))}
       </div>
 
@@ -214,7 +217,9 @@ export default function SystemHealth() {
                 </tr>
               </thead>
               <tbody>
-                {pageHealth.length === 0 ? (
+                {isInitialLoading ? (
+                  <TableLoadingRow colSpan={6} />
+                ) : pageHealth.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-400">
                       No page health data found yet.

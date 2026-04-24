@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Wrench, Plus, X } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityPageSkeleton } from '@/components/skeletons'
 import { useFacilityMaintenance } from '@/hooks/facilityHooks/useFacilityMaintenance'
 import { useApp } from '@/context/AppContext'
 import PaginationBar from '@/components/common/PaginationBar'
 import { useClientPagination } from '@/hooks/useClientPagination'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const priorityBadge = {
   critical: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
@@ -23,7 +22,6 @@ const statusBadge = {
 const EMPTY = { title: '', type: 'Plumbing', priority: 'medium', technician: '', status: 'open' }
 
 export default function Maintenance() {
-  const pageLoading = usePageLoader(700)
   const { addToast } = useApp()
   const { tickets, loading, saving, error, stats, createTicket, updateStatus } = useFacilityMaintenance()
   const [showForm, setShowForm] = useState(false)
@@ -31,9 +29,8 @@ export default function Maintenance() {
   const [formErrors, setFormErrors] = useState({})
   const pagination = useClientPagination(tickets, 10)
 
-  const loadingState = (pageLoading && tickets.length === 0) || (loading && tickets.length === 0 && !error)
-  if (loadingState) return <FacilityPageSkeleton />
-
+  const isInitialLoading = loading && tickets.length === 0 && !error
+  const isRefreshing = loading && tickets.length > 0
   const handleCreate = async () => {
     if (!form.title.trim()) {
       setFormErrors({ title: 'Issue title is required.' })
@@ -74,13 +71,16 @@ export default function Maintenance() {
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Maintenance Requests</h1>
           <p className="text-sm text-slate-400 mt-0.5">Track and manage utility-related incidents</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5"
-        >
-          <Plus className="w-4 h-4" />
-          New Ticket
-        </button>
+        <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5"
+          >
+            <Plus className="w-4 h-4" />
+            New Ticket
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -96,7 +96,7 @@ export default function Maintenance() {
           { label: 'Resolved', value: stats.resolved, color: 'text-emerald-600' },
         ].map((s) => (
           <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm text-center">
-            <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={s.value} className={`text-3xl font-bold ${s.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wider mt-1">{s.label}</p>
           </div>
         ))}
@@ -161,7 +161,9 @@ export default function Maintenance() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {tickets.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={7} />
+              ) : tickets.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">No maintenance tickets yet.</td>
                 </tr>

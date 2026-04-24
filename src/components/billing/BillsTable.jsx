@@ -20,6 +20,7 @@ import { useModalState } from '@/hooks/useModalState'
 import { exportAllBillsCSV, exportBillCSV } from '@/services/billingService'
 import { fetchAdminBills } from '@/services/adminService/adminBillingService'
 import { printElement } from '@/utils/reporting'
+import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const STATUS_FILTER_TABS = [
   { k: 'all', l: 'All' },
@@ -173,7 +174,7 @@ function ExportDropdown({ bill }) {
   )
 }
 
-function BillsTable({ bills = [], onView, onDelete }) {
+function BillsTable({ bills = [], onView, onDelete, loading = false, updating = false }) {
   const viewer = useModalState()
   const printRef = useRef(null)
   const [filter, setFilter] = useState('all')
@@ -242,6 +243,7 @@ function BillsTable({ bills = [], onView, onDelete }) {
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
+            <UpdatingBadge show={updating} />
             {STATUS_FILTER_TABS.map(({ k, l }) => (
               <button
                 key={k}
@@ -297,7 +299,9 @@ function BillsTable({ bills = [], onView, onDelete }) {
             </thead>
 
             <tbody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <TableLoadingRow colSpan={7} />
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7}>
                     <EmptyState

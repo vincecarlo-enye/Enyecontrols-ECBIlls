@@ -6,7 +6,7 @@ import {
 import { Download, Printer } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { ChartLoadingState, LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import FilterPills from '@/components/common/FilterPills'
 import { useAdminUsageReports } from '@/hooks/adminHooks/useAdminUsageReports'
@@ -173,6 +173,8 @@ export default function UsageReports() {
   } = useAdminUsageReports({ preferredPage: PAGE_NAME, skipPagesLoad: true })
 
   const [range, setRange] = useState('7D')
+  const isInitialLoading = (loading || usageLoading) && chartData.length === 0 && !error
+  const isRefreshing = !isInitialLoading && usageLoading
 
   const rangeRows = useMemo(
     () => getRangeRows(range, chartData, monthlyOverview),
@@ -251,8 +253,6 @@ export default function UsageReports() {
     })
   }
 
-  if (loading || usageLoading) return <ReportsSkeleton />
-
   return (
     <div className="space-y-6 animate-in">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -262,6 +262,7 @@ export default function UsageReports() {
         </div>
 
         <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
           <FilterPills options={RANGE_OPTIONS} value={range} onChange={setRange} />
           <button
             onClick={handlePrint}
@@ -301,6 +302,9 @@ export default function UsageReports() {
                 </div>
                 <ChartExportButton title={`${chart.title} Usage`} rows={chart.data} />
               </div>
+              {isInitialLoading ? (
+                <ChartLoadingState className="h-[150px]" />
+              ) : (
               <ResponsiveContainer width="100%" height={150}>
                 <AreaChart data={chart.data} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                   <defs>
@@ -326,6 +330,7 @@ export default function UsageReports() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              )}
             </div>
           ))}
         </div>
@@ -341,6 +346,9 @@ export default function UsageReports() {
               <ChartExportButton title="Usage Breakdown" rows={rangeRows} />
             </div>
           </div>
+          {isInitialLoading ? (
+            <ChartLoadingState className="h-[250px]" />
+          ) : (
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={rangeRows} barSize={14} barGap={3} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
@@ -356,6 +364,7 @@ export default function UsageReports() {
               <Bar dataKey="thermal" name="Thermal" fill="#f43f5e" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         <div data-chart-export-panel="true" className="glass rounded-2xl p-5 shadow-lg">
@@ -366,6 +375,9 @@ export default function UsageReports() {
             </div>
             <ChartExportButton title="Total Usage Trend" rows={rangeRows} />
           </div>
+          {isInitialLoading ? (
+            <ChartLoadingState className="h-[200px]" />
+          ) : (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={rangeRows} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
@@ -385,6 +397,7 @@ export default function UsageReports() {
               />
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>

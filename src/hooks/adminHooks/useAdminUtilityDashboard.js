@@ -74,6 +74,7 @@ export function useAdminUtilityDashboard() {
   )
 
   const [loading, setLoading] = useState(!(hasHydratedSummary && hasHydratedDaily))
+  const [comparisonLoadingRanges, setComparisonLoadingRanges] = useState(() => new Set())
   const [error, setError] = useState('')
 
   const applyComparisonRange = useCallback((range, response) => {
@@ -152,10 +153,23 @@ export function useAdminUtilityDashboard() {
     if (!range || range === '7D' || loadedComparisonRanges.has(range)) return
 
     try {
+      setLoading(true)
+      setComparisonLoadingRanges((prev) => {
+        const next = new Set(prev)
+        next.add(range)
+        return next
+      })
       const response = await fetchUtilityComparison(range)
       applyComparisonRange(range, response)
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load utility comparison data.')
+    } finally {
+      setComparisonLoadingRanges((prev) => {
+        const next = new Set(prev)
+        next.delete(range)
+        return next
+      })
+      setLoading(false)
     }
   }, [applyComparisonRange, loadedComparisonRanges])
 
@@ -196,6 +210,7 @@ export function useAdminUtilityDashboard() {
     comparison,
     trends,
     loading,
+    comparisonLoadingRanges,
     error,
     refreshUtilities: loadUtilityDashboard,
     ensureComparisonRange,

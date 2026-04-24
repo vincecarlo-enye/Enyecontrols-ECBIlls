@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { TenantProfileSkeleton } from '@/components/skeletons'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import {
   getTenantProfile,
   updateTenantPassword,
@@ -87,6 +87,8 @@ export default function TenantProfile() {
   const [error, setError] = useState('')
   const [form, setForm] = useState(() => getProfileState(user))
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
+  const isInitialLoading = (pageLoading || profileLoading) && !form.name && !error
+  const isRefreshing = !isInitialLoading && profileLoading
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -117,10 +119,6 @@ export default function TenantProfile() {
 
     loadProfile()
   }, [refreshCurrentUser, updateCurrentUser])
-
-  if ((pageLoading && !form.name && !form.email) || (profileLoading && !form.name && !form.email)) {
-    return <TenantProfileSkeleton />
-  }
 
   const handleSave = async () => {
     try {
@@ -202,13 +200,16 @@ export default function TenantProfile() {
 
   return (
     <div className="space-y-5 animate-in">
-      <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
         <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">
           My Profile
         </h1>
         <p className="text-sm text-slate-400 mt-0.5">
           Manage your account information
         </p>
+        </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       {error && (
@@ -222,9 +223,7 @@ export default function TenantProfile() {
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-500/20 mb-4">
             {user?.initials || getInitials(form.name) || 'T'}
           </div>
-          <p className="font-semibold text-lg text-slate-800 dark:text-white">
-            {form.name || 'Tenant'}
-          </p>
+          <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={form.name || 'Tenant'} className="font-semibold text-lg text-slate-800 dark:text-white" spinnerClassName="h-5 w-5 text-slate-400" />
           <p className="text-sm text-slate-400 mt-0.5">
             {form.building || 'Tenant Account'}
           </p>

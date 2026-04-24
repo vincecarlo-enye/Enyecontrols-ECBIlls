@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { DashboardSkeleton } from '@/components/skeletons'
+import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import PaginationBar from '@/components/common/PaginationBar'
 import { useSuperAdminUsers } from '@/hooks/superAdminHooks/useSuperAdminUsers'
@@ -177,8 +177,9 @@ export default function UserManagement() {
     const matchRole = roleFilter === 'all' || u.role === roleFilter
     return matchSearch && matchRole
   }), [users, search, roleFilter])
+  const isInitialLoading = (loading || usersLoading) && users.length === 0 && !error
+  const isRefreshing = !isInitialLoading && usersLoading
 
-  if ((loading && users.length === 0) || (usersLoading && users.length === 0)) return <DashboardSkeleton />
   if (!isSuperAdmin) return (
     <div className="flex flex-col items-center justify-center py-24">
       <Lock className="w-12 h-12 text-slate-300 mb-4" />
@@ -244,7 +245,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">User Management</h2>
@@ -254,10 +255,13 @@ export default function UserManagement() {
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Manage all system users, roles, and access</p>
         </div>
-        <button onClick={() => { setEditingUser(null); setShowForm(true) }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all">
-          <Plus className="w-4 h-4" />Add User
-        </button>
+        <div className="flex items-center gap-3">
+          <UpdatingBadge show={isRefreshing} />
+          <button onClick={() => { setEditingUser(null); setShowForm(true) }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all">
+            <Plus className="w-4 h-4" />Add User
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -293,7 +297,9 @@ export default function UserManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {filtered.map((u) => {
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={5} />
+              ) : filtered.map((u) => {
                 const badge = getRoleBadge(u.role)
                 const isSelf = u.id === currentUser.id
                 const isSA = u.role === 'super_admin'
@@ -352,7 +358,7 @@ export default function UserManagement() {
               })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {!isInitialLoading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-14 text-center">
               <Users className="w-10 h-10 text-slate-300 mb-3" />
               <p className="font-semibold text-slate-500">No users found</p>

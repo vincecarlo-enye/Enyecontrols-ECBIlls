@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useClientPagination } from '@/hooks/useClientPagination'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { UnitsSkeleton } from '@/components/skeletons'
 import Drawer from '@/components/ui/Drawer'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import PaginationBar from '@/components/common/PaginationBar'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import {
   Building2,
   Zap,
@@ -30,7 +30,7 @@ const emptyForm = {
   building_name: '',
 }
 
-function StatCard({ label, value, sub, tone = 'slate' }) {
+function StatCard({ label, value, sub, tone = 'slate', loading = false, updating = false }) {
   const toneClass = {
     slate: 'text-slate-800 dark:text-white',
     emerald: 'text-emerald-600 dark:text-emerald-400',
@@ -40,7 +40,13 @@ function StatCard({ label, value, sub, tone = 'slate' }) {
   return (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
       <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`mt-2 text-2xl font-display font-700 ${toneClass[tone]}`}>{value}</p>
+      <LoadingValue
+        loading={loading}
+        updating={updating}
+        value={value}
+        className={`mt-2 text-2xl font-display font-700 ${toneClass[tone]}`}
+        spinnerClassName="h-5 w-5 text-slate-400"
+      />
       <p className="mt-1 text-xs text-slate-400">{sub}</p>
     </div>
   )
@@ -141,6 +147,8 @@ export default function Units() {
   const [deleteError, setDeleteError] = useState('')
 
   const isSuperAdmin = user?.role === 'super_admin'
+  const isInitialLoading = (pageLoading || unitsLoading) && units.length === 0 && !error
+  const isRefreshing = !isInitialLoading && unitsLoading
 
   const occupied = units.filter((unit) => getUnitOccupancyStatus(unit) === 'occupied').length
   const vacant = units.filter((unit) => getUnitOccupancyStatus(unit) === 'vacant').length
@@ -293,8 +301,6 @@ export default function Units() {
   const deletingUnit = units.find((unit) => String(unit.id) === String(deletingId))
   const deletingGuard = deletingUnit ? getUnitDeleteGuard(deletingUnit, metersByUnit) : null
 
-  if ((pageLoading && units.length === 0) || (unitsLoading && units.length === 0)) return <UnitsSkeleton />
-
   return (
     <div className="space-y-6 animate-in">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -303,13 +309,16 @@ export default function Units() {
           <p className="mt-1 text-sm text-slate-400">Review unit occupancy, tenant assignments, and meter readiness.</p>
         </div>
 
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Unit
-        </button>
+        <div className="flex items-center gap-3">
+          <UpdatingBadge show={isRefreshing} />
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            Add Unit
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -319,9 +328,9 @@ export default function Units() {
       ) : null}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={{ maxWidth: '460px' }}>
-        <StatCard label="Total Units" value={units.length} sub="All registered units" />
-        <StatCard label="Occupied" value={occupied} sub="Units with active occupants" tone="emerald" />
-        <StatCard label="Vacant" value={vacant} sub="Units available or unassigned" tone="amber" />
+        <StatCard label="Total Units" value={units.length} sub="All registered units" loading={isInitialLoading} updating={isRefreshing} />
+        <StatCard label="Occupied" value={occupied} sub="Units with active occupants" tone="emerald" loading={isInitialLoading} updating={isRefreshing} />
+        <StatCard label="Vacant" value={vacant} sub="Units available or unassigned" tone="amber" loading={isInitialLoading} updating={isRefreshing} />
       </div>
 
       {isSuperAdmin ? <MeterOverviewPanel compact /> : null}
@@ -356,7 +365,9 @@ export default function Units() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {paginated.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={6} />
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center text-slate-400">
                     <Building2 className="mx-auto mb-3 h-10 w-10 opacity-30" />

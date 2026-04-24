@@ -7,7 +7,6 @@ import { useMemo, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search, X } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { useAuth } from '@/context/AuthContext'
-import { usePageLoader } from '@/hooks/usePageLoader'
 import { useBills } from '@/components/billing/hooks/useBills'
 import useTenantBillingReports from '@/hooks/tenantHooks/useTenantBillingReports'
 import TicketCard from '@/components/billing/concerns/TicketCard'
@@ -17,6 +16,7 @@ import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 import PageActionBar from '@/components/common/PageActionBar'
 import { downloadCsv } from '@/utils/exportCsv'
 import { printElement } from '@/utils/reporting'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const FILTERS = [
   'all',
@@ -31,7 +31,6 @@ const FILTERS = [
 ]
 
 export default function TenantBillingReports() {
-  const pageLoading = usePageLoader(600)
   const printRef = useRef(null)
   const {
     concerns,
@@ -167,16 +166,8 @@ export default function TenantBillingReports() {
     ).length,
   }
 
-  if ((pageLoading && concerns.length === 0) || (concernsLoading && concerns.length === 0)) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-48" />
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-28 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-        ))}
-      </div>
-    )
-  }
+  const isInitialLoading = concernsLoading && concerns.length === 0
+  const isRefreshing = concernsLoading && concerns.length > 0
 
   const handleExport = () => {
     if (!filtered.length) {
@@ -215,12 +206,15 @@ export default function TenantBillingReports() {
             Track your submitted billing concerns
           </p>
         </div>
-        <button
-          onClick={() => setPickerOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold shadow-sm hover:opacity-90 transition-all"
-        >
-          <Plus className="w-4 h-4" /> Report Concern
-        </button>
+        <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-semibold shadow-sm hover:opacity-90 transition-all"
+          >
+            <Plus className="w-4 h-4" /> Report Concern
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -260,7 +254,7 @@ export default function TenantBillingReports() {
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wide print-billing-summary-label">
               {item.label}
             </p>
-            <p className={`text-2xl font-bold mt-1 print-billing-summary-value ${item.cls}`}>{item.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={item.value} className={`text-2xl font-bold mt-1 print-billing-summary-value ${item.cls}`} spinnerClassName="h-5 w-5 text-slate-400" />
           </div>
         ))}
       </div>
@@ -281,7 +275,11 @@ export default function TenantBillingReports() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {isInitialLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Loading...</p>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <AlertCircle className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">

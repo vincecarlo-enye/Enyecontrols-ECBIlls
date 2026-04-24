@@ -16,7 +16,6 @@ import {
   useUnitFilter,
 } from '@/context/UnitFilterContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { TenantDashboardSkeleton } from '@/components/skeletons'
 import AnnouncementPanel from '@/components/common/AnnouncementPanel'
 import BillViewerModal from '@/components/billing/BillViewerModal'
 import ReceiptUploadModal from '@/components/billing/ReceiptUploadModal'
@@ -28,6 +27,7 @@ import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import { useBills } from '@/components/billing/hooks/useBills'
 import { useTenantDashboardData } from '@/hooks/tenantHooks/useTenantDashboardData'
 import useTenantRates from '@/hooks/tenantHooks/useTenantRates'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 
 function formatReadableDate(value) {
@@ -350,10 +350,6 @@ export default function TenantDashboard() {
     return rawSnapshots?.message || `Live meter snapshots updated ${formattedLatest}.`
   }, [rawSnapshots])
 
-  if ((pageLoading && bills.length === 0) || (billsLoading && bills.length === 0)) {
-    return <TenantDashboardSkeleton />
-  }
-
   const electric = selectedSummary?.electric || {}
   const water = selectedSummary?.water || {}
   const thermal = selectedSummary?.thermal || {}
@@ -431,6 +427,8 @@ export default function TenantDashboard() {
       trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).thermal.usage || 0))),
     },
   }
+  const isInitialLoading = (pageLoading || billsLoading) && bills.length === 0
+  const isRefreshing = !isInitialLoading && billsLoading
 
   const openBill = (bill) => {
     setViewBill(getBillForViewer(bill))
@@ -473,6 +471,7 @@ export default function TenantDashboard() {
           {user?.tenant?.unit?.building_name || user?.company || 'Your account'} · Here&apos;s your billing summary · {unitLabel}
           </p>
         </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       <UnitFilterBar showTimeRange />
@@ -485,9 +484,9 @@ export default function TenantDashboard() {
 
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <UtilityCard type="electric" {...utilityMeters.electric} />
-        <UtilityCard type="thermal" {...utilityMeters.thermal} />
-        <UtilityCard type="water" {...utilityMeters.water} />
+        <UtilityCard type="electric" {...utilityMeters.electric} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="thermal" {...utilityMeters.thermal} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="water" {...utilityMeters.water} loading={isInitialLoading} updating={isRefreshing} />
       </div>
 
       <SummaryCardStrip
@@ -500,6 +499,8 @@ export default function TenantDashboard() {
           icon: item.icon,
           gradient: item.grad,
           shadow: item.glow,
+          loading: isInitialLoading,
+          updating: isRefreshing,
         }))}
       />
 
@@ -546,9 +547,13 @@ export default function TenantDashboard() {
                   <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
                     {item.label}
                   </p>
-                  <p className="mt-2 text-2xl font-bold text-slate-800 dark:text-white">
-                    {item.value}
-                  </p>
+                  <LoadingValue
+                    loading={isInitialLoading}
+                    updating={isRefreshing}
+                    value={item.value}
+                    className="mt-2 text-2xl font-bold text-slate-800 dark:text-white"
+                    spinnerClassName="h-5 w-5 text-slate-400"
+                  />
                   <p className="mt-2 text-xs text-slate-400">
                     {item.sub}
                   </p>
@@ -587,7 +592,9 @@ export default function TenantDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {recentBills.length === 0 ? (
+                {isInitialLoading ? (
+                  <TableLoadingRow colSpan={6} />
+                ) : recentBills.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
                       No recent bills found for {selectedRangeLabel}.

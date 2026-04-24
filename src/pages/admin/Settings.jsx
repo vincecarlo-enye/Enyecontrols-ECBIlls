@@ -3,7 +3,7 @@ import { Building2, Bell, Shield, Users, Zap, ChevronRight, Lock, KeyRound, User
 import { Link } from 'react-router-dom'
 import { useTheme } from '@/context/ThemeContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { SettingsSkeleton } from '@/components/skeletons'
+import { UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { usePermissions } from '@/hooks/usePermissions'
 import RateConfigCard from '@/components/common/RateConfigCard'
 import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
@@ -97,6 +97,7 @@ export default function Settings() {
   })
   const [securityActivityLoading, setSecurityActivityLoading] = useState(false)
   const [securityActivityError, setSecurityActivityError] = useState('')
+  const isRefreshing = ratesLoading || securityActivityLoading
 
   useEffect(() => {
     const savedPreferences = getAdminNotificationPreferences(
@@ -140,8 +141,6 @@ export default function Settings() {
     }
   }, [active])
 
-  if (loading) return <SettingsSkeleton />
-
   const handleNotificationToggle = (key) => {
     setNotificationPreferences((current) => {
       const nextPreferences = {
@@ -162,9 +161,12 @@ export default function Settings() {
 
   return (
     <div className="space-y-6 animate-in">
-      <div>
-        <h2 className="font-display font-700 text-xl text-slate-800 dark:text-white">Settings</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Configure your Billing system</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display font-700 text-xl text-slate-800 dark:text-white">Settings</h2>
+          <p className="text-sm text-slate-400 mt-0.5">Configure your Billing system</p>
+        </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

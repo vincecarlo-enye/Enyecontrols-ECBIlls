@@ -3,10 +3,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { CalendarRange, Droplets, Flame, TrendingUp, Zap } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityPageSkeleton } from '@/components/skeletons'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityConsumption } from '@/hooks/facilityHooks/useFacilityConsumption'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const statusBadge = {
   normal: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -24,7 +23,6 @@ const utilityKeys = ['electricity', 'water', 'thermal']
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long' })
 
 export default function Consumption() {
-  const pageLoading = usePageLoader(700)
   const today = useMemo(() => new Date(), [])
   const currentYear = today.getFullYear()
   const currentMonth = today.getMonth() + 1
@@ -70,7 +68,8 @@ export default function Consumption() {
   }, [anomalies, selectedUtility])
 
   const tableColumns = selectedUtility === 'all' ? utilityKeys : [selectedUtility]
-  const loadingState = (pageLoading && trendData.length === 0 && unitConsumption.length === 0) || (loading && trendData.length === 0 && unitConsumption.length === 0 && !error)
+  const isInitialLoading = loading && trendData.length === 0 && unitConsumption.length === 0 && !error
+  const isRefreshing = loading && (trendData.length > 0 || unitConsumption.length > 0)
 
   const handleYearChange = (value) => {
     const nextYear = Number(value)
@@ -78,8 +77,6 @@ export default function Consumption() {
     setSelectedYear(nextYear)
     setSelectedMonth((previous) => Math.min(previous, allowedMaxMonth))
   }
-
-  if (loadingState) return <FacilityPageSkeleton />
 
   return (
     <div className="space-y-6 animate-in">
@@ -90,6 +87,7 @@ export default function Consumption() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <UpdatingBadge show={isRefreshing} />
           <div className="flex items-center gap-2 rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm">
             <CalendarRange className="w-4 h-4 text-blue-500" />
             <select
@@ -159,7 +157,12 @@ export default function Consumption() {
               </div>
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{meta.label}</p>
-                <p className="font-bold text-slate-800 dark:text-white text-lg">{Number(summary[key] || 0).toLocaleString()} {meta.unit}</p>
+                <LoadingValue
+                  loading={isInitialLoading}
+                  value={`${Number(summary[key] || 0).toLocaleString()} ${meta.unit}`}
+                  className="font-bold text-slate-800 dark:text-white text-lg"
+                  spinnerClassName="h-4 w-4 text-slate-400"
+                />
               </div>
             </div>
           )
@@ -176,18 +179,24 @@ export default function Consumption() {
           </div>
           <ChartExportButton title="Daily Trend" rows={filteredTrendData} />
         </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={filteredTrendData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-            {selectedUtility === 'all' && <Legend wrapperStyle={{ fontSize: 12 }} />}
-            {focusedUtilities.includes('electricity') && <Line type="monotone" dataKey="electricity" stroke="#f59e0b" strokeWidth={2} dot={false} name="Electricity" />}
-            {focusedUtilities.includes('water') && <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water" />}
-            {focusedUtilities.includes('thermal') && <Line type="monotone" dataKey="thermal" stroke="#f43f5e" strokeWidth={2} dot={false} name="Thermal" />}
-          </LineChart>
-        </ResponsiveContainer>
+        {filteredTrendData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={filteredTrendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+              {selectedUtility === 'all' && <Legend wrapperStyle={{ fontSize: 12 }} />}
+              {focusedUtilities.includes('electricity') && <Line type="monotone" dataKey="electricity" stroke="#f59e0b" strokeWidth={2} dot={false} name="Electricity" />}
+              {focusedUtilities.includes('water') && <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2} dot={false} name="Water" />}
+              {focusedUtilities.includes('thermal') && <Line type="monotone" dataKey="thermal" stroke="#f43f5e" strokeWidth={2} dot={false} name="Thermal" />}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : isInitialLoading ? (
+          <ChartLoadingState />
+        ) : (
+          <ChartLoadingState text="No chart data available yet." />
+        )}
       </div>
 
       {visibleAnomalies.length > 0 && (
@@ -227,7 +236,9 @@ export default function Consumption() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {unitConsumption.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={3 + tableColumns.length} />
+              ) : unitConsumption.length === 0 ? (
                 <tr>
                   <td colSpan={3 + tableColumns.length} className="px-5 py-10 text-center text-sm text-slate-400">No consumption data available yet.</td>
                 </tr>

@@ -1,4 +1,5 @@
 import ChartExportButton from '@/components/common/ChartExportButton'
+import { ChartLoadingState, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 export default function ChartCard({
   title,
@@ -15,6 +16,9 @@ export default function ChartCard({
   className = '',
   children,
   noPad = false,
+  loading = false,
+  updating = false,
+  loadingText = 'Loading chart data...',
 }) {
   return (
     <div
@@ -50,6 +54,7 @@ export default function ChartCard({
         <div className="flex flex-shrink-0 items-center gap-2">
           {exportable ? <ChartExportButton title={exportTitle || title} rows={exportRows} filename={exportFilename} /> : null}
           {action}
+          <UpdatingBadge show={updating} />
           {badge && (
             <span className={`inline-flex min-h-8 items-center rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.06em] shadow-sm ${badgeCls}`}>
               {badge}
@@ -59,7 +64,7 @@ export default function ChartCard({
       </div>
 
       <div className={noPad ? '' : 'px-5 pb-5 pt-4'}>
-        {children}
+        {loading ? <ChartLoadingState text={loadingText} className="h-[220px]" /> : children}
       </div>
     </div>
   )

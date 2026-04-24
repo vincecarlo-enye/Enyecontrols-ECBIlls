@@ -12,7 +12,6 @@ import UtilityCard from '@/components/common/UtilityCard'
 import FilterPills from '@/components/common/FilterPills'
 import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityDashboardSkeleton } from '@/components/skeletons'
 import { useFacilityMonitoring } from '@/hooks/facilityHooks/useFacilityMonitoring'
 import { useFacilityConsumption } from '@/hooks/facilityHooks/useFacilityConsumption'
 import { useFacilityMaintenance } from '@/hooks/facilityHooks/useFacilityMaintenance'
@@ -29,6 +28,7 @@ import {
   ThemedChartTooltip,
   formatChartNumber,
 } from '@/components/charts/rechartsTheme.jsx'
+import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const inputCls = 'w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all'
 
@@ -338,6 +338,8 @@ export default function FacilityDashboard() {
   const coreLoading = pageLoading
     || (monitoring.loading && monitoring.floorData.length === 0 && monitoring.liveData.length === 0 && !monitoring.error)
     || (consumption.loading && consumption.trendData.length === 0 && !consumption.error)
+  const isInitialLoading = coreLoading
+  const isRefreshing = !isInitialLoading && (monitoring.loading || consumption.loading || maintenance.loading || equipment.loading)
 
   const chartData = useMemo(() => mapTrendData(filter, consumption.trendData), [filter, consumption.trendData])
   const activeAlerts = monitoring.floorData.filter((row) => row.status === 'alert' || row.status === 'high')
@@ -489,8 +491,6 @@ export default function FacilityDashboard() {
     })()
   ), [consumption.unitConsumption, monitoring.actualReadings, monitoring.floorData])
 
-  if (coreLoading) return <FacilityDashboardSkeleton />
-
   const handleCreateTicket = async () => {
     if (!ticketForm.title.trim()) {
       addToast('Issue title is required.', 'error')
@@ -604,6 +604,7 @@ export default function FacilityDashboard() {
           <p className="muted-text mt-0.5">Real-time building operations and utility monitoring</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <UpdatingBadge show={isRefreshing} />
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/40">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>
@@ -619,12 +620,12 @@ export default function FacilityDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <UtilityCard type="electric" {...utilityMeters.electric} />
-        <UtilityCard type="thermal" {...utilityMeters.thermal} />
-        <UtilityCard type="water" {...utilityMeters.water} />
+        <UtilityCard type="electric" {...utilityMeters.electric} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="thermal" {...utilityMeters.thermal} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="water" {...utilityMeters.water} loading={isInitialLoading} updating={isRefreshing} />
       </div>
 
-      <SummaryCardStrip cards={[...summaryTop, ...summaryToday]} />
+      <SummaryCardStrip cards={[...summaryTop, ...summaryToday].map((card) => ({ ...card, loading: isInitialLoading, updating: isRefreshing }))} />
 
       <div className="grid gap-4 lg:grid-cols-5">
         <ChartCard
@@ -632,6 +633,8 @@ export default function FacilityDashboard() {
           title="Utility Consumption Trend"
           exportable
           exportRows={utilityTrendData}
+          loading={isInitialLoading && utilityTrendData.length === 0}
+          updating={isRefreshing}
           subtitle={`${filter === '1D' ? 'Daily (7 days)' : filter === '1M' ? 'Monthly (4 weeks)' : 'Yearly (12 months)'} operational view across facility utilities`}
           accentHex={utilityFocusConfig.color}
           action={(
@@ -717,6 +720,8 @@ export default function FacilityDashboard() {
           title="Consumption Distribution"
           exportable
           exportRows={utilityDistributionData}
+          loading={isInitialLoading && utilityDistributionData.every((item) => Number(item.value || 0) === 0)}
+          updating={isRefreshing}
           subtitle="Current utility mix across the facility"
         >
           <div className="flex flex-col gap-4 lg:h-[240px] lg:flex-row lg:items-center">
@@ -769,6 +774,8 @@ export default function FacilityDashboard() {
           title="Anomaly / Alert Trend"
           exportable
           exportRows={anomalyTrendData}
+          loading={isInitialLoading && anomalyTrendData.length === 0}
+          updating={isRefreshing}
           subtitle="Warning and critical event pressure across the selected window"
           accentHex="#ef4444"
         >
@@ -806,6 +813,8 @@ export default function FacilityDashboard() {
           className="xl:col-span-4"
           title="Equipment Status Overview"
           subtitle="Operational health of meters and monitored devices"
+          loading={isInitialLoading && equipmentStatusData.every((item) => Number(item.value || 0) === 0)}
+          updating={isRefreshing}
         >
           <div className="grid grid-cols-3 gap-3">
             {equipmentStatusData.map((item) => (
@@ -848,6 +857,8 @@ export default function FacilityDashboard() {
           title="Maintenance Requests Trend"
           exportable
           exportRows={maintenanceTrendData}
+          loading={isInitialLoading && maintenanceTrendData.length === 0}
+          updating={isRefreshing}
           subtitle="Flow of open, in-progress, and resolved requests"
           accentHex="#8b5cf6"
         >
@@ -891,6 +902,8 @@ export default function FacilityDashboard() {
         title="Building / Floor / Zone Comparison"
         exportable
         exportRows={areaComparisonData}
+        loading={isInitialLoading && areaComparisonData.length === 0}
+        updating={isRefreshing}
         subtitle="Top monitored areas by combined utility demand"
         accentHex="#0ea5e9"
       >
@@ -921,6 +934,7 @@ export default function FacilityDashboard() {
             <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Floor Monitoring Snapshot</h2>
             <p className="text-[11px] text-slate-400 mt-0.5">Live floor utility readings with status flags</p>
           </div>
+          <UpdatingBadge show={isRefreshing} />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -932,7 +946,9 @@ export default function FacilityDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {recentFloors.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={5} />
+              ) : recentFloors.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">No floor monitoring data available yet.</td>
                 </tr>

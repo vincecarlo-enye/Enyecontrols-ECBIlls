@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Zap, Droplets, Flame } from 'lucide-react'
+import { Zap, Droplets, Flame, Loader2 } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -12,8 +12,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
 import { useTenantConsumptionReports } from '@/hooks/tenantHooks/useTenantConsumptionReports'
 import {
   TENANT_TIME_RANGE_OPTIONS,
@@ -33,7 +31,7 @@ const ttStyle = {
   },
 }
 
-function ChartCard({ title, subtitle, icon: Icon, gradient, glow, exportRows = [], children }) {
+function ChartCard({ title, subtitle, icon: Icon, gradient, glow, exportRows = [], updating = false, children }) {
   return (
     <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200/70 dark:border-slate-700/50 shadow-md">
       <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3">
@@ -46,7 +44,10 @@ function ChartCard({ title, subtitle, icon: Icon, gradient, glow, exportRows = [
             <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
           </div>
         </div>
-        <ChartExportButton title={title} rows={exportRows} />
+        <div className="flex items-center gap-2">
+          {updating ? <InlineSpinner label="Updating" /> : null}
+          <ChartExportButton title={title} rows={exportRows} />
+        </div>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -61,6 +62,26 @@ function EmptyChartState({ text = 'No report data available yet.' }) {
   )
 }
 
+function InlineSpinner({ label = 'Loading' }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-slate-400">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      <span>{label}</span>
+    </span>
+  )
+}
+
+function UpdatingBadge({ show }) {
+  if (!show) return null
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm dark:border-slate-700/50 dark:bg-slate-900 dark:text-slate-300">
+      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      Updating...
+    </div>
+  )
+}
+
 function formatValue(value, unit) {
   return `${Number(value || 0).toLocaleString(undefined, {
     minimumFractionDigits: 0,
@@ -69,7 +90,6 @@ function formatValue(value, unit) {
 }
 
 export default function TenantConsumptionReports() {
-  const pageLoading = usePageLoader(700)
   const printRef = useRef(null)
   const { selectedUnit, selectedTimeRange } = useUnitFilter()
   const { unit, units, summary, monthly, loading, error, reload, backendDriven } = useTenantConsumptionReports()
@@ -77,9 +97,6 @@ export default function TenantConsumptionReports() {
   useEffect(() => {
     reload(selectedUnit, selectedTimeRange)
   }, [reload, selectedTimeRange, selectedUnit])
-
-  const isLoading = (pageLoading && monthly.length === 0) || (loading && monthly.length === 0)
-  if (isLoading) return <ReportsSkeleton />
 
   const unitLabel = selectedUnit === 'all'
     ? (Array.isArray(units) && units.length > 1
@@ -91,6 +108,8 @@ export default function TenantConsumptionReports() {
   const hasData = Array.isArray(monthly) && monthly.length > 0
   const selectedRangeLabel =
     TENANT_TIME_RANGE_OPTIONS.find((option) => option.value === selectedTimeRange)?.label || '1M'
+  const isLoading = loading && monthly.length === 0
+  const isRefreshing = loading && monthly.length > 0
 
   const summaryCards = [
     {
@@ -146,7 +165,8 @@ export default function TenantConsumptionReports() {
     </p>
   </div>
 
-  <div className="flex items-center">
+  <div className="flex items-center gap-2">
+    <UpdatingBadge show={isRefreshing} />
     <PageActionBar
       onExport={handleExport}
       onPrint={handlePrint}
@@ -185,9 +205,18 @@ export default function TenantConsumptionReports() {
                     <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wide">
                       {s.label}
                     </p>
-                    <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">
-                      {s.value}
-                    </p>
+                    <div className="mt-1 text-xl font-bold text-slate-800 dark:text-white">
+                      {isLoading ? (
+                        <InlineSpinner />
+                      ) : isRefreshing ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span>{s.value}</span>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                        </span>
+                      ) : (
+                        s.value
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-400 mt-1">
                       {selectedRangeLabel} · {unitLabel}
                     </p>
@@ -210,6 +239,7 @@ export default function TenantConsumptionReports() {
             gradient="from-amber-500 to-amber-600"
             glow="shadow-amber-500/30"
             exportRows={monthly}
+            updating={isRefreshing}
           >
             {hasData ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -235,6 +265,8 @@ export default function TenantConsumptionReports() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+            ) : isLoading ? (
+              <EmptyChartState text="Loading chart data..." />
             ) : (
               <EmptyChartState />
             )}
@@ -247,6 +279,7 @@ export default function TenantConsumptionReports() {
             gradient="from-cyan-500 to-cyan-600"
             glow="shadow-cyan-500/30"
             exportRows={monthly}
+            updating={isRefreshing}
           >
             {hasData ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -272,6 +305,8 @@ export default function TenantConsumptionReports() {
                   />
                 </AreaChart>
               </ResponsiveContainer>
+            ) : isLoading ? (
+              <EmptyChartState text="Loading chart data..." />
             ) : (
               <EmptyChartState />
             )}
@@ -284,6 +319,7 @@ export default function TenantConsumptionReports() {
             gradient="from-rose-500 to-rose-600"
             glow="shadow-rose-500/30"
             exportRows={monthly}
+            updating={isRefreshing}
           >
             {hasData ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -295,6 +331,8 @@ export default function TenantConsumptionReports() {
                   <Bar dataKey="thermal" name="Thermal Energy" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            ) : isLoading ? (
+              <EmptyChartState text="Loading chart data..." />
             ) : (
               <EmptyChartState />
             )}
@@ -327,6 +365,8 @@ export default function TenantConsumptionReports() {
                     <Bar dataKey="thermal" name="Thermal (kBTU)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              ) : isLoading ? (
+                <EmptyChartState text="Loading chart data..." />
               ) : (
                 <EmptyChartState text="No monthly consumption history available yet." />
               )}

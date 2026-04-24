@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { CalendarRange, Download, Printer, RefreshCw, Search, Users, Home, ArrowRightLeft } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useAdminOccupancyTimeline } from '@/hooks/adminHooks/useAdminOccupancyTimeline'
 import { useApp } from '@/context/AppContext'
@@ -88,7 +88,7 @@ function exportCsv({ period, summaryCards, monthlyActivity, occupiedUnits, vacan
   downloadCsv(`occupancy-timeline-${period?.month || 'report'}.csv`, rows)
 }
 
-function SummaryCard({ label, value, sub, tone }) {
+function SummaryCard({ label, value, sub, tone, loading = false, updating = false }) {
   const toneMap = {
     blue: 'text-blue-600 dark:text-blue-400',
     emerald: 'text-emerald-600 dark:text-emerald-400',
@@ -100,7 +100,7 @@ function SummaryCard({ label, value, sub, tone }) {
   return (
     <div className="glass rounded-2xl p-5 shadow-lg">
       <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`mt-2 font-display text-3xl font-700 ${toneMap[tone] || toneMap.blue}`}>{formatNumber(value)}</p>
+      <LoadingValue loading={loading} updating={updating} value={formatNumber(value)} className={`mt-2 font-display text-3xl font-700 ${toneMap[tone] || toneMap.blue}`} spinnerClassName="h-5 w-5 text-slate-400" />
       <p className="mt-1 text-xs text-slate-400">{sub}</p>
     </div>
   )
@@ -121,6 +121,8 @@ export default function OccupancyTimeline() {
   } = useAdminOccupancyTimeline()
   const [search, setSearch] = useState('')
   const [eventFilter, setEventFilter] = useState('all')
+  const isInitialLoading = (loadingScreen || loading) && summaryCards.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const trendData = useMemo(() => (
     (data.monthlyActivity || []).map((item) => ({
@@ -161,8 +163,6 @@ export default function OccupancyTimeline() {
     [data.unitSnapshot]
   )
 
-  if (loadingScreen || loading) return <ReportsSkeleton />
-
   return (
     <div className="space-y-6 animate-in">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -174,6 +174,7 @@ export default function OccupancyTimeline() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
           <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
             <CalendarRange className="h-4 w-4" />
             <input
@@ -240,7 +241,7 @@ export default function OccupancyTimeline() {
       <div ref={printRef} className="space-y-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5 print-occupancy-summary">
           {summaryCards.map(({ key, ...card }) => (
-            <SummaryCard key={key} {...card} />
+            <SummaryCard key={key} {...card} loading={isInitialLoading} updating={isRefreshing} />
           ))}
         </div>
 
@@ -254,6 +255,9 @@ export default function OccupancyTimeline() {
               <ChartExportButton title="6-Month Occupancy Activity" rows={trendData} />
             </div>
 
+            {isInitialLoading ? (
+              <ChartLoadingState className="h-[280px]" />
+            ) : (
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={trendData} margin={{ top: 5, right: 12, left: -12, bottom: 0 }}>
                 <defs>
@@ -273,6 +277,7 @@ export default function OccupancyTimeline() {
                 <Area type="monotone" dataKey="Active Tenants" stroke="#10b981" fillOpacity={0} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
 
           <div data-chart-export-panel="true" className="glass rounded-2xl p-5 shadow-lg">
@@ -284,6 +289,9 @@ export default function OccupancyTimeline() {
               <ChartExportButton title="Move Event Mix" rows={trendData} />
             </div>
 
+            {isInitialLoading ? (
+              <ChartLoadingState className="h-[280px]" />
+            ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
@@ -297,6 +305,7 @@ export default function OccupancyTimeline() {
                 <Bar dataKey="Move-Outs" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -332,13 +341,13 @@ export default function OccupancyTimeline() {
               </div>
             ))}
 
-            {occupiedUnits.length === 0 ? (
+            {!isInitialLoading && occupiedUnits.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
                 No occupied units found for the selected month.
               </div>
             ) : null}
 
-            {vacantUnits.length > 0 ? (
+            {!isInitialLoading && vacantUnits.length > 0 ? (
               <div className="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-4 dark:border-slate-700/70 dark:bg-slate-800/30">
                 <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">Vacant Units</p>
                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
@@ -394,7 +403,9 @@ export default function OccupancyTimeline() {
                 </tr>
               </thead>
               <tbody>
-                {filteredTimeline.map((item) => (
+                {isInitialLoading ? (
+                  <TableLoadingRow colSpan={6} />
+                ) : filteredTimeline.map((item) => (
                   <tr key={`${item.tenant_id}-${item.unit_id}-${item.event_type}-${item.event_date || item.move_in_date || 'row'}`} className="border-b border-slate-100 dark:border-slate-800/80">
                     <td className="px-3 py-3">
                       <div className="flex items-start gap-2">
@@ -437,7 +448,7 @@ export default function OccupancyTimeline() {
             </table>
           </div>
 
-          {filteredTimeline.length === 0 ? (
+          {!isInitialLoading && filteredTimeline.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-slate-700">
               No occupancy records matched the selected month and filters.
             </div>

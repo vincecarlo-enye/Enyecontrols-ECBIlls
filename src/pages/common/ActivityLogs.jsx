@@ -2,7 +2,7 @@ import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, Download, Eye, RefreshCw, Search } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import PaginationBar from '@/components/common/PaginationBar'
 import { fetchActivityLogs, fetchActivityTimeline, getActivityLogsSnapshot } from '@/services/activityLogService'
 import { useAuth } from '@/context/AuthContext'
@@ -51,6 +51,8 @@ export default function ActivityLogsPage() {
   const [logs, setLogs] = useState(Array.isArray(initialSnapshot?.data) ? initialSnapshot.data : [])
   const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
   const [loading, setLoading] = useState(!hasInitialSnapshot)
+  const isInitialLoading = (pageLoading || loading) && logs.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const isGlobalView = ['admin', 'super_admin'].includes(user?.role)
 
@@ -159,10 +161,6 @@ export default function ActivityLogsPage() {
     }
   }
 
-  if ((pageLoading && logs.length === 0) || (loading && logs.length === 0)) {
-    return <ReportsSkeleton />
-  }
-
   return (
     <div className="space-y-5 animate-in">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -176,6 +174,7 @@ export default function ActivityLogsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
           <button
             onClick={handleExport}
             disabled={exporting}
@@ -272,7 +271,9 @@ export default function ActivityLogsPage() {
               </tr>
             </thead>
             <tbody>
-              {logs.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={8} />
+              ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                     No activity logs found for the selected filters.

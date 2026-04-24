@@ -5,12 +5,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { Activity, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock, Calculator, Download, Printer, Search } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityPageSkeleton } from '@/components/skeletons'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityMonitoring } from '@/hooks/facilityHooks/useFacilityMonitoring'
 import { useApp } from '@/context/AppContext'
 import { printElement } from '@/utils/reporting'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const statusColor = {
   normal: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -203,7 +202,6 @@ function renderUtilityCell(entry) {
 }
 
 export default function Monitoring() {
-  const pageLoading = usePageLoader(700)
   const { addToast } = useApp()
   const auditPrintRef = useRef(null)
   const {
@@ -233,8 +231,8 @@ export default function Monitoring() {
   const [selectedPendingIds, setSelectedPendingIds] = useState([])
   const readingsPerPage = 12
 
-  const loadingState = (pageLoading && liveData.length === 0 && floorData.length === 0 && pendingReadings.length === 0 && actualReadings.length === 0)
-    || (loading && liveData.length === 0 && floorData.length === 0 && pendingReadings.length === 0 && actualReadings.length === 0 && !error)
+  const isInitialLoading = loading && liveData.length === 0 && floorData.length === 0 && pendingReadings.length === 0 && actualReadings.length === 0 && !error
+  const isRefreshing = loading && (liveData.length > 0 || floorData.length > 0 || pendingReadings.length > 0 || actualReadings.length > 0)
   const liveUsageTrend = useMemo(() => {
     if (Array.isArray(liveData) && liveData.length > 0) {
       const firstRow = liveData[0] || {}
@@ -513,8 +511,6 @@ export default function Monitoring() {
     })
   }
 
-  if (loadingState) return <FacilityPageSkeleton />
-
   return (
     <div className="space-y-6 animate-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -527,10 +523,13 @@ export default function Monitoring() {
           <div className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400">
             Updated {formatUpdatedAt(lastUpdated)}
           </div>
-          <button onClick={handleRefresh} disabled={refreshing} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <UpdatingBadge show={isRefreshing} />
+            <button onClick={handleRefresh} disabled={refreshing} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -551,7 +550,7 @@ export default function Monitoring() {
               </div>
               <div>
                 <p className="text-xs font-mono uppercase tracking-wider text-slate-400">{card.label}</p>
-                <p className={`text-xl font-bold ${card.tone}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-xl font-bold ${card.tone}`} spinnerClassName="h-5 w-5 text-slate-400" />
               </div>
             </div>
           </div>
@@ -577,17 +576,23 @@ export default function Monitoring() {
             ))}
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={liveUsageTrend}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-            <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-            <Line type="monotone" dataKey="electricity" stroke={utilityLineColor.electricity} strokeWidth={2.5} dot={{ r: 3 }} name={`Electricity (${utilityUnit.electricity})`} />
-            <Line type="monotone" dataKey="water" stroke={utilityLineColor.water} strokeWidth={2.5} dot={{ r: 3 }} name={`Water (${utilityUnit.water})`} />
-            <Line type="monotone" dataKey="thermal" stroke={utilityLineColor.thermal} strokeWidth={2.5} dot={{ r: 3 }} name={`Thermal (${utilityUnit.thermal})`} />
-          </LineChart>
-        </ResponsiveContainer>
+        {liveUsageTrend.length > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={liveUsageTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+              <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+              <Line type="monotone" dataKey="electricity" stroke={utilityLineColor.electricity} strokeWidth={2.5} dot={{ r: 3 }} name={`Electricity (${utilityUnit.electricity})`} />
+              <Line type="monotone" dataKey="water" stroke={utilityLineColor.water} strokeWidth={2.5} dot={{ r: 3 }} name={`Water (${utilityUnit.water})`} />
+              <Line type="monotone" dataKey="thermal" stroke={utilityLineColor.thermal} strokeWidth={2.5} dot={{ r: 3 }} name={`Thermal (${utilityUnit.thermal})`} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : isInitialLoading ? (
+          <ChartLoadingState className="h-[200px]" />
+        ) : (
+          <ChartLoadingState text="No chart data available yet." className="h-[200px]" />
+        )}
       </div>
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
@@ -610,7 +615,9 @@ export default function Monitoring() {
           </div>
         </div>
         <div className="p-5 space-y-4">
-          {pendingGroups.length === 0 ? (
+          {isInitialLoading ? (
+            <div className="py-10 text-center text-sm text-slate-400">Loading...</div>
+          ) : pendingGroups.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-400">No pending meter readings. Finance can generate bills from approved readings.</div>
           ) : pendingGroups.map((group) => (
             <div key={group.key} className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 overflow-hidden">
@@ -633,7 +640,9 @@ export default function Monitoring() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {group.readings.map((reading) => (
+                    {isInitialLoading ? (
+                      <TableLoadingRow colSpan={8} />
+                    ) : group.readings.map((reading) => (
                       <tr key={reading.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <input
@@ -700,7 +709,9 @@ export default function Monitoring() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredActualReadings.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={10} />
+              ) : filteredActualReadings.length === 0 ? (
                 <tr><td colSpan={10} className="px-5 py-10 text-center text-sm text-slate-400">No audit readings found for the current filter.</td></tr>
               ) : pagedActualReadings.map((reading) => (
                 <tr key={reading.key} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors align-top">
@@ -755,7 +766,9 @@ export default function Monitoring() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {floorData.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={4} />
+              ) : floorData.length === 0 ? (
                 <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-400">No monitoring data available yet.</td></tr>
               ) : floorData.map((row) => {
                 const value = Number(row?.[selected] || 0)

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '@/context/AppContext'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { NewBillSkeleton } from '@/components/skeletons'
+import { UpdatingBadge } from '@/components/common/InlineLoadingState'
 import api from '@/lib/api'
 import { ArrowLeft, CalendarRange, Building2, Info, Zap, Droplets, Flame } from 'lucide-react'
 import { generateAdminBill } from '../../services/adminService/adminBillingService'
@@ -63,6 +63,7 @@ export default function NewBillPage() {
 
   const [rates, setRates] = useState([])
   const [loadingRates, setLoadingRates] = useState(true)
+  const isRefreshing = loadingTenants || loadingRates
   const billingBasePath =
     user?.role === 'super_admin' || location.pathname.startsWith('/super-admin')
       ? '/super-admin/billing'
@@ -175,11 +176,10 @@ export default function NewBillPage() {
     }
   }
 
-  if (loading || loadingTenants || loadingRates) return <NewBillSkeleton />
-
   return (
     <div className="space-y-6 animate-in max-w-3xl mx-auto">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(billingBasePath)}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
@@ -195,6 +195,8 @@ export default function NewBillPage() {
             Select a tenant and billing month to generate a bill automatically
           </p>
         </div>
+        </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4 space-y-3">

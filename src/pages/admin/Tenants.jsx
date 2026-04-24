@@ -2,11 +2,11 @@ import { formatDate } from '@/utils/filterUtils'
 import { useMemo, useState } from 'react'
 import { useClientPagination } from '@/hooks/useClientPagination'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { TenantListSkeleton } from '@/components/skeletons'
 import Drawer from '@/components/ui/Drawer'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import PaginationBar from '@/components/common/PaginationBar'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import {
   Plus,
   Search,
@@ -41,7 +41,7 @@ const emptyForm = {
 }
 
 
-function StatCard({ label, value, sub, tone = 'slate' }) {
+function StatCard({ label, value, sub, tone = 'slate', loading = false, updating = false }) {
   const toneClass = {
     slate: 'text-slate-800 dark:text-white',
     emerald: 'text-emerald-600 dark:text-emerald-400',
@@ -51,7 +51,13 @@ function StatCard({ label, value, sub, tone = 'slate' }) {
   return (
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
       <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`mt-2 text-2xl font-display font-700 ${toneClass[tone]}`}>{value}</p>
+      <LoadingValue
+        loading={loading}
+        updating={updating}
+        value={value}
+        className={`mt-2 text-2xl font-display font-700 ${toneClass[tone]}`}
+        spinnerClassName="h-5 w-5 text-slate-400"
+      />
       <p className="mt-1 text-xs text-slate-400">{sub}</p>
     </div>
   )
@@ -170,6 +176,8 @@ export default function Tenants() {
   const [viewTenant, setViewTenant] = useState(null)
   const [deletingGroup, setDeletingGroup] = useState(null)
   const [deleteError, setDeleteError] = useState('')
+  const isInitialLoading = (pageLoading || loading) && tenants.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const tenantUnitMap = useMemo(() => {
     return tenants.reduce((acc, tenant) => {
@@ -420,8 +428,6 @@ export default function Tenants() {
   const canHardDeleteTenants = user?.role === 'super_admin'
   const deletingGuard = deletingGroup ? getDeleteGuard(deletingGroup) : null
 
-  if ((pageLoading && tenantRows.length === 0) || (loading && tenantRows.length === 0)) return <TenantListSkeleton />
-
   return (
     <div className="space-y-6 animate-in min-h-[calc(100vh-80px)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -429,13 +435,14 @@ export default function Tenants() {
           <h2 className="font-display font-700 text-xl text-slate-800 dark:text-white">Tenants</h2>
           <p className="mt-1 text-sm text-slate-400">Tenant accounts are created in User Management. Use this page to complete tenant profile details and unit assignments.</p>
         </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <StatCard label="Tenants" value={tenantRows.length} sub="Tenant users shown in the directory" />
-        <StatCard label="Active" value={activeCount} sub="Currently active tenant users" tone="emerald" />
-        <StatCard label="Billing Ready" value={billingReadyCount} sub="Ready for bill generation" tone="emerald" />
-        <StatCard label="Pending Setup" value={pendingSetupCount} sub="Needs profile completion" tone="amber" />
+        <StatCard label="Tenants" value={tenantRows.length} sub="Tenant users shown in the directory" loading={isInitialLoading} updating={isRefreshing} />
+        <StatCard label="Active" value={activeCount} sub="Currently active tenant users" tone="emerald" loading={isInitialLoading} updating={isRefreshing} />
+        <StatCard label="Billing Ready" value={billingReadyCount} sub="Ready for bill generation" tone="emerald" loading={isInitialLoading} updating={isRefreshing} />
+        <StatCard label="Pending Setup" value={pendingSetupCount} sub="Needs profile completion" tone="amber" loading={isInitialLoading} updating={isRefreshing} />
       </div>
 
       {error ? (
@@ -474,7 +481,9 @@ export default function Tenants() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {paginated.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={6} />
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center text-slate-400">
                     <User className="mx-auto mb-3 h-10 w-10 opacity-30" />

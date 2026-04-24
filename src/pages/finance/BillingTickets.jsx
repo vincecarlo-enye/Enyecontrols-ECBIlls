@@ -1,8 +1,8 @@
 import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Ticket, Eye, Search as SearchIcon, CheckCircle2, DollarSign, Filter } from 'lucide-react'
+import { Search, Ticket, Eye, Search as SearchIcon, CheckCircle2, DollarSign, Filter, Loader2 } from 'lucide-react'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { useApp } from '@/context/AppContext'
-import { usePageLoader } from '@/hooks/usePageLoader'
 import { useModalState } from '@/hooks/useModalState'
 import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
@@ -109,7 +109,6 @@ function normalizeConcern(row = {}, linkedAdjustments = []) {
 }
 
 export default function FinanceBillingTickets() {
-  const pageLoading = usePageLoader(600)
   const { addToast } = useApp()
   const { getBillById, saveBillAdjustmentDraft, submitBillAdjustment, applyBillAdjustmentDirect, adjustments, saving } = useFinanceBills()
   const [search, setSearch] = useState('')
@@ -168,16 +167,8 @@ export default function FinanceBillingTickets() {
     investigating: concerns.filter((concern) => concern.status === 'investigating').length,
     resolved: concerns.filter((concern) => ['resolved', 'closed'].includes(concern.status)).length,
   }), [concerns])
-
-  const loadingState = (pageLoading && concerns.length === 0) || (loading && concerns.length === 0 && !error)
-  if (loadingState) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-64" />
-        {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-slate-200 dark:bg-slate-700 rounded-xl" />)}
-      </div>
-    )
-  }
+  const isInitialLoading = loading && concerns.length === 0 && !error
+  const isRefreshing = loading && concerns.length > 0
 
   const handleAction = async (id, action, note) => {
     const endpointMap = {
@@ -245,6 +236,7 @@ export default function FinanceBillingTickets() {
         </h1>
         <p className="text-sm text-slate-400 mt-0.5">Manage and resolve assigned billing concerns</p>
       </div>
+      <UpdatingBadge show={isRefreshing} />
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -261,7 +253,7 @@ export default function FinanceBillingTickets() {
         ].map((card) => (
           <div key={card.label} className="glass rounded-2xl p-4 shadow-md">
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wide">{card.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${card.cls}`}>{card.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`mt-1 text-2xl font-bold ${card.cls}`} spinnerClassName="h-5 w-5 text-slate-400" />
           </div>
         ))}
       </div>
@@ -317,7 +309,9 @@ export default function FinanceBillingTickets() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={8} />
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
                     {concerns.length === 0 ? 'No tickets assigned yet.' : 'No matching tickets found.'}

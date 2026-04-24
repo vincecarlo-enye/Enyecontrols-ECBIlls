@@ -5,8 +5,6 @@ import {
   Eye, Calendar, TrendingUp, CalendarDays, Zap, Droplets, Flame,
   ClipboardCheck, BookOpen,
 } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { BillingSkeleton } from '@/components/skeletons'
 import PaymentReviewModal from '@/components/billing/PaymentReviewModal'
 import { useModalState } from '@/hooks/useModalState'
 import EmptyState from '@/components/ui/EmptyState'
@@ -18,6 +16,7 @@ import PageActionBar from '@/components/common/PageActionBar'
 import { exportTableCsv, printElement } from '@/utils/reporting'
 import { resolveStorageAssetUrl } from '@/utils/billing'
 import { fetchFinanceBills, fetchFinancePayments, rejectFinancePayment, verifyFinancePayment } from '@/services/financeService/financeBillService'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 
 function formatMonth(value) {
@@ -88,7 +87,6 @@ function normalizeBill(row = {}) {
 }
 
 export default function FinancePaymentReview() {
-  const pageLoading = usePageLoader(700)
   const printRef = useRef(null)
   const { addToast } = useApp()
   const reviewModal = useModalState()
@@ -161,7 +159,8 @@ export default function FinancePaymentReview() {
     }
   }
 
-  const loadingState = (pageLoading && payments.length === 0 && bills.length === 0) || (loading && payments.length === 0 && bills.length === 0 && !error)
+  const isInitialLoading = loading && payments.length === 0 && bills.length === 0 && !error
+  const isRefreshing = loading && (payments.length > 0 || bills.length > 0)
   const pendingPayments = payments.filter((payment) => payment.status === 'pending')
   const verifiedPayments = payments.filter((payment) => payment.status === 'verified')
   const totalPending = pendingPayments.length
@@ -192,8 +191,6 @@ export default function FinancePaymentReview() {
   useEffect(() => {
     ledgerPagination.setPage(1)
   }, [ledgerSearch, ledgerStatus])
-
-  if (loadingState) return <BillingSkeleton />
 
   const handleExport = () => {
     const rows = (activeTab === 'review' ? queueFiltered : ledgerFiltered).map((payment) => ({
@@ -231,13 +228,16 @@ export default function FinancePaymentReview() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Review tenant receipts, approve or reject payments, and track the payment ledger</p>
         </div>
-        <PageActionBar
-          onExport={handleExport}
-          onPrint={handlePrint}
-          exportLabel={activeTab === 'review' ? 'Export Queue' : 'Export Ledger'}
-          printLabel={activeTab === 'review' ? 'Print Queue' : 'Print Ledger'}
-          iconOnly
-        />
+        <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
+          <PageActionBar
+            onExport={handleExport}
+            onPrint={handlePrint}
+            exportLabel={activeTab === 'review' ? 'Export Queue' : 'Export Ledger'}
+            printLabel={activeTab === 'review' ? 'Print Queue' : 'Print Ledger'}
+            iconOnly
+          />
+        </div>
       </div>
 
       {error && (
@@ -259,7 +259,7 @@ export default function FinancePaymentReview() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{card.label}</p>
-              <p className={`text-xl font-bold ${card.color} truncate`}>{card.value}</p>
+              <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-xl font-bold ${card.color} truncate`} spinnerClassName="h-5 w-5 text-slate-400" />
               <p className="text-[10px] text-slate-400">{card.sub}</p>
             </div>
           </div>
@@ -330,7 +330,9 @@ export default function FinancePaymentReview() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {queueFiltered.length === 0 ? (
+                  {isInitialLoading ? (
+                    <TableLoadingRow colSpan={8} />
+                  ) : queueFiltered.length === 0 ? (
                     <tr><td colSpan={8}><EmptyState title={reviewTab === 'pending' ? 'No payments pending' : 'No submissions found'} message={reviewTab === 'pending' ? 'All payment receipts have been reviewed.' : 'Try adjusting your search.'} /></td></tr>
                   ) : queuePagination.pagedItems.map((payment) => (
                     <tr key={payment.paymentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -438,7 +440,9 @@ export default function FinancePaymentReview() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {ledgerFiltered.length === 0 ? (
+                  {isInitialLoading ? (
+                    <TableLoadingRow colSpan={9} />
+                  ) : ledgerFiltered.length === 0 ? (
                     <tr><td colSpan={9} className="text-center py-12 text-slate-400 text-sm">No payment records found</td></tr>
                   ) : ledgerPagination.pagedItems.map((payment) => (
                     <tr key={payment.paymentId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">

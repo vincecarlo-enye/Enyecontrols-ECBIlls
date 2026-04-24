@@ -23,10 +23,10 @@ import {
   updateAdminBillingConcernStatus,
 } from '@/services/adminService/adminBillingConcernService'
 import { useApp } from '@/context/AppContext'
-import { usePageLoader } from '@/hooks/usePageLoader'
 import TicketStatusBadge from '@/components/billing/concerns/TicketStatusBadge'
 import ConcernDetails from '@/components/billing/concerns/ConcernDetails'
 import PaginationBar from '@/components/common/PaginationBar'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { useClientPagination } from '@/hooks/useClientPagination'
 
 const ALL_STATUSES = [
@@ -131,7 +131,6 @@ function normalizeConcern(item = {}) {
 }
 
 export default function AdminBillingConcerns() {
-  const loading = usePageLoader(600)
   const { addToast } = useApp()
   const concernsSnapshot = getAdminBillingConcernsSnapshot()
   const financeUsersSnapshot = getFinanceUsersSnapshot()
@@ -207,17 +206,8 @@ export default function AdminBillingConcerns() {
     }),
     [concerns]
   )
-
-  if ((loading && concerns.length === 0) || (pageLoading && concerns.length === 0)) {
-    return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-xl w-64" />
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-14 bg-slate-200 dark:bg-slate-700 rounded-xl" />
-        ))}
-      </div>
-    )
-  }
+  const isInitialLoading = pageLoading && concerns.length === 0 && !error
+  const isRefreshing = pageLoading && concerns.length > 0
 
   const syncConcern = (updatedRow) => {
     const updated = normalizeConcern(updatedRow)
@@ -291,6 +281,7 @@ export default function AdminBillingConcerns() {
             Review and manage tenant billing dispute tickets
           </p>
         </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       <div className="h-px bg-slate-200 dark:bg-slate-700/50" />
@@ -310,7 +301,13 @@ export default function AdminBillingConcerns() {
         ].map((item) => (
           <div key={item.label} className="glass rounded-2xl p-4 shadow-md">
             <p className="text-xs text-slate-400 font-mono uppercase tracking-wide">{item.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${item.cls}`}>{item.value}</p>
+            <LoadingValue
+              loading={isInitialLoading}
+              updating={isRefreshing}
+              value={item.value}
+              className={`mt-1 text-2xl font-bold ${item.cls}`}
+              spinnerClassName="h-5 w-5 text-slate-400"
+            />
           </div>
         ))}
       </div>
@@ -363,7 +360,9 @@ export default function AdminBillingConcerns() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={8} />
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
                     No tickets found

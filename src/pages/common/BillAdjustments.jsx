@@ -1,6 +1,7 @@
 import { formatDate, formatPeso} from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Eye, Filter, Search, X, XCircle, Wallet } from 'lucide-react'
+import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
@@ -115,6 +116,7 @@ export default function BillAdjustmentsPage() {
     proof_image: null,
   })
   const [acting, setActing] = useState(false)
+  const isRefreshing = loading && rows.length > 0
 
   const basePath =
     user?.role === 'finance'
@@ -287,6 +289,7 @@ export default function BillAdjustmentsPage() {
           icon={Wallet}
         />
       </PageSection>
+      <UpdatingBadge show={isRefreshing} />
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center">
   
@@ -351,11 +354,7 @@ export default function BillAdjustmentsPage() {
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
-                <tr>
-                  <td colSpan={12} className="px-4 py-10 text-center text-sm text-slate-400">
-                    Loading adjustments...
-                  </td>
-                </tr>
+                <TableLoadingRow colSpan={12} text="Loading adjustments..." />
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={12}>

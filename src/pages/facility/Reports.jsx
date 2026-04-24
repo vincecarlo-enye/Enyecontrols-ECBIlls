@@ -5,13 +5,12 @@ import {
   LineChart, Line, PieChart, Pie, Cell,
 } from 'recharts'
 import { Download, Gauge, Clock3, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
 import { useFacilityReports } from '@/hooks/facilityHooks/useFacilityReports'
 import PageActionBar from '@/components/common/PageActionBar'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { downloadCsv } from '@/utils/exportCsv'
 import { printElement } from '@/utils/reporting'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const TYPE_LABELS = {
   electricity: 'Electricity',
@@ -39,7 +38,6 @@ function formatApprovalLabel(value) {
 }
 
 export default function Reports() {
-  const pageLoading = usePageLoader(700)
   const printRef = useRef(null)
   const {
     reportTypes,
@@ -96,10 +94,8 @@ export default function Reports() {
     })
   }, [latestMeterReadings, readingSearch, readingType, approvalFilter])
 
-  const loadingState = (pageLoading && latestMeterReadings.length === 0 && currentData.length === 0)
-    || (loading && latestMeterReadings.length === 0 && currentData.length === 0 && !error)
-  if (loadingState) return <ReportsSkeleton />
-
+  const isInitialLoading = loading && latestMeterReadings.length === 0 && currentData.length === 0 && !error
+  const isRefreshing = loading && (latestMeterReadings.length > 0 || currentData.length > 0)
   const handleExport = () => {
     const rows = [
       ['Facility Operational Reports'],
@@ -161,7 +157,10 @@ export default function Reports() {
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Operational Reports</h1>
           <p className="text-sm text-slate-400 mt-0.5">Cleaner facility reports with live meter reading visibility and trend analytics</p>
         </div>
-        <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Visible Data" />
+        <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
+          <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Visible Data" />
+        </div>
       </div>
 
       {error && (
@@ -185,7 +184,7 @@ export default function Reports() {
               </div>
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{card.label}</p>
-                <p className={`mt-1 ${card.label === 'Latest Sync' ? 'text-sm font-semibold' : 'text-2xl font-bold'} ${card.tone}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`mt-1 ${card.label === 'Latest Sync' ? 'text-sm font-semibold' : 'text-2xl font-bold'} ${card.tone}`} spinnerClassName="h-5 w-5 text-slate-400" />
               </div>
             </div>
           </div>
@@ -368,7 +367,9 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredMeterReadings.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={8} />
+              ) : filteredMeterReadings.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No meter readings matched the current filters.</td>
                 </tr>

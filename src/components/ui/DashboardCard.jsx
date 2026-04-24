@@ -1,4 +1,5 @@
 import React from "react"
+import { LoadingValue } from '@/components/common/InlineLoadingState'
 
 export default function DashboardCard({
   icon: Icon,
@@ -11,6 +12,8 @@ export default function DashboardCard({
   glow = "shadow-blue-500/20",
   className = "",
   onClick,
+  loading = false,
+  updating = false,
 }) {
 
   const badgeCls =
@@ -76,9 +79,14 @@ export default function DashboardCard({
         {title}
       </p>
 
-      <p className="text-xl font-bold leading-none text-slate-800 dark:text-slate-50 sm:text-[1.35rem]">
-        {value}
-      </p>
+      <LoadingValue
+        loading={loading}
+        updating={updating}
+        value={value}
+        className="min-h-[1.75rem] text-xl font-bold leading-none text-slate-800 dark:text-slate-50 sm:text-[1.35rem]"
+        spinnerClassName="h-5 w-5 text-slate-400"
+        updatingSpinnerClassName="h-3.5 w-3.5 text-slate-400"
+      />
 
       {sub && (
         <p className="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-500">

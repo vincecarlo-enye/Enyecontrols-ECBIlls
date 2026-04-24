@@ -15,7 +15,6 @@ import AnnouncementPanel from '@/components/common/AnnouncementPanel'
 import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import PageSection, { PageHeader } from '@/components/layout/PageSection'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { FinanceDashboardSkeleton } from '@/components/skeletons'
 import { buildUtilityCardMetric } from '@/utils/utilityCards'
 import { fetchFinanceBills, fetchFinancePayments, fetchSharedRates, getFinanceBillsSnapshot, getFinancePaymentsSnapshot, getSharedRatesSnapshot } from '@/services/financeService/financeBillService'
 import {
@@ -28,6 +27,7 @@ import {
   formatCompactChartCurrency,
   formatChartNumber,
 } from '@/components/charts/rechartsTheme.jsx'
+import { ChartLoadingState, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const fmt = (n) => `PHP ${Number(n || 0).toLocaleString()}`
 const FINANCE_FILTER_OPTIONS = ['1D', '1M', '1Y']
@@ -736,8 +736,8 @@ export default function FinanceDashboard() {
   }, [scopedPayments])
 
   const loadingState = (pageLoading && bills.length === 0 && payments.length === 0) || (loading && bills.length === 0 && payments.length === 0 && !error)
-  if (loadingState) return <FinanceDashboardSkeleton />
-
+  const isInitialLoading = loadingState
+  const isRefreshing = loading && (bills.length > 0 || payments.length > 0)
   const utilityColor = {
     Electricity: 'text-amber-600 dark:text-amber-400',
     Water: 'text-cyan-600 dark:text-cyan-400',
@@ -760,6 +760,7 @@ export default function FinanceDashboard() {
         icon={BarChart3}
         actions={(
           <div className="flex items-center justify-end gap-2 flex-wrap">
+            <UpdatingBadge show={isRefreshing} />
             <FilterPills options={FINANCE_FILTER_OPTIONS} value={chartRange} onChange={setChartRange} />
             <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
               <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
@@ -776,13 +777,13 @@ export default function FinanceDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 mb-4">
-        <UtilityCard type="electric" {...rangedUtilityMeters.electric} />
-        <UtilityCard type="thermal" {...rangedUtilityMeters.thermal} />
-        <UtilityCard type="water" {...rangedUtilityMeters.water} />
+        <UtilityCard type="electric" {...rangedUtilityMeters.electric} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="thermal" {...rangedUtilityMeters.thermal} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="water" {...rangedUtilityMeters.water} loading={isInitialLoading} updating={isRefreshing} />
       </div>
 
       <SummaryCardStrip
-        cards={summaryCards}
+        cards={summaryCards.map((card) => ({ ...card, loading: isInitialLoading, updating: isRefreshing }))}
         gapClassName="gap-4"
         stretch
         stretchGridClassName="grid-cols-1 md:grid-cols-2 xl:grid-cols-5"
@@ -818,6 +819,7 @@ export default function FinanceDashboard() {
           </span>
         )}
         badgeCls=""
+        updating={isRefreshing}
       >
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
@@ -857,8 +859,9 @@ export default function FinanceDashboard() {
             </div>
           ))}
         </div>
-        <ResponsiveContainer width="100%" height={240}>
-          <ComposedChart data={rangedMonthlyRevenue} margin={CHART_MARGIN_STANDARD}>
+        {rangedMonthlyRevenue.length > 0 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={rangedMonthlyRevenue} margin={CHART_MARGIN_STANDARD}>
             <defs>
               <linearGradient id="gradRev" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
@@ -884,8 +887,13 @@ export default function FinanceDashboard() {
             <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} name="Billed" barSize={24} />
             <Area type="monotone" dataKey="collected" stroke="#10b981" strokeWidth={2.5} fill="url(#gradCollected)" dot={false} name="Collected" />
             <Line type="monotone" dataKey="outstanding" stroke="#f59e0b" strokeWidth={2} dot={false} name="Collection Gap" />
-          </ComposedChart>
-        </ResponsiveContainer>
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : isInitialLoading ? (
+          <ChartLoadingState className="h-[240px]" />
+        ) : (
+          <ChartLoadingState text="No chart data available yet." className="h-[240px]" />
+        )}
       </ChartCard>
 
       <div className="grid gap-4 lg:grid-cols-5 mb-4">
@@ -894,6 +902,8 @@ export default function FinanceDashboard() {
           title="Utility Revenue Breakdown"
           exportable
           exportRows={rangedUtilityRevenue}
+          loading={isInitialLoading && rangedUtilityRevenue.length === 0}
+          updating={isRefreshing}
           subtitle={
             chartRange === '1D'
               ? 'Daily income by utility type'
@@ -930,7 +940,7 @@ export default function FinanceDashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard className="lg:col-span-2 " title="Revenue Distribution" subtitle="Utility contribution percentage" action={<PieIcon className="w-4 h-4 text-slate-400" />} exportable exportRows={rangedUtilityPie}>
+        <ChartCard className="lg:col-span-2 " title="Revenue Distribution" subtitle="Utility contribution percentage" action={<PieIcon className="w-4 h-4 text-slate-400" />} exportable exportRows={rangedUtilityPie} loading={isInitialLoading && rangedUtilityPie.every((entry) => Number(entry.value || 0) === 0)} updating={isRefreshing}>
           <div className="flex flex-1 flex-col items-center justify-center">
             <ResponsiveContainer width="100%" height={190}>
               <PieChart>
@@ -968,6 +978,8 @@ export default function FinanceDashboard() {
           exportRows={billingStatusData}
           subtitle="Current receivables and settlement distribution"
           action={<FileText className="w-4 h-4 text-slate-400" />}
+          loading={isInitialLoading && billingStatusData.every((entry) => Number(entry.value || 0) === 0)}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={billingStatusData} layout="vertical" margin={CHART_MARGIN_STANDARD}>
@@ -988,6 +1000,8 @@ export default function FinanceDashboard() {
           exportRows={paymentReviewStatusData}
           subtitle="Receipt review workload and outcomes"
           action={<CreditCard className="w-4 h-4 text-slate-400" />}
+          loading={isInitialLoading && paymentReviewStatusData.every((entry) => Number(entry.value || 0) === 0)}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={paymentReviewStatusData} margin={CHART_MARGIN_STANDARD}>
@@ -1003,7 +1017,7 @@ export default function FinanceDashboard() {
         </ChartCard>
       </div>
 
-      <ChartCard className="mb-4" title="Recent Transactions" subtitle="Latest payment records across all tenants and utilities" action={<CreditCard className="w-4 h-4 text-blue-500" />}>
+      <ChartCard className="mb-4" title="Recent Transactions" subtitle="Latest payment records across all tenants and utilities" action={<CreditCard className="w-4 h-4 text-blue-500" />} updating={isRefreshing}>
         <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr),200px]">
           <input
             type="search"
@@ -1033,7 +1047,9 @@ export default function FinanceDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredTransactions.length === 0 ? (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={7} />
+              ) : filteredTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
                     No transactions matched the current filters.

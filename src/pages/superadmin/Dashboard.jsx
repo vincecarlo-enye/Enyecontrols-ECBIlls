@@ -26,7 +26,6 @@ import {
   Wrench,
 } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { DashboardSkeleton } from '@/components/skeletons'
 import UtilityCard from '@/components/common/UtilityCard'
 import FilterPills from '@/components/common/FilterPills'
 import BillsTable from '@/components/billing/BillsTable'
@@ -54,6 +53,7 @@ import { fetchAdminTenants, getAdminTenantsSnapshot } from '@/services/adminServ
 import { fetchAdminUnits, getAdminUnitsSnapshot } from '@/services/adminService/adminUnitService'
 import { fetchAdminMeters, getAdminMetersSnapshot } from '@/services/adminService/adminMeterService'
 import { useApp } from '@/context/AppContext'
+import { ChartLoadingState, LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const FILTER_OPTIONS = [
   { key: '7D', label: '7D' },
@@ -203,7 +203,7 @@ export default function SuperAdminDashboard() {
   const loading = usePageLoader(700)
   const { addToast } = useApp()
   const { rates: billingRates, loading: ratesLoading } = useAdminRates()
-  const { summary, daily, comparison, loading: utilitiesLoading, ensureComparisonRange } = useAdminUtilityDashboard()
+  const { summary, daily, comparison, loading: utilitiesLoading, comparisonLoadingRanges, ensureComparisonRange } = useAdminUtilityDashboard()
   const billsSnapshot = getAdminBillsSnapshot()
   const tenantsSnapshot = getAdminTenantsSnapshot()
   const unitsSnapshot = getAdminUnitsSnapshot()
@@ -230,6 +230,9 @@ export default function SuperAdminDashboard() {
   const [meters, setMeters] = useState(initialMeters)
   const [payments, setPayments] = useState(initialPayments)
   const [units, setUnits] = useState(initialUnits)
+  const isComparisonRangeLoading = comparisonLoadingRanges?.has?.(comparisonFilter)
+  const isInitialLoading = (loading || dashboardLoading || utilitiesLoading) && bills.length === 0 && tenants.length === 0 && meters.length === 0 && payments.length === 0
+  const isRefreshing = !isInitialLoading && (dashboardLoading || utilitiesLoading || ratesLoading || isComparisonRangeLoading)
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)')
@@ -506,10 +509,6 @@ export default function SuperAdminDashboard() {
     }
   }
 
-  if ((loading && bills.length === 0) || dashboardLoading || utilitiesLoading || ratesLoading) {
-    return <DashboardSkeleton />
-  }
-
   return (
     <PageSection>
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 px-5 py-3.5 dark:border-violet-700/40">
@@ -530,7 +529,10 @@ export default function SuperAdminDashboard() {
             </p>
           </div>
         </div>
-        <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
+        <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
+          <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
+        </div>
       </div>
 
       {dashboardError ? (
@@ -542,9 +544,9 @@ export default function SuperAdminDashboard() {
       <div>
         <h2 className="section-title mb-3">System Utility Consumption</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-          <UtilityCard type="electricity" {...filteredUtilityCards.electricity} />
-          <UtilityCard type="thermal" {...filteredUtilityCards.thermal} />
-          <UtilityCard type="water" {...filteredUtilityCards.water} />
+          <UtilityCard type="electricity" {...filteredUtilityCards.electricity} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
+          <UtilityCard type="thermal" {...filteredUtilityCards.thermal} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
+          <UtilityCard type="water" {...filteredUtilityCards.water} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
         </div>
       </div>
 
@@ -554,6 +556,8 @@ export default function SuperAdminDashboard() {
         exportRows={systemOverviewData}
         subtitle="Combined view of billed revenue, collections, active tenants, and utility consumption for the selected time range"
         action={<BarChart2 className="h-4 w-4 text-violet-500" />}
+        loading={isComparisonRangeLoading}
+        updating={isRefreshing}
       >
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
@@ -564,11 +568,12 @@ export default function SuperAdminDashboard() {
           ].map((item) => (
             <div key={item.label} className={`rounded-xl px-3 py-2.5 ${item.bg}`}>
               <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{item.label}</p>
-              <p className={`mt-1 text-sm font-bold ${item.tone}`}>{item.value}</p>
+              <LoadingValue loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} value={item.value} className={`mt-1 text-sm font-bold ${item.tone}`} spinnerClassName="h-4 w-4 text-slate-400" />
             </div>
           ))}
         </div>
 
+        {systemOverviewData.length > 0 ? (
         <ResponsiveContainer width="100%" height={320}>
           <ComposedChart data={systemOverviewData} margin={CHART_MARGIN_COMPACT}>
             <CartesianGrid {...CHART_GRID_PROPS} />
@@ -583,9 +588,14 @@ export default function SuperAdminDashboard() {
             <Line yAxisId="ops" type="monotone" dataKey="consumption" name="Consumption" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>
+        ) : isInitialLoading ? (
+          <ChartLoadingState text="Loading chart data..." className="h-[320px]" />
+        ) : (
+          <ChartLoadingState text="No chart data available yet." className="h-[320px]" />
+        )}
       </ChartCard>
 
-      <SummaryCardStrip cards={summaryCards} />
+      <SummaryCardStrip cards={summaryCards.map((card) => ({ ...card, loading: isInitialLoading, updating: isRefreshing }))} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ChartCard
@@ -594,6 +604,8 @@ export default function SuperAdminDashboard() {
           exportRows={systemOverviewData}
           subtitle="Billed amounts versus paid collections across the selected window"
           action={<CreditCard className="h-4 w-4 text-emerald-500" />}
+          loading={(isInitialLoading && systemOverviewData.length === 0) || isComparisonRangeLoading}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={systemOverviewData} margin={CHART_MARGIN_COMPACT}>
@@ -625,6 +637,8 @@ export default function SuperAdminDashboard() {
           exportRows={billingStatusData}
           subtitle="Paid, unpaid, overdue, and submitted bills across the system"
           action={<TrendingUp className="h-4 w-4 text-blue-500" />}
+          loading={(isInitialLoading && billingStatusData.every((entry) => Number(entry.value) === 0)) || isComparisonRangeLoading}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={billingStatusData} margin={CHART_MARGIN_COMPACT}>
@@ -677,6 +691,8 @@ export default function SuperAdminDashboard() {
           exportRows={alertIssueData}
           subtitle="Meter-specific alerts and exceptions that need operational follow-up"
           action={<AlertTriangle className="h-4 w-4 text-amber-500" />}
+          loading={(isInitialLoading && alertIssueData.every((entry) => Number(entry.value) === 0)) || isComparisonRangeLoading}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={alertIssueData} layout="vertical" margin={CHART_MARGIN_COMPACT}>
@@ -699,6 +715,8 @@ export default function SuperAdminDashboard() {
           exportRows={occupancyData}
           subtitle="Tenant and unit coverage across the property"
           action={<Building2 className="h-4 w-4 text-violet-500" />}
+          loading={(isInitialLoading && occupancyData.every((entry) => Number(entry.value) === 0)) || isComparisonRangeLoading}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={occupancyData} layout="vertical" margin={CHART_MARGIN_COMPACT}>
@@ -732,7 +750,13 @@ export default function SuperAdminDashboard() {
               return rate ? (
                 <div key={type} className={`rounded-2xl border p-4 ${panel}`}>
                   <p className="mb-1 text-xs font-mono uppercase tracking-wider text-slate-400">{label} Rate</p>
-                  <p className={`text-2xl font-display font-700 ${value}`}>PHP {Number(rate.rate || 0).toFixed(2)}</p>
+                  <LoadingValue
+                    loading={isInitialLoading || ratesLoading}
+                    updating={isRefreshing && !ratesLoading}
+                    value={`PHP ${Number(rate.rate || 0).toFixed(2)}`}
+                    className={`text-2xl font-display font-700 ${value}`}
+                    spinnerClassName={`h-5 w-5 ${value}`}
+                  />
                   <p className="text-xs text-slate-400">{rate.unit}</p>
                 </div>
               ) : null
@@ -745,6 +769,8 @@ export default function SuperAdminDashboard() {
         bills={bills}
         onView={handleViewBill}
         onDelete={handleDeleteBill}
+        loading={isInitialLoading}
+        updating={isRefreshing}
       />
     </PageSection>
   )

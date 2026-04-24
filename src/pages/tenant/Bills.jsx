@@ -21,10 +21,10 @@ import ConcernModal from '@/components/billing/concerns/ConcernModal'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import AdjustmentStatusBadge from '@/components/billing/adjustments/AdjustmentStatusBadge'
 import UnitFilterBar from '@/components/common/UnitFilterBar'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import EmptyState from '@/components/ui/EmptyState'
 import { useModalState } from '@/hooks/useModalState'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { TenantBillsSkeleton } from '@/components/skeletons'
 import { useUnitFilter } from '@/context/UnitFilterContext'
 import { useApp } from '@/context/AppContext'
 import { exportBillCSV } from '@/services/billingService'
@@ -92,6 +92,7 @@ const BillsTableInner = memo(function BillsTableInner({
   viewer,
   receiptModal,
   concernModal,
+  loading = false,
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-md dark:border-slate-700/50 dark:bg-slate-900">
@@ -134,7 +135,9 @@ const BillsTableInner = memo(function BillsTableInner({
           </thead>
 
           <tbody>
-            {displayedBills.length === 0 ? (
+            {loading ? (
+              <TableLoadingRow colSpan={11} />
+            ) : displayedBills.length === 0 ? (
               <tr>
                 <td colSpan={11}>
                   <EmptyState title="No bills found" message="Bills will appear here once published by Finance." />
@@ -238,6 +241,8 @@ export default function TenantBills() {
     () => bills.filter((bill) => TENANT_VISIBLE.includes(bill.status)),
     [bills]
   )
+  const isInitialLoading = (pageLoading || billsLoading) && tenantBills.length === 0 && !billsError
+  const isRefreshing = !isInitialLoading && billsLoading
 
   const unitFiltered = useMemo(
     () => selectedUnit === 'all' || !selectedUnit
@@ -271,9 +276,6 @@ export default function TenantBills() {
     [unitFiltered]
   )
 
-  if ((pageLoading && bills.length === 0) || (billsLoading && bills.length === 0)) {
-    return <TenantBillsSkeleton />
-  }
   const unitLabel = selectedUnit === 'all' ? 'All Units' : `Unit ${selectedUnit}`
 
   const handleReceiptSubmit = async (billId, receiptData) => {
@@ -340,9 +342,10 @@ export default function TenantBills() {
 
   return (
     <div className="animate-in space-y-5">
-      <div>
+      <div className="flex items-start justify-between gap-3">
         <h1 className="font-display text-xl font-700 text-slate-800 dark:text-white">My Bills</h1>
         <p className="mt-0.5 text-sm text-slate-400">{unitLabel} · Billing history</p>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       <UnitFilterBar />
@@ -363,7 +366,7 @@ export default function TenantBills() {
         ].map((card) => (
           <div key={card.label} className="glass rounded-2xl p-4 shadow-md">
             <p className="font-mono text-xs uppercase tracking-wide text-slate-400">{card.label}</p>
-            <p className={`mt-1 text-2xl font-bold ${card.cls}`}>{card.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`mt-1 text-2xl font-bold ${card.cls}`} spinnerClassName="h-5 w-5 text-slate-400" />
           </div>
         ))}
       </div>
@@ -386,6 +389,7 @@ export default function TenantBills() {
         viewer={viewer}
         receiptModal={receiptModal}
         concernModal={concernModal}
+        loading={isInitialLoading}
       />
 
       <BillViewerModal

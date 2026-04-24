@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { AlertTriangle, CalendarRange, Download, Printer, RefreshCw } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { ChartLoadingState, LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useAdminReconciliation } from '@/hooks/adminHooks/useAdminReconciliation'
 import { useApp } from '@/context/AppContext'
@@ -90,6 +90,8 @@ export default function Reconciliation() {
     utilityCards,
     reload,
   } = useAdminReconciliation()
+  const isInitialLoading = (loadingScreen || loading) && utilityCards.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const chartData = useMemo(() => (
     (data.monthlySeries || []).map((item) => ({
@@ -99,8 +101,6 @@ export default function Reconciliation() {
       Variance: Number(item.variance || 0),
     }))
   ), [data.monthlySeries])
-
-  if (loadingScreen || loading) return <ReportsSkeleton />
 
   return (
     <div className="space-y-6 animate-in">
@@ -115,6 +115,7 @@ export default function Reconciliation() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
           <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
             <CalendarRange className="w-4 h-4" />
             <input
@@ -178,9 +179,10 @@ export default function Reconciliation() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-mono uppercase tracking-widest text-slate-400">{card.label}</p>
-                <h3 className="mt-2 font-display font-700 text-2xl text-slate-800 dark:text-white">
-                  {formatNumber(card.variance)} <span className="text-sm text-slate-400">{card.unit}</span>
-                </h3>
+                <div className="mt-2">
+                  <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={formatNumber(card.variance)} className="font-display font-700 text-2xl text-slate-800 dark:text-white" spinnerClassName="h-5 w-5 text-slate-400" />
+                  <span className="text-sm text-slate-400">{card.unit}</span>
+                </div>
                 <p className="text-xs text-slate-400 mt-1">Variance for {data.period?.label || selectedMonth}</p>
               </div>
               <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${getStatusTone(card.status)}`}>
@@ -191,11 +193,11 @@ export default function Reconciliation() {
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Main Meter</p>
-                <p className="mt-1 font-semibold text-slate-700 dark:text-slate-200">{formatNumber(card.main_total)} {card.unit}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={`${formatNumber(card.main_total)} ${card.unit}`} className="mt-1 font-semibold text-slate-700 dark:text-slate-200" spinnerClassName="h-4 w-4 text-slate-400" />
               </div>
               <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">Submeters</p>
-                <p className="mt-1 font-semibold text-slate-700 dark:text-slate-200">{formatNumber(card.submeter_total)} {card.unit}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={`${formatNumber(card.submeter_total)} ${card.unit}`} className="mt-1 font-semibold text-slate-700 dark:text-slate-200" spinnerClassName="h-4 w-4 text-slate-400" />
               </div>
             </div>
 
@@ -219,6 +221,9 @@ export default function Reconciliation() {
           <ChartExportButton title="6-Month Reconciliation Trend" rows={chartData} />
         </div>
 
+        {isInitialLoading ? (
+          <ChartLoadingState className="h-[280px]" />
+        ) : (
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData} margin={{ top: 5, right: 12, left: -12, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
@@ -234,6 +239,7 @@ export default function Reconciliation() {
             <Bar dataKey="Variance" fill="#f59e0b" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        )}
       </div>
 
       <div className="glass rounded-2xl p-5 shadow-lg">
@@ -256,7 +262,9 @@ export default function Reconciliation() {
               </tr>
             </thead>
             <tbody>
-              {(data.pageBreakdown || []).map((item) => (
+              {isInitialLoading ? (
+                <TableLoadingRow colSpan={7} />
+              ) : (data.pageBreakdown || []).map((item) => (
                 <tr key={`${item.page_name}-${item.scope}`} className="border-b border-slate-100 dark:border-slate-800/80">
                   <td className="px-3 py-3">
                     <p className="font-semibold text-slate-700 dark:text-slate-200">{item.page_name}</p>
@@ -277,7 +285,7 @@ export default function Reconciliation() {
           </table>
         </div>
 
-        {(data.pageBreakdown || []).length === 0 && (
+        {!isInitialLoading && (data.pageBreakdown || []).length === 0 && (
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             No Omni page breakdown data found for the selected month yet.

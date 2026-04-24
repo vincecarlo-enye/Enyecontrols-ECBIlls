@@ -7,6 +7,7 @@ import waterMeter from '@/assets/meters/water.png'
 import thermalMeterBefore from '@/assets/meters/thermal_b4.png'
 import thermalMeter from '@/assets/meters/thermal.png'
 import { formatPeso } from '@/utils/filterUtils'
+import { Loader2 } from 'lucide-react'
 
 
 const imageMap = {
@@ -138,6 +139,8 @@ export default function UtilityCard({
   trend = 0,
   delta,
   series = [],
+  loading = false,
+  updating = false,
 }) {
   const normalizedType = normalizeUtilityShort(type)
   const meterImages = imageMap[normalizedType]
@@ -170,8 +173,8 @@ export default function UtilityCard({
         </div>
 
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${palette.badge}`}>
-          <TrendIcon className="h-3 w-3" />
-          Live
+          {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <TrendIcon className="h-3 w-3" />}
+          {updating ? 'Updating...' : 'Live'}
         </span>
       </div>
 
@@ -197,23 +200,31 @@ export default function UtilityCard({
 
       <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-3 dark:border-white/5 dark:bg-[#090c13]">
         <div className="flex items-end gap-2">
-          <span className="text-2xl font-bold text-slate-800 dark:text-slate-50">
-            {safeUsage.toLocaleString('en-PH', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
+          {loading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+          ) : (
+            <span className="text-2xl font-bold text-slate-800 dark:text-slate-50">
+              {safeUsage.toLocaleString('en-PH', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+          )}
           <span className="mb-1 text-xs font-mono text-slate-500 dark:text-slate-500">{displayUnit}</span>
         </div>
       </div>
 
       <div className="mb-3 flex items-end justify-between gap-3">
-        <p className={`text-base font-semibold ${palette.text}`}>
-          PHP {safeCost.toLocaleString('en-PH', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </p>
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        ) : (
+          <p className={`text-base font-semibold ${palette.text}`}>
+            PHP {safeCost.toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </p>
+        )}
         <p className="text-[10px] uppercase tracking-[0.18em] text-slate-600 dark:text-slate-600">
           {safeTrend >= 0 ? '+' : '-'}{Math.abs(safeTrend).toFixed(1)}%
         </p>

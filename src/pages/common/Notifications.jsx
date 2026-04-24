@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { Bell, CheckCheck, Clock3, RefreshCw } from 'lucide-react'
 import { fetchNotification, fetchNotifications, getNotificationsSnapshot, markNotificationAsRead } from '@/services/notificationService'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import PaginationBar from '@/components/common/PaginationBar'
 
 
@@ -36,6 +36,8 @@ export default function NotificationsPage() {
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
   const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
   const preselectedId = location.state?.selectedNotificationId ?? null
+  const isInitialLoading = (pageLoading || loading) && notifications.length === 0 && !error
+  const isRefreshing = !isInitialLoading && (loading || detailLoading)
 
   useEffect(() => {
     if (initialSelectedId) {
@@ -139,10 +141,6 @@ export default function NotificationsPage() {
     }
   }
 
-  if ((pageLoading && notifications.length === 0) || (loading && notifications.length === 0)) {
-    return <ReportsSkeleton />
-  }
-
   return (
     <div className="space-y-5 animate-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -156,11 +154,10 @@ export default function NotificationsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <UpdatingBadge show={isRefreshing} />
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
             <CheckCheck className="w-4 h-4 text-blue-500" />
-            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-              {unreadCount} unread on this page
-            </span>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={`${unreadCount} unread on this page`} className="text-xs font-semibold text-blue-700 dark:text-blue-300" spinnerClassName="h-4 w-4 text-blue-500" />
           </div>
           <button
             onClick={() => loadNotifications(page, perPage)}
@@ -189,7 +186,11 @@ export default function NotificationsPage() {
             </p>
           </div>
 
-          {notifications.length === 0 ? (
+          {isInitialLoading ? (
+            <div className="px-5 py-12 text-center text-sm text-slate-400">
+              Loading notifications...
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               No notifications found.
             </div>
@@ -285,4 +286,3 @@ export default function NotificationsPage() {
     </div>
   )
 }
-

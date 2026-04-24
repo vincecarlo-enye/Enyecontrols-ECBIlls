@@ -110,6 +110,8 @@ export default function SummaryCardStrip({
               sub={card.sub}
               badge={card.badge ?? card.trend}
               badgeUp={card.badgeUp ?? card.trendUp}
+              loading={card.loading}
+              updating={card.updating}
               gradient={card.gradient}
               glow={card.glow ?? card.shadow}
               className={`${stretch ? 'min-w-0 w-full' : cardClassName} ${card.className || `stagger-${index + 1} animate-in`}`.trim()}

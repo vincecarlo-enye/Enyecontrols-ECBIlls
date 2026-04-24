@@ -1,9 +1,12 @@
+import { normalizeTenantBill } from '@/utils/billing'
 import { normalizeUtilityKey } from '@/utils/utilityTypes'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { isDateWithinTenantTimeRange } from '@/context/UnitFilterContext'
-import { useBills } from '@/components/billing/hooks/useBills'
 import { getTenantConsumptionReports } from '@/services/tenantService/tenantConsumptionService'
+import { fetchTenantBills } from '@/services/tenantService/tenantBillingService'
+
+const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
 
 function toNumber(value, fallback = 0) {
   const n = Number(value)
@@ -147,15 +150,19 @@ function getRangeData(bills, timeRange) {
 
 export function useTenantConsumptionReports() {
   const { user } = useAuth()
-  const { bills, loading, error, refreshBills } = useBills()
   const [requestedUnit, setRequestedUnit] = useState('all')
   const [requestedTimeRange, setRequestedTimeRange] = useState('1m')
+  const [fallbackBills, setFallbackBills] = useState([])
+  const [billsLoading, setBillsLoading] = useState(true)
+  const [billsError, setBillsError] = useState('')
   const [reportLoading, setReportLoading] = useState(true)
   const [reportError, setReportError] = useState('')
   const [reportSummary, setReportSummary] = useState(null)
   const [reportMonthly, setReportMonthly] = useState([])
   const [reportUnit, setReportUnit] = useState(null)
   const [reportUnits, setReportUnits] = useState([])
+  const fallbackLoadedRef = useRef(false)
+  const fallbackRequestRef = useRef(null)
 
   const tenantUnits = useMemo(() => getTenantUnits(user), [user])
   const selectedUnits = useMemo(
@@ -163,16 +170,51 @@ export function useTenantConsumptionReports() {
     [requestedUnit, tenantUnits]
   )
 
+  const loadFallbackBills = useCallback(async ({ force = false } = {}) => {
+    if (fallbackLoadedRef.current && !force) return
+    if (fallbackRequestRef.current && !force) return fallbackRequestRef.current
+
+    const request = (async () => {
+      setBillsLoading(true)
+      setBillsError('')
+
+      try {
+        const res = await fetchTenantBills()
+        const rows = Array.isArray(res?.data) ? res.data : []
+
+        setFallbackBills(
+          rows
+            .map(normalizeTenantBill)
+            .filter((bill) => TENANT_VISIBLE.includes(bill.status))
+        )
+        fallbackLoadedRef.current = true
+      } catch (err) {
+        setFallbackBills([])
+        setBillsError(err?.response?.data?.message || 'Failed to load bills.')
+      } finally {
+        setBillsLoading(false)
+        fallbackRequestRef.current = null
+      }
+    })()
+
+    fallbackRequestRef.current = request
+    return request
+  }, [])
+
+  useEffect(() => {
+    loadFallbackBills()
+  }, [loadFallbackBills])
+
   const filteredBills = useMemo(() => {
     const unitScopedBills = requestedUnit === 'all'
-      ? bills
-      : bills.filter((bill) => String(bill?.unit) === String(requestedUnit))
+      ? fallbackBills
+      : fallbackBills.filter((bill) => String(bill?.unit) === String(requestedUnit))
 
     return unitScopedBills.filter((bill) => {
       const billDate = getBillDate(bill)
       return billDate ? isDateWithinTenantTimeRange(billDate, requestedTimeRange) : false
     })
-  }, [bills, requestedTimeRange, requestedUnit])
+  }, [fallbackBills, requestedTimeRange, requestedUnit])
 
   const monthly = useMemo(() => getRangeData(filteredBills, requestedTimeRange), [filteredBills, requestedTimeRange])
 
@@ -223,11 +265,15 @@ export function useTenantConsumptionReports() {
   const reload = useCallback(async (unit = 'all', timeRange = '1m') => {
     setRequestedUnit(unit || 'all')
     setRequestedTimeRange(timeRange || '1m')
+
     await Promise.all([
-      refreshBills(),
       loadReports(unit || 'all', timeRange || '1m'),
+      loadFallbackBills(),
     ])
-  }, [loadReports, refreshBills])
+  }, [loadFallbackBills, loadReports])
+
+  const loading = reportLoading || (!backendDriven && billsLoading)
+  const error = reportError || (!backendDriven ? billsError : '')
 
   return {
     unit: reportUnit || (
@@ -248,8 +294,8 @@ export function useTenantConsumptionReports() {
     monthly: resolvedMonthly,
     timeRange: requestedTimeRange,
     backendDriven,
-    loading: loading || reportLoading,
-    error: reportError || error,
+    loading,
+    error,
     reload,
   }
 }

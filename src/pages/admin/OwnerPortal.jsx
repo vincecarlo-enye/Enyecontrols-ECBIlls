@@ -1,7 +1,7 @@
 import { formatDateTime } from '@/utils/filterUtils'
 import { AlertTriangle, Building2, Eye, Receipt, RefreshCw, ShieldCheck, Wallet } from 'lucide-react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { ReportsSkeleton } from '@/components/skeletons'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { useAdminOwnerPortal } from '@/hooks/adminHooks/useAdminOwnerPortal'
 
 function formatCurrency(value) {
@@ -20,7 +20,7 @@ function formatMetric(card) {
 }
 
 
-function SummaryCard({ card }) {
+function SummaryCard({ card, loading = false, updating = false }) {
   const toneMap = {
     blue: 'text-blue-600 dark:text-blue-400',
     emerald: 'text-emerald-600 dark:text-emerald-400',
@@ -32,9 +32,7 @@ function SummaryCard({ card }) {
   return (
     <div className="glass rounded-2xl p-5 shadow-lg">
       <p className="text-[11px] font-mono uppercase tracking-widest text-slate-400">{card.label}</p>
-      <p className={`mt-2 font-display text-3xl font-700 ${toneMap[card.tone] || 'text-slate-700 dark:text-slate-200'}`}>
-        {formatMetric(card)}
-      </p>
+      <LoadingValue loading={loading} updating={updating} value={formatMetric(card)} className={`mt-2 font-display text-3xl font-700 ${toneMap[card.tone] || 'text-slate-700 dark:text-slate-200'}`} spinnerClassName="h-5 w-5 text-slate-400" />
       <p className="mt-1 text-xs text-slate-400">{card.helper}</p>
     </div>
   )
@@ -68,8 +66,8 @@ export default function OwnerPortal() {
     executiveCards,
     reload,
   } = useAdminOwnerPortal()
-
-  if (loadingScreen || loading) return <ReportsSkeleton />
+  const isInitialLoading = (loadingScreen || loading) && executiveCards.length === 0 && !error
+  const isRefreshing = !isInitialLoading && loading
 
   const operations = data.operationsSummary || {}
   const occupancy = data.occupancySummary || {}
@@ -95,6 +93,7 @@ export default function OwnerPortal() {
               className="bg-transparent outline-none"
             />
           </label>
+          <UpdatingBadge show={isRefreshing} />
           <button
             onClick={reload}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60"
@@ -113,7 +112,7 @@ export default function OwnerPortal() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {executiveCards.map((card) => (
-          <SummaryCard key={card.key} card={card} />
+          <SummaryCard key={card.key} card={card} loading={isInitialLoading} updating={isRefreshing} />
         ))}
       </div>
 
@@ -137,7 +136,9 @@ export default function OwnerPortal() {
                 </tr>
               </thead>
               <tbody>
-                {data.financialTrend.map((row, index) => (
+                {isInitialLoading ? (
+                  <TableLoadingRow colSpan={4} />
+                ) : data.financialTrend.map((row, index) => (
                   <tr
                     key={`${row.month || 'month'}-${row.billed || 0}-${row.collected || 0}-${index}`}
                     className="border-b border-slate-100 dark:border-slate-800/80"
@@ -171,7 +172,7 @@ export default function OwnerPortal() {
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-800/60">
                 <span className="text-slate-500 dark:text-slate-400">{item.label}</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{item.value}</span>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={item.value} className="font-semibold text-slate-700 dark:text-slate-200" spinnerClassName="h-4 w-4 text-slate-400" />
               </div>
             ))}
           </div>
@@ -199,7 +200,7 @@ export default function OwnerPortal() {
             ].map((item) => (
               <div key={item.label} className="rounded-xl border border-slate-200 px-4 py-4 dark:border-slate-700">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{item.label}</p>
-                <p className="mt-2 font-display text-2xl font-700 text-slate-800 dark:text-white">{item.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={item.value} className="mt-2 font-display text-2xl font-700 text-slate-800 dark:text-white" spinnerClassName="h-5 w-5 text-slate-400" />
               </div>
             ))}
           </div>

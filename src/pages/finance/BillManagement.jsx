@@ -5,8 +5,6 @@ import {
   Eye, CheckCircle2, X, Zap, Droplets, Flame,
   LayoutList, Settings2, Filter,
 } from 'lucide-react'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { BillingSkeleton } from '@/components/skeletons'
 import EmptyState from '@/components/ui/EmptyState'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
 import PaymentReviewModal from '@/components/billing/PaymentReviewModal'
@@ -24,6 +22,7 @@ import { useBillingPenaltyRule } from '@/hooks/useBillingPenaltyRule'
 import { useBillingPeriodLocks } from '@/hooks/useBillingPeriodLocks'
 import { useFinanceBills } from '@/hooks/financeHooks/useFinanceBills'
 import { exportTableCsv, printElement } from '@/utils/reporting'
+import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const UTIL_CLS = {
   electricity: 'text-amber-600 dark:text-amber-400',
@@ -428,7 +427,6 @@ function ActionGuidePills() {
 }
 
 export default function FinanceBillManagement() {
-  const pageLoading = usePageLoader(700)
   const printRef = useRef(null)
   const {
     bills,
@@ -480,7 +478,8 @@ export default function FinanceBillManagement() {
   const historyModal = useModalState()
   const reviewModal = useModalState()
 
-  const loadingState = (pageLoading && bills.length === 0 && tenants.length === 0) || (loading && bills.length === 0 && tenants.length === 0 && !error)
+  const isInitialLoading = loading && bills.length === 0 && tenants.length === 0 && !error
+  const isRefreshing = loading && (bills.length > 0 || tenants.length > 0)
 
   const prepareFiltered = useMemo(
     () =>
@@ -563,8 +562,6 @@ export default function FinanceBillManagement() {
   useEffect(() => {
     allBillsPagination.setPage(1)
   }, [allSearch, allStatus, allUtility])
-
-  if (loadingState) return <BillingSkeleton />
 
   const openCreate = () => {
     setEditBill(null)
@@ -768,6 +765,7 @@ export default function FinanceBillManagement() {
           <p className="text-sm text-slate-400 mt-0.5">Generate, publish, regenerate, and adjust tenant bills</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <UpdatingBadge show={isRefreshing} />
           <PageActionBar
             onExport={handleExportCurrent}
             onPrint={handlePrintCurrent}
@@ -847,7 +845,7 @@ export default function FinanceBillManagement() {
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
-                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
               </div>
             ))}
@@ -934,7 +932,9 @@ export default function FinanceBillManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {prepareFiltered.length === 0 ? (
+                  {isInitialLoading ? (
+                    <TableLoadingRow colSpan={9} />
+                  ) : prepareFiltered.length === 0 ? (
                     <tr><td colSpan={9}><EmptyState title="No bills found" message="Generate a new bill to get started." /></td></tr>
                   ) : preparePagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -1071,7 +1071,7 @@ export default function FinanceBillManagement() {
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
-                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
               </div>
             ))}
@@ -1108,7 +1108,9 @@ export default function FinanceBillManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {paymentQueueFiltered.length === 0 ? (
+                  {isInitialLoading ? (
+                    <TableLoadingRow colSpan={8} />
+                  ) : paymentQueueFiltered.length === 0 ? (
                     <tr><td colSpan={8}><EmptyState title="No submitted payments" message="Bills will appear here only after a tenant submits payment proof." /></td></tr>
                   ) : paymentQueuePagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -1168,7 +1170,7 @@ export default function FinanceBillManagement() {
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
-                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
               </div>
             ))}
@@ -1205,7 +1207,9 @@ export default function FinanceBillManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {exceptionFiltered.length === 0 ? (
+                  {isInitialLoading ? (
+                    <TableLoadingRow colSpan={7} />
+                  ) : exceptionFiltered.length === 0 ? (
                     <tr><td colSpan={7}><EmptyState title="No billing exceptions" message="Bills with adjustments or partial follow-ups will appear here." /></td></tr>
                   ) : exceptionPagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
@@ -1285,7 +1289,7 @@ export default function FinanceBillManagement() {
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-md">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{card.label}</p>
-                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
               </div>
             ))}
@@ -1339,7 +1343,9 @@ export default function FinanceBillManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {ledgerFiltered.length === 0 ? (
+                  {isInitialLoading ? (
+                    <TableLoadingRow colSpan={12} />
+                  ) : ledgerFiltered.length === 0 ? (
                     <tr><td colSpan={12}><EmptyState title="No bills match your filters" message="Try adjusting the search or status filter." /></td></tr>
                   ) : allBillsPagination.pagedItems.map((bill) => (
                     <tr key={bill.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">

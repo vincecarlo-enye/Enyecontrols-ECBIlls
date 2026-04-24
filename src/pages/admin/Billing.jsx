@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { BillingSkeleton } from '@/components/skeletons'
 import BillsTable from '@/components/billing/BillsTable'
 import RateConfigCard from '@/components/common/RateConfigCard'
 import PaginationBar from '@/components/common/PaginationBar'
@@ -34,6 +33,7 @@ import { useAdminRates } from '../../hooks/adminHooks/useAdminRates'
 import { useAuth } from '@/context/AuthContext'
 import { applyAdjustment, approveAdjustment, rejectAdjustment } from '@/services/financeService/financeAdjustmentService'
 import { addLocalNotification } from '@/services/notificationService'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const OVERSIGHT_TABS = [
   { key: 'all', label: 'All Bills' },
@@ -123,6 +123,8 @@ export default function AdminBilling() {
     user?.role === 'super_admin' || location.pathname.startsWith('/super-admin')
       ? '/super-admin/billing'
       : '/admin/billing'
+  const isInitialLoading = (pageLoading || loading) && bills.length === 0
+  const isRefreshing = !isInitialLoading && (loading || adjustmentsLoading)
 
   useEffect(() => {
     if (activeTab === 'oversight') {
@@ -219,10 +221,6 @@ export default function AdminBilling() {
     await loadBills(page, perPage)
   }
 
-  if ((pageLoading || loading) && bills.length === 0 && publishedBills.length === 0 && submittedBills.length === 0 && draftBills.length === 0 && overdueBills.length === 0) {
-    return <BillingSkeleton />
-  }
-
   if (error) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
@@ -248,6 +246,7 @@ export default function AdminBilling() {
 
         {activeTab === 'manage' && (
           <div className="flex items-center gap-2 flex-shrink-0">
+            <UpdatingBadge show={isRefreshing} />
             <button
               onClick={() => navigate(`${billingBasePath}/new`)}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
@@ -320,9 +319,7 @@ export default function AdminBilling() {
                 <p className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-slate-400 mb-1">
                   {card.label}
                 </p>
-                <p className={`text-xl sm:text-2xl font-bold ${card.color}`}>
-                  {card.value}
-                </p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-xl sm:text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
                   {card.sub}
                 </p>
@@ -332,6 +329,8 @@ export default function AdminBilling() {
 
           <BillsTable
             bills={bills}
+            loading={isInitialLoading}
+            updating={isRefreshing}
             onView={async (bill) => {
               const fullBill = await loadBillDetail(bill.id)
               return fullBill
@@ -409,7 +408,7 @@ export default function AdminBilling() {
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">
                   {card.label}
                 </p>
-                <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
               </div>
             ))}
@@ -434,7 +433,7 @@ export default function AdminBilling() {
             ].map((card) => (
               <div key={card.label} className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm dark:border-slate-700/50 dark:bg-slate-900">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{card.label}</p>
-                <p className={`mt-1 text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={card.value} className={`mt-1 text-2xl font-bold ${card.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
                 <p className="mt-1 text-[10px] text-slate-400">{card.sub}</p>
               </div>
             ))}

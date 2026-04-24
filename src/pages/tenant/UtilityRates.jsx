@@ -4,6 +4,7 @@ import { formatDate } from '@/utils/filterUtils'
  * Tenant view of utility rates from backend, always read-only.
  */
 import { Zap, Flame, Droplets, Lock } from 'lucide-react'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import useTenantRates from '@/hooks/tenantHooks/useTenantRates'
 import { useRateHistory } from '@/hooks/common/useRateHistory'
 import RateHistoryPanel from '@/components/common/RateHistoryPanel'
@@ -30,7 +31,7 @@ const config = {
 }
 
 
-function RateViewCard({ type, rate, unit, effectiveFrom, description }) {
+function RateViewCard({ type, rate, unit, effectiveFrom, description, loading = false, updating = false }) {
   const cfg = config[type]
   const Icon = cfg.icon
 

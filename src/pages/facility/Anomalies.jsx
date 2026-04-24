@@ -4,11 +4,10 @@ import {
   AlertTriangle, CheckCircle2, LineChart as LineChartIcon, MessageSquareText, Save, Lightbulb,
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { usePageLoader } from '@/hooks/usePageLoader'
-import { FacilityPageSkeleton } from '@/components/skeletons'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityAnomalies } from '@/hooks/facilityHooks/useFacilityAnomalies'
 import { useApp } from '@/context/AppContext'
+import { ChartLoadingState, LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const severityCls = {
   medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -23,16 +22,14 @@ const statusCls = {
 
 
 export default function FacilityAnomalies() {
-  const pageLoading = usePageLoader(700)
   const { addToast } = useApp()
   const { anomalies, analytics, stats, loading, saving, error, saveAnomaly } = useFacilityAnomalies()
   const [selectedId, setSelectedId] = useState(null)
   const [draftNotes, setDraftNotes] = useState('')
 
-  const loadingState = (pageLoading && anomalies.length === 0) || (loading && anomalies.length === 0 && !error)
+  const isInitialLoading = loading && anomalies.length === 0 && !error
+  const isRefreshing = loading && anomalies.length > 0
   const selected = useMemo(() => anomalies.find((row) => row.id === selectedId) || anomalies[0] || null, [anomalies, selectedId])
-
-  if (loadingState) return <FacilityPageSkeleton />
 
   const handleSelect = (row) => {
     setSelectedId(row.id)
@@ -47,9 +44,12 @@ export default function FacilityAnomalies() {
 
   return (
     <div className="space-y-6 animate-in">
-      <div>
-        <h1 className="font-bold text-xl text-slate-800 dark:text-white">AI Anomaly Center</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Real-time anomaly alerts, insights, and response actions</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="font-bold text-xl text-slate-800 dark:text-white">AI Anomaly Center</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Real-time anomaly alerts, insights, and response actions</p>
+        </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -63,7 +63,7 @@ export default function FacilityAnomalies() {
         ].map((item) => (
           <div key={item.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
             <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{item.label}</p>
-            <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={item.value} className={`text-2xl font-bold ${item.color}`} spinnerClassName="h-5 w-5 text-slate-400" />
           </div>
         ))}
       </div>
@@ -76,18 +76,24 @@ export default function FacilityAnomalies() {
           </div>
           <ChartExportButton title="Recurring Trend" rows={analytics.trend || []} />
         </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={analytics.trend || []}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
-            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} name="Total" />
-            <Line type="monotone" dataKey="critical" stroke="#f43f5e" strokeWidth={2} dot={false} name="Critical" />
-            <Line type="monotone" dataKey="resolved" stroke="#10b981" strokeWidth={2} dot={false} name="Resolved" />
-          </LineChart>
-        </ResponsiveContainer>
+        {(analytics.trend || []).length > 0 ? (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={analytics.trend || []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.5} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} name="Total" />
+              <Line type="monotone" dataKey="critical" stroke="#f43f5e" strokeWidth={2} dot={false} name="Critical" />
+              <Line type="monotone" dataKey="resolved" stroke="#10b981" strokeWidth={2} dot={false} name="Resolved" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : isInitialLoading ? (
+          <ChartLoadingState />
+        ) : (
+          <ChartLoadingState text="No chart data available yet." />
+        )}
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Zap, Droplets, Flame, Shield, Check, X, AlertTriangle } from 'lucide-react'
 import { usePermissions } from '@/hooks/usePermissions'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { DashboardSkeleton } from '@/components/skeletons'
+import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
 import { useRateHistory } from '@/hooks/common/useRateHistory'
 import { useBillingPenaltyRule } from '@/hooks/useBillingPenaltyRule'
@@ -17,7 +17,7 @@ const TYPE_CONFIG = {
 }
 
 
-function RateEditCard({ type, rate, unit, completeness, saving, onSave }) {
+function RateEditCard({ type, rate, unit, completeness, saving, onSave, loading = false, updating = false }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(Number(rate || 0).toFixed(2))
   const [unitVal, setUnitVal] = useState(unit || TYPE_CONFIG[type].defaultUnit)
@@ -110,7 +110,7 @@ function RateEditCard({ type, rate, unit, completeness, saving, onSave }) {
         </div>
       ) : (
         <div className="flex items-baseline gap-1 mb-3">
-          <span className="text-2xl font-display font-700 text-slate-800 dark:text-white">{formatPeso(val).replace('PHP ', '')}</span>
+          <LoadingValue loading={loading} updating={updating} value={formatPeso(val).replace('PHP ', '')} className="text-2xl font-display font-700 text-slate-800 dark:text-white" spinnerClassName="h-5 w-5 text-slate-400" />
           <span className="text-xs font-mono text-slate-400">{unitVal}</span>
         </div>
       )}
@@ -271,8 +271,8 @@ export default function BillingRates() {
     error: penaltyError,
     saveRule,
   } = useBillingPenaltyRule()
-
-  if ((pageLoading && rawRates.length === 0) || (loading && rawRates.length === 0)) return <DashboardSkeleton />
+  const isInitialLoading = (pageLoading || loading) && Object.keys(rates || {}).length === 0 && !error
+  const isRefreshing = !isInitialLoading && (loading || historyLoading || penaltyLoading)
 
   if (!isSuperAdmin) {
     return (
@@ -304,7 +304,7 @@ export default function BillingRates() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">Billing Rates Management</h2>
@@ -314,6 +314,7 @@ export default function BillingRates() {
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Set electricity, water, and thermal energy rates - changes propagate immediately to all dashboards</p>
         </div>
+        <UpdatingBadge show={isRefreshing} />
       </div>
 
       {error && (
@@ -355,6 +356,8 @@ export default function BillingRates() {
             completeness={rates[type]?.completeness || 0}
             saving={saving}
             onSave={handleSave}
+            loading={isInitialLoading}
+            updating={isRefreshing}
           />
         ))}
       </div>

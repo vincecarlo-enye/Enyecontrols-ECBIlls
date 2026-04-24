@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useState } from 'react'
 import { usePageLoader } from '@/hooks/usePageLoader'
-import { DashboardSkeleton } from '@/components/skeletons'
 import UtilityCard from '@/components/common/UtilityCard'
 import FilterPills from '@/components/common/FilterPills'
 import BillsTable from '@/components/billing/BillsTable'
@@ -19,6 +18,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useAdminDashboard } from '@/hooks/adminHooks/useAdminDashboard'
 import { useAdminAnomalies } from '@/hooks/adminHooks/useAdminAnomalies'
 import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
+import { UpdatingBadge } from '@/components/common/InlineLoadingState'
 import {
   buildUtilityComparisonRows,
   computeUsageTrend,
@@ -60,6 +60,8 @@ const MemoCharts = memo(function Charts({
   thermalDaily,
   filter,
   setFilter,
+  loading = false,
+  updating = false,
 }) {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const comparisonData = useMemo(
@@ -86,6 +88,8 @@ const MemoCharts = memo(function Charts({
         title="Consumption Comparison"
         exportable
         exportRows={comparisonData}
+        loading={loading}
+        updating={updating}
         subtitle={
           filter === '7D'
             ? 'Daily comparison across utilities'
@@ -118,6 +122,8 @@ const MemoCharts = memo(function Charts({
         title="Most Use Consumption"
         exportable
         exportRows={pieData}
+        loading={loading}
+        updating={updating}
         subtitle="Share of usage by utility"
         badge={topUtility ? topUtility.name : 'N/A'}
         badgeCls="border border-cyan-200/90 bg-gradient-to-b from-white to-cyan-50 text-cyan-800 shadow-[0_8px_20px_rgba(34,211,238,0.14)] dark:border-cyan-400/25 dark:bg-[linear-gradient(180deg,rgba(34,211,238,0.18),rgba(34,211,238,0.08))] dark:text-cyan-200 dark:shadow-[0_0_0_1px_rgba(34,211,238,0.12),0_10px_24px_rgba(8,145,178,0.18)]"
@@ -173,6 +179,7 @@ export default function Dashboard() {
     daily,
     comparison,
     loading: utilityLoading,
+    comparisonLoadingRanges,
     ensureComparisonRange,
   } = useAdminUtilityDashboard()
 
@@ -361,10 +368,13 @@ export default function Dashboard() {
     ensureComparisonRange(comparisonFilter)
   }, [comparisonFilter, ensureComparisonRange])
 
-  if (((loading || dashboardLoading) && bills.length === 0 && !metrics)
-    || (utilityLoading && !utilityStats?.electric && !utilityStats?.water && !utilityStats?.thermal)) {
-    return <DashboardSkeleton />
-  }
+  const isInitialLoading =
+    (loading || dashboardLoading || utilityLoading)
+    && bills.length === 0
+    && Object.values(safeMetrics).every((value) => Number(value || 0) === 0)
+  const isComparisonRangeLoading = comparisonLoadingRanges?.has?.(comparisonFilter)
+
+  const isRefreshing = !isInitialLoading && (dashboardLoading || utilityLoading || anomalyLoading || isComparisonRangeLoading)
 
   return (
     <PageSection>
@@ -373,7 +383,10 @@ export default function Dashboard() {
           <h1 className="page-title">Admin Dashboard</h1>
           <p className="muted-text mt-0.5">Building-wide billing, utility, and tenant performance overview.</p>
         </div>
-        <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <UpdatingBadge show={isRefreshing} />
+          <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
+        </div>
       </div>
 
       {error && (
@@ -384,9 +397,9 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <UtilityCard type="electric" {...filteredUtilityCards.electric} />
-        <UtilityCard type="thermal" {...filteredUtilityCards.thermal} />
-        <UtilityCard type="water" {...filteredUtilityCards.water} />
+        <UtilityCard type="electric" {...filteredUtilityCards.electric} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
+        <UtilityCard type="thermal" {...filteredUtilityCards.thermal} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
+        <UtilityCard type="water" {...filteredUtilityCards.water} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
       </div>
 
       {user?.role === 'super_admin' && anomalyError && (
@@ -395,7 +408,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <SummaryCardStrip cards={summaryCards} />
+      <SummaryCardStrip cards={summaryCards.map((card) => ({ ...card, loading: isInitialLoading || anomalyLoading, updating: isRefreshing }))} />
 
       <MemoCharts
         electricityDaily={(comparison?.[comparisonFilter] || {}).electric || daily.electric}
@@ -403,6 +416,13 @@ export default function Dashboard() {
         thermalDaily={(comparison?.[comparisonFilter] || {}).thermal || daily.thermal}
         filter={comparisonFilter}
         setFilter={setComparisonFilter}
+        loading={(isInitialLoading && !buildUtilityComparisonRows(
+          comparisonFilter,
+          (comparison?.[comparisonFilter] || {}).electric || daily.electric,
+          (comparison?.[comparisonFilter] || {}).water || daily.water,
+          (comparison?.[comparisonFilter] || {}).thermal || daily.thermal,
+        ).length) || isComparisonRangeLoading}
+        updating={isRefreshing}
       />
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -412,6 +432,8 @@ export default function Dashboard() {
           exportable
           exportRows={billingStatusData}
           subtitle="Current bill distribution across the building"
+          loading={(isInitialLoading && billingStatusData.every((entry) => Number(entry.value || 0) === 0)) || isComparisonRangeLoading}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
@@ -444,6 +466,8 @@ export default function Dashboard() {
           exportable
           exportRows={paymentReviewData}
           subtitle="Receipt review workload and outcomes"
+          loading={(isInitialLoading && paymentReviewData.every((entry) => Number(entry.value || 0) === 0)) || isComparisonRangeLoading}
+          updating={isRefreshing}
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={paymentReviewData} margin={CHART_MARGIN_COMPACT}>
@@ -464,7 +488,7 @@ export default function Dashboard() {
         </ChartCard>
       </div>
 
-      <BillsTable bills={bills} onView={handleViewBill} />
+      <BillsTable bills={bills} onView={handleViewBill} loading={isInitialLoading} updating={isRefreshing} />
     </PageSection>
   )
 }
