@@ -13,7 +13,7 @@ function normalizeLocks(rows = []) {
     reason: row.reason || '',
     lockedAt: row.locked_at || '',
     unlockedAt: row.unlocked_at || '',
-    lockedByName: row.locker?.name || 'Unknown',
+    lockedByName: row.locker?.name || 'System',
     unlockedByName: row.unlocker?.name || '',
     unlockReason: row.unlock_reason || '',
     raw: row,

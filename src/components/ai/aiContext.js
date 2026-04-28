@@ -216,7 +216,7 @@ export const PAGE_CONTEXTS = {
   '/finance': {
     page: 'Finance Dashboard',
     role: 'finance',
-    description: 'Monitor collections, payments, and financial performance.',
+    description: 'Monitor finance KPIs, billing totals, payment reviews, collections, outstanding balances, and recent financial activity.',
     suggestions: [
       'Show pending payment reviews',
       'What is the collection rate?',
@@ -485,6 +485,14 @@ export function isEcbillsScopedQuestion(question = '', pageContext = {}) {
   const looksLikeGeneralCoding = GENERAL_CODE_KEYWORDS.some((keyword) => text.includes(keyword))
   const looksLikeCreationRequest = CREATION_REQUEST_KEYWORDS.some((keyword) => text.includes(keyword))
   const looksLikeSafeAssist = SAFE_ASSIST_INTENTS.some((keyword) => text.includes(keyword))
+  const looksLikeBillingWorkflow =
+    text.includes('generate a bill') ||
+    text.includes('generate bill') ||
+    text.includes('generate bills') ||
+    text.includes('run bill generation') ||
+    text.includes('regenerate bill') ||
+    text.includes('create bill') ||
+    text.includes('create a bill')
   const isPageExplain =
     text.includes('this page') ||
     text.includes('explain this') ||
@@ -495,11 +503,11 @@ export function isEcbillsScopedQuestion(question = '', pageContext = {}) {
     return false
   }
 
-  if (looksLikeCreationRequest) {
+  if (looksLikeCreationRequest && !looksLikeBillingWorkflow) {
     return false
   }
 
-  if (mentionsEcbillsScope || isPageExplain) {
+  if (mentionsEcbillsScope || isPageExplain || looksLikeBillingWorkflow) {
     return true
   }
 

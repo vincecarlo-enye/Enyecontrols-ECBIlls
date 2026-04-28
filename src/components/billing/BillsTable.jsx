@@ -1,5 +1,6 @@
 import { getTenantName } from '@/utils/billing'
 import { formatLongDate, formatShortPeriodDate } from '@/utils/filterUtils'
+import { createPortal } from 'react-dom'
 import { useState, useRef, useMemo, memo } from 'react'
 import { useClientPagination } from '@/hooks/useClientPagination'
 import {
@@ -7,9 +8,6 @@ import {
   Trash2,
   Download,
   Printer,
-  ChevronDown,
-  FileText,
-  FileSpreadsheet,
 } from 'lucide-react'
 import BillViewerModal from './BillViewerModal'
 import BillStatusBadge from './BillStatusBadge'
@@ -17,7 +15,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import EmptyState from '@/components/ui/EmptyState'
 import PaginationBar from '@/components/common/PaginationBar'
 import { useModalState } from '@/hooks/useModalState'
-import { exportAllBillsCSV, exportBillCSV } from '@/services/billingService'
+import { exportAllBillsCSV } from '@/services/billingService'
 import { fetchAdminBills } from '@/services/adminService/adminBillingService'
 import { printElement } from '@/utils/reporting'
 import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
@@ -103,6 +101,41 @@ function getMonthLabel(bill) {
   }).format(date)
 }
 
+function getMonthYearKey(bill) {
+  const raw =
+    bill?.billing_month ||
+    bill?.billingMonth ||
+    bill?.billing_end ||
+    bill?.period_end ||
+    bill?.billing_start ||
+    bill?.period_start ||
+    bill?.month ||
+    ''
+
+  if (!raw) return ''
+
+  if (/^\d{4}-\d{2}/.test(String(raw))) {
+    return String(raw).slice(0, 7)
+  }
+
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function formatMonthYearOption(value) {
+  if (!value) return ''
+
+  const [year, month] = String(value).split('-').map(Number)
+  if (!year || !month) return value
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, 1))
+}
+
 function getAmountValue(bill) {
   return Number(
     bill?.grand_total ??
@@ -112,80 +145,36 @@ function getAmountValue(bill) {
   )
 }
 
-function ExportDropdown({ bill }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  const handleBlur = () => setTimeout(() => setOpen(false), 150)
-
-  const options = [
-    {
-      label: 'CSV',
-      icon: FileText,
-      onClick: () => {
-        exportBillCSV(bill)
-        setOpen(false)
-      },
-    },
-    {
-      label: 'Excel',
-      icon: FileSpreadsheet,
-      onClick: () => {
-        exportBillCSV(bill)
-        setOpen(false)
-      },
-    },
-    {
-      label: 'PDF',
-      icon: FileText,
-      onClick: () => {
-        exportBillCSV(bill)
-        setOpen(false)
-      },
-    },
-  ]
-
-  return (
-    <div className="relative" ref={ref} onBlur={handleBlur}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-        title="Export"
-      >
-        <Download className="w-4 h-4" />
-        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden">
-          {options.map(({ label, icon: Icon, onClick }) => (
-            <button
-              key={label}
-              onClick={onClick}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
-            >
-              <Icon className="w-3.5 h-3.5 text-slate-400" />
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function BillsTable({ bills = [], onView, onDelete, loading = false, updating = false }) {
   const viewer = useModalState()
   const printRef = useRef(null)
   const [filter, setFilter] = useState('all')
   const [deleteId, setDeleteId] = useState(null)
   const [exporting, setExporting] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportMonth, setExportMonth] = useState('')
   const filterRef = useRef('all')
 
   const filtered = useMemo(
     () => filter === 'all' ? bills : bills.filter((b) => normalizeFilterableStatus(b.status) === filter),
     [bills, filter]
   )
+
+  const exportMonthOptions = useMemo(() => {
+    const monthSet = new Set()
+
+    bills.forEach((bill) => {
+      const monthKey = getMonthYearKey(bill)
+      if (monthKey) monthSet.add(monthKey)
+    })
+
+    return Array.from(monthSet)
+      .sort((a, b) => b.localeCompare(a))
+      .map((value) => ({
+        value,
+        label: formatMonthYearOption(value),
+      }))
+  }, [bills])
 
   const {
     pagedItems: pagedBills,
@@ -206,20 +195,30 @@ function BillsTable({ bills = [], onView, onDelete, loading = false, updating = 
 
   const handleExportFiltered = async () => {
     const activeFilter = filterRef.current || 'all'
+
     setExporting(true)
 
     try {
       const fullBillsResponse = await fetchAdminBills({ page: 1, per_page: 10000 })
       const fullBills = Array.isArray(fullBillsResponse?.data) ? fullBillsResponse.data : bills
-      const exportRows = activeFilter === 'all'
+      const statusFiltered = activeFilter === 'all'
         ? fullBills
         : fullBills.filter((bill) => normalizeFilterableStatus(bill.status) === activeFilter)
-    const exportFilterLabel = STATUS_FILTER_TABS.find(({ k }) => k === activeFilter)?.l || 'All'
+      const exportRows = exportMonth
+        ? statusFiltered.filter((bill) => getMonthYearKey(bill) === exportMonth)
+        : statusFiltered
+      const exportFilterLabel = STATUS_FILTER_TABS.find(({ k }) => k === activeFilter)?.l || 'All'
+      const exportMonthLabel = formatMonthYearOption(exportMonth)
 
-      exportAllBillsCSV(exportRows, { filterLabel: exportFilterLabel })
+      exportAllBillsCSV(exportRows, { filterLabel: exportMonth ? `${exportFilterLabel}-${exportMonthLabel}` : exportFilterLabel })
+      setShowExportModal(false)
     } finally {
       setExporting(false)
     }
+  }
+
+  const handleExportClick = () => {
+    setShowExportModal(true)
   }
 
   const handlePrintFiltered = () => {
@@ -271,7 +270,7 @@ function BillsTable({ bills = [], onView, onDelete, loading = false, updating = 
               <span className="hidden sm:inline">Print</span>
             </button>
             <button
-              onClick={handleExportFiltered}
+              onClick={handleExportClick}
               disabled={filtered.length === 0 || exporting}
               aria-label={`Export ${activeFilterLabel} bills`}
               className="ml-1 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -369,8 +368,6 @@ function BillsTable({ bills = [], onView, onDelete, loading = false, updating = 
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        <ExportDropdown bill={bill} />
-
                         {onDelete ? (
                           <button
                             onClick={() => setDeleteId(bill.id)}
@@ -408,6 +405,59 @@ function BillsTable({ bills = [], onView, onDelete, loading = false, updating = 
         isOpen={viewer.isOpen}
         onClose={viewer.close}
       />
+
+      {showExportModal
+        ? createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowExportModal(false)} />
+            <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Export Bills</h3>
+                <p className="mt-1 text-xs text-slate-400">{activeFilterLabel} bills</p>
+              </div>
+
+              <div className="px-5 py-4">
+                <label className="mb-1.5 block text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                  Month / Year
+                </label>
+                <select
+                  value={exportMonth}
+                  onChange={(event) => setExportMonth(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none transition-all focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  aria-label="Select month and year to export"
+                  disabled={exportMonthOptions.length === 0}
+                >
+                  <option value="">All months</option>
+                  {exportMonthOptions.map((month) => (
+                    <option key={month.value} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowExportModal(false)}
+                  className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-600 transition-all hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportFiltered}
+                  disabled={exporting}
+                  className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {exporting ? 'Exporting...' : 'Export'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+        : null}
 
       {onDelete ? (
         <ConfirmModal

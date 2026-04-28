@@ -36,6 +36,7 @@ const TENANT_VISIBLE = ['published', 'submitted', 'paid', 'overdue']
 const FILTER_OPTIONS = [
   { key: 'all', label: 'All' },
   { key: 'published', label: 'Unpaid' },
+  { key: 'overdue', label: 'Overdue' },
   { key: 'submitted', label: 'Pending' },
   { key: 'paid', label: 'Paid' },
 ]
@@ -187,10 +188,14 @@ const BillsTableInner = memo(function BillsTableInner({
                         <AlertCircle className="h-4 w-4" />
                       </button>
 
-                      {bill.status === 'published' && (
+                      {['published', 'overdue'].includes(bill.status) && (
                         <button
                           onClick={() => receiptModal.open(bill)}
-                          className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90"
+                          className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:opacity-90 ${
+                            bill.status === 'overdue'
+                              ? 'bg-gradient-to-r from-rose-600 to-amber-500'
+                              : 'bg-gradient-to-r from-blue-600 to-cyan-500'
+                          }`}
                           title="Upload Payment Receipt"
                         >
                           <Upload className="h-3.5 w-3.5" /> Pay
@@ -268,6 +273,11 @@ export default function TenantBills() {
 
   const totalUnpaid = useMemo(
     () => unitFiltered.filter((bill) => ['published', 'overdue'].includes(bill.status)).reduce((sum, bill) => sum + Number(bill.amount || 0), 0),
+    [unitFiltered]
+  )
+
+  const overdueCount = useMemo(
+    () => unitFiltered.filter((bill) => bill.status === 'overdue').length,
     [unitFiltered]
   )
 
@@ -376,6 +386,15 @@ export default function TenantBills() {
           <Clock className="h-5 w-5 flex-shrink-0 text-amber-500" />
           <p className="text-sm text-amber-700 dark:text-amber-300">
             You have <strong>{pendingCount}</strong> bill{pendingCount > 1 ? 's' : ''} awaiting payment verification by Finance.
+          </p>
+        </div>
+      )}
+
+      {overdueCount > 0 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-800 dark:bg-rose-900/20">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 text-rose-500" />
+          <p className="text-sm text-rose-700 dark:text-rose-300">
+            You have <strong>{overdueCount}</strong> overdue bill{overdueCount > 1 ? 's' : ''}. You can still upload a payment receipt for overdue bills.
           </p>
         </div>
       )}

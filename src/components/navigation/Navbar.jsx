@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bell, Sun, Moon, Search, Menu, ChevronDown, LogOut, AlertTriangle, Info, Building2, Shield } from 'lucide-react'
+import { Bell, Sun, Moon, Search, Menu, ChevronDown, LogOut, AlertTriangle, Info, Building2, Shield, CheckCheck } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUnitFilter } from '@/context/UnitFilterContext'
@@ -98,6 +98,7 @@ export default function Navbar({ onMenuClick }) {
   const [notifications, setNotifications] = useState(initialNotifications)
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifLoaded, setNotifLoaded] = useState(initialNotifications.length > 0)
+  const [markingAllRead, setMarkingAllRead] = useState(false)
   const title = pageTitles[location.pathname] || 'ECBills'
   const notifRef = useRef(null)
   const profileRef = useRef(null)
@@ -137,6 +138,24 @@ export default function Navbar({ onMenuClick }) {
     const trimmed = searchQuery.trim()
     if (trimmed.length < 2) return
     navigate(`${getSearchPath()}?q=${encodeURIComponent(trimmed)}`)
+  }
+
+  const handleMarkAllRead = async () => {
+    if (markingAllRead || unreadCount === 0) return
+
+    const unreadItems = (notifications || []).filter((item) => !item.is_read)
+
+    // Optimistic update
+    setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+
+    try {
+      setMarkingAllRead(true)
+      await Promise.all(unreadItems.map((item) => markNotificationAsRead(item.id)))
+    } catch {
+      // Keep optimistic state — partial reads are acceptable
+    } finally {
+      setMarkingAllRead(false)
+    }
   }
 
   useEffect(() => {
@@ -366,9 +385,22 @@ export default function Navbar({ onMenuClick }) {
         <p className="font-semibold text-sm text-slate-800 dark:text-white">
           Notifications
         </p>
-        <span className="text-[10px] font-mono text-slate-400">
-          {unreadCount} unread
-        </span>
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              disabled={markingAllRead}
+              className="flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Mark all as read"
+            >
+              <CheckCheck className="w-3 h-3" />
+              {markingAllRead ? 'Marking...' : 'Read all'}
+            </button>
+          )}
+          <span className="text-[10px] font-mono text-slate-400">
+            {unreadCount} unread
+          </span>
+        </div>
       </div>
     </div>
 

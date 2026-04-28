@@ -127,6 +127,34 @@ function getAmountValue(bill) {
   )
 }
 
+function getPenaltyAmount(bill) {
+  const raw = bill?.raw || {}
+  const penalties = Array.isArray(bill?.penalties)
+    ? bill.penalties
+    : Array.isArray(bill?.bill_penalties)
+      ? bill.bill_penalties
+      : Array.isArray(raw?.penalties)
+        ? raw.penalties
+        : Array.isArray(raw?.bill_penalties)
+          ? raw.bill_penalties
+          : []
+  const explicit = toNumber(
+    bill?.penaltyAmount ??
+      bill?.penalty_amount ??
+      bill?.late_fee ??
+      bill?.lateFee ??
+      raw?.penalty_amount ??
+      raw?.late_fee ??
+      raw?.lateFee ??
+      0
+  )
+
+  return penalties.reduce(
+    (sum, penalty) => sum + toNumber(penalty?.penalty_amount ?? penalty?.amount ?? 0),
+    explicit
+  )
+}
+
 function getDueDateValue(bill) {
   return bill?.due_date || bill?.duedate || bill?.dueDate || bill?.billing_end || bill?.billingEnd || null
 }
@@ -227,6 +255,7 @@ export function normalizeTenantBill(raw = {}) {
     dueDate: formatBillingDisplayDate(dueDateValue),
     billingPeriod: getBillingPeriod(raw, ''),
     amount: getAmountValue(raw),
+    penaltyAmount: getPenaltyAmount(raw),
     status: shouldMarkOverdue(normalizedStatus, dueDateValue) ? 'overdue' : normalizedStatus,
     breakdown: {
       electricity: toNumber(breakdown?.electricity ?? breakdown?.electric ?? 0),
@@ -256,6 +285,7 @@ export function normalizeAdminBill(bill = {}, payment = null) {
     billingEnd,
     billingPeriod: getBillingPeriod(bill, '--'),
     amount: getAmountValue(bill),
+    penaltyAmount: getPenaltyAmount(bill),
     dueDate: formatBillingDisplayDate(dueDateValue, '--'),
     dueDateRaw: dueDateValue,
     status: shouldMarkOverdue(normalizedStatus, dueDateValue) ? 'overdue' : normalizedStatus,

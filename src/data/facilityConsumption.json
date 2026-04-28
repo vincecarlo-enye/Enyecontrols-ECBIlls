@@ -1,21 +1,21 @@
 {
   "unitConsumption": [
-    { "unit": "Unit 101", "electricity": 312, "water": 38,  "thermal": 170, "floor": "1F", "status": "normal" },
-    { "unit": "Unit 102", "electricity": 285, "water": 31,  "thermal": 145, "floor": "1F", "status": "normal" },
-    { "unit": "Unit 201", "electricity": 410, "water": 52,  "thermal": 230, "floor": "2F", "status": "high"   },
-    { "unit": "Unit 202", "electricity": 290, "water": 34,  "thermal": 155, "floor": "2F", "status": "normal" },
-    { "unit": "Unit 203", "electricity": 350, "water": 98,  "thermal": 180, "floor": "2F", "status": "alert"  },
-    { "unit": "Unit 301", "electricity": 580, "water": 61,  "thermal": 340, "floor": "3F", "status": "alert"  },
-    { "unit": "Unit 302", "electricity": 270, "water": 29,  "thermal": 140, "floor": "3F", "status": "normal" },
-    { "unit": "Unit 401", "electricity": 310, "water": 36,  "thermal": 168, "floor": "4F", "status": "normal" }
+    { "unit": "Unit 101", "electricity": 1280, "water": 15.8, "thermal": 6420,  "floor": "1F", "status": "normal" },
+    { "unit": "Unit 102", "electricity": 1465, "water": 18.4, "thermal": 7110,  "floor": "1F", "status": "normal" },
+    { "unit": "Unit 201", "electricity": 2380, "water": 31.6, "thermal": 14280, "floor": "2F", "status": "high" },
+    { "unit": "Unit 202", "electricity": 2070, "water": 26.3, "thermal": 11890, "floor": "2F", "status": "normal" },
+    { "unit": "Unit 203", "electricity": 2215, "water": 48.9, "thermal": 12340, "floor": "2F", "status": "alert" },
+    { "unit": "Unit 301", "electricity": 3125, "water": 37.4, "thermal": 16890, "floor": "3F", "status": "alert" },
+    { "unit": "Unit 302", "electricity": 1545, "water": 19.1, "thermal": 8610,  "floor": "3F", "status": "normal" },
+    { "unit": "Unit 401", "electricity": 1690, "water": 22.6, "thermal": 9820,  "floor": "4F", "status": "normal" }
   ],
   "trendData": [
-    { "day": "Mon", "electricity": 520, "water": 65, "thermal": 280 },
-    { "day": "Tue", "electricity": 490, "water": 58, "thermal": 260 },
-    { "day": "Wed", "electricity": 610, "water": 72, "thermal": 310 },
-    { "day": "Thu", "electricity": 540, "water": 66, "thermal": 290 },
-    { "day": "Fri", "electricity": 680, "water": 80, "thermal": 360 },
-    { "day": "Sat", "electricity": 420, "water": 50, "thermal": 210 },
-    { "day": "Sun", "electricity": 350, "water": 43, "thermal": 180 }
+    { "day": "Mon", "electricity": 760, "water": 9.6, "thermal": 4210 },
+    { "day": "Tue", "electricity": 815, "water": 10.4, "thermal": 4520 },
+    { "day": "Wed", "electricity": 842, "water": 10.8, "thermal": 4680 },
+    { "day": "Thu", "electricity": 868, "water": 11.1, "thermal": 4815 },
+    { "day": "Fri", "electricity": 910, "water": 11.9, "thermal": 5120 },
+    { "day": "Sat", "electricity": 545, "water": 6.8, "thermal": 3010 },
+    { "day": "Sun", "electricity": 428, "water": 5.1, "thermal": 2390 }
   ]
 }

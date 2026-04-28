@@ -1,35 +1,35 @@
 {
   "monthly": [
-    { "month": "Jan", "revenue": 182400, "expenses": 141200, "collected": 156800 },
-    { "month": "Feb", "revenue": 194800, "expenses": 148600, "collected": 178200 },
-    { "month": "Mar", "revenue": 211300, "expenses": 155900, "collected": 198400 },
-    { "month": "Apr", "revenue": 198700, "expenses": 152400, "collected": 185600 },
-    { "month": "May", "revenue": 223500, "expenses": 163800, "collected": 210300 },
-    { "month": "Jun", "revenue": 241200, "expenses": 171200, "collected": 228700 },
-    { "month": "Jul", "revenue": 235800, "expenses": 168400, "collected": 219400 },
-    { "month": "Aug", "revenue": 258600, "expenses": 179100, "collected": 243200 },
-    { "month": "Sep", "revenue": 249300, "expenses": 174600, "collected": 231800 },
-    { "month": "Oct", "revenue": 271400, "expenses": 188200, "collected": 254600 },
-    { "month": "Nov", "revenue": 263800, "expenses": 182700, "collected": 248100 },
-    { "month": "Dec", "revenue": 289100, "expenses": 196400, "collected": 271500 }
+    { "month": "Jan", "revenue": 1148600, "expenses": 214500, "collected": 1042800 },
+    { "month": "Feb", "revenue": 1089200, "expenses": 207800, "collected": 1016400 },
+    { "month": "Mar", "revenue": 1127400, "expenses": 216300, "collected": 1039800 },
+    { "month": "Apr", "revenue": 1096800, "expenses": 211900, "collected": 1021200 },
+    { "month": "May", "revenue": 1165200, "expenses": 223400, "collected": 1084500 },
+    { "month": "Jun", "revenue": 1210900, "expenses": 229600, "collected": 1136200 },
+    { "month": "Jul", "revenue": 1197400, "expenses": 226800, "collected": 1118800 },
+    { "month": "Aug", "revenue": 1248600, "expenses": 236200, "collected": 1174900 },
+    { "month": "Sep", "revenue": 1221500, "expenses": 231700, "collected": 1153300 },
+    { "month": "Oct", "revenue": 1274300, "expenses": 239400, "collected": 1198400 },
+    { "month": "Nov", "revenue": 1259800, "expenses": 235600, "collected": 1187600 },
+    { "month": "Dec", "revenue": 1379200, "expenses": 251800, "collected": 1294500 }
   ],
   "utilityByMonth": [
-    { "month": "Jan", "electricity": 98200,  "water": 42100, "thermal": 42100 },
-    { "month": "Feb", "electricity": 105400, "water": 45800, "thermal": 43600 },
-    { "month": "Mar", "electricity": 114200, "water": 49600, "thermal": 47500 },
-    { "month": "Apr", "electricity": 107800, "water": 46900, "thermal": 44000 },
-    { "month": "May", "electricity": 121300, "water": 52400, "thermal": 49800 },
-    { "month": "Jun", "electricity": 130700, "water": 56200, "thermal": 54300 },
-    { "month": "Jul", "electricity": 127500, "water": 54100, "thermal": 54200 },
-    { "month": "Aug", "electricity": 139800, "water": 59800, "thermal": 59000 },
-    { "month": "Sep", "electricity": 134600, "water": 57200, "thermal": 57500 },
-    { "month": "Oct", "electricity": 146800, "water": 62300, "thermal": 62300 },
-    { "month": "Nov", "electricity": 142500, "water": 60200, "thermal": 61100 },
-    { "month": "Dec", "electricity": 156200, "water": 66400, "thermal": 66500 }
+    { "month": "Jan", "electricity": 38554, "water": 50302, "thermal": 1171456 },
+    { "month": "Feb", "electricity": 37107, "water": 48341, "thermal": 1089792 },
+    { "month": "Mar", "electricity": 38054, "water": 49763, "thermal": 1124288 },
+    { "month": "Apr", "electricity": 37216, "water": 48961, "thermal": 1085824 },
+    { "month": "May", "electricity": 39018, "water": 51857, "thermal": 1160544 },
+    { "month": "Jun", "electricity": 40346, "water": 54156, "thermal": 1217216 },
+    { "month": "Jul", "electricity": 39942, "water": 53209, "thermal": 1196448 },
+    { "month": "Aug", "electricity": 41510, "water": 55961, "thermal": 1253120 },
+    { "month": "Sep", "electricity": 40771, "water": 54291, "thermal": 1221088 },
+    { "month": "Oct", "electricity": 42496, "water": 58162, "thermal": 1274240 },
+    { "month": "Nov", "electricity": 41782, "water": 57215, "thermal": 1259712 },
+    { "month": "Dec", "electricity": 45174, "water": 65316, "thermal": 1379840 }
   ],
   "utilityPie": [
-    { "name": "Electricity", "value": 54, "color": "#f59e0b" },
-    { "name": "Water",       "value": 23, "color": "#06b6d4" },
-    { "name": "Thermal",     "value": 23, "color": "#f43f5e" }
+    { "name": "Electricity", "value": 3, "color": "#f59e0b" },
+    { "name": "Water", "value": 4, "color": "#06b6d4" },
+    { "name": "Thermal", "value": 93, "color": "#f43f5e" }
   ]
 }

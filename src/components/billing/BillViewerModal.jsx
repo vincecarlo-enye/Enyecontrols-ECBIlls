@@ -228,23 +228,58 @@ function buildChargesFromItems(items = []) {
   })
 }
 
+function getPenaltyAmount(bill) {
+  const raw = bill?.raw || {}
+  const penalties = Array.isArray(bill?.penalties)
+    ? bill.penalties
+    : Array.isArray(bill?.bill_penalties)
+      ? bill.bill_penalties
+      : Array.isArray(raw?.penalties)
+        ? raw.penalties
+        : Array.isArray(raw?.bill_penalties)
+          ? raw.bill_penalties
+          : []
+  const explicit = Number(
+    bill?.penaltyAmount ??
+      bill?.penalty_amount ??
+      bill?.late_fee ??
+      bill?.lateFee ??
+      raw?.penalty_amount ??
+      raw?.late_fee ??
+      raw?.lateFee ??
+      0
+  )
+
+  return penalties.reduce(
+    (sum, penalty) => sum + Number(penalty?.penalty_amount ?? penalty?.amount ?? 0),
+    explicit
+  )
+}
+
 function normalizeBill(bill) {
   if (!bill) return null
+  const raw = bill.raw || {}
 
   const tenantName =
     typeof bill.tenant === 'string'
       ? bill.tenant
-      : bill.tenant?.name || bill.tenant_name || 'Unknown Tenant'
+      : bill.tenant?.name || bill.tenant_name || raw.tenant?.name || raw.tenant_name || 'Unknown Tenant'
 
   const unitName =
     typeof bill.unit === 'string'
       ? bill.unit
-      : bill.unit?.unit_number || bill.unit?.name || bill.unit_name || '—'
+      : bill.unit?.unit_number || bill.unit?.name || bill.unit_name || raw.unit?.unit_number || raw.unit?.name || raw.unit_name || '—'
 
   const units = collectBillUnits(bill)
   const primaryUnitName = units[0] || unitName
-  const items = Array.isArray(bill.items) ? bill.items : []
-  const fallbackBreakdown = bill.breakdown || {}
+  const items = Array.isArray(bill.items)
+    ? bill.items
+    : Array.isArray(raw.items)
+      ? raw.items
+      : Array.isArray(raw.bill_items)
+        ? raw.bill_items
+        : []
+  const fallbackBreakdown = bill.breakdown || raw.breakdown || {}
 
   const charges =
     items.length > 0
@@ -259,6 +294,8 @@ function normalizeBill(bill) {
   const subtotal = Number(
     bill.subtotal ??
       bill.sub_total ??
+      raw.subtotal ??
+      raw.sub_total ??
       computedSubtotal
   )
 
@@ -266,18 +303,27 @@ function normalizeBill(bill) {
     bill.tax ??
       bill.vat ??
       bill.tax_amount ??
+      raw.tax ??
+      raw.vat ??
+      raw.tax_amount ??
       0
   )
 
-  const previousBalance = Number(
+  const penaltyAmount = getPenaltyAmount(bill)
+  const rawPreviousBalance = Number(
     bill.previous_balance ??
       bill.balance_forward ??
+      raw.previous_balance ??
+      raw.balance_forward ??
       0
   )
+  const previousBalance = Math.max(0, rawPreviousBalance - penaltyAmount)
 
   const paymentsReceived = Number(
     bill.payments_received ??
       bill.amount_paid ??
+      raw.payments_received ??
+      raw.amount_paid ??
       0
   )
 
@@ -285,6 +331,9 @@ function normalizeBill(bill) {
     bill.grand_total ??
       bill.total_amount ??
       bill.amount ??
+      raw.grand_total ??
+      raw.total_amount ??
+      raw.amount ??
       (subtotal + tax + previousBalance - paymentsReceived)
   )
 
@@ -292,22 +341,29 @@ function normalizeBill(bill) {
     bill.billDate ||
     bill.created_at ||
     bill.billing_start ||
+    raw.created_at ||
+    raw.billing_start ||
     null
 
   const dueDateRaw =
     bill.dueDateRaw ||
     bill.dueDate ||
     bill.due_date ||
+    raw.due_date ||
     null
 
   const billingStart =
     bill.billing_start ||
     bill.period_start ||
+    raw.billing_start ||
+    raw.period_start ||
     null
 
   const billingEnd =
     bill.billing_end ||
     bill.period_end ||
+    raw.billing_end ||
+    raw.period_end ||
     null
 
   const billingPeriod =
@@ -331,6 +387,7 @@ function normalizeBill(bill) {
     subtotal,
     tax,
     previousBalance,
+    penaltyAmount,
     paymentsReceived,
     grandTotal,
     adjustmentState: bill?.adjustmentState || null,
@@ -434,6 +491,7 @@ function BillContent({ bill }) {
         <div class="sr"><span>Subtotal</span><span>₱${peso(d.subtotal)}</span></div>
         <div class="sr"><span>VAT (12%)</span><span>₱${peso(d.tax)}</span></div>
         <div class="sr"><span>Previous Balance</span><span>₱${peso(d.previousBalance)}</span></div>
+        <div class="sr"><span>Late Payment Penalty</span><span>₱${peso(d.penaltyAmount)}</span></div>
         <div class="sr"><span>Payments Received</span><span>₱${peso(d.paymentsReceived)}</span></div>
       </div>
 
@@ -485,6 +543,7 @@ function BillContent({ bill }) {
       ['Subtotal', '', '', '', '', `₱${peso(d.subtotal)}`],
       ['VAT 12%', '', '', '', '', `₱${peso(d.tax)}`],
       ['Previous Balance', '', '', '', '', `₱${peso(d.previousBalance)}`],
+      ['Late Payment Penalty', '', '', '', '', `₱${peso(d.penaltyAmount)}`],
       ['Payments Received', '', '', '', '', `₱${peso(d.paymentsReceived)}`],
       ['TOTAL AMOUNT DUE', '', '', '', '', `₱${peso(d.grandTotal)}`],
     ]
@@ -677,6 +736,7 @@ function BillContent({ bill }) {
       row('Subtotal', `PHP ${peso(d.subtotal)}`)
       row('VAT (12%)', `PHP ${peso(d.tax)}`)
       row('Previous Balance', `PHP ${peso(d.previousBalance)}`)
+      row('Late Payment Penalty', `PHP ${peso(d.penaltyAmount)}`)
       row('Payments Received', `PHP ${peso(d.paymentsReceived)}`)
       y += 10
 
@@ -897,6 +957,7 @@ function BillContent({ bill }) {
               ['Subtotal', d.subtotal],
               ['VAT (12%)', d.tax],
               ['Previous Balance', d.previousBalance],
+              ['Late Payment Penalty', d.penaltyAmount],
               ['Payments Received', d.paymentsReceived],
             ].map(([l, v]) => (
               <div key={l} className="flex justify-between text-xs">

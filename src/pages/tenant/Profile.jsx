@@ -1,5 +1,5 @@
-import { formatDate } from '@/utils/filterUtils'
-﻿import { useEffect, useState } from 'react'
+﻿import { formatDate } from '@/utils/filterUtils'
+import { useEffect, useState } from 'react'
 import {
   User,
   Mail,
@@ -71,7 +71,6 @@ function mergeProfileIntoUser(baseUser, profile) {
   return nextUser
 }
 
-
 export default function TenantProfile() {
   const pageLoading = usePageLoader(700)
   const { user, updateCurrentUser, refreshCurrentUser } = useAuth()
@@ -125,9 +124,19 @@ export default function TenantProfile() {
       setSaving(true)
       setError('')
 
+      const emailToPersist = form.email?.trim() || user?.email?.trim() || user?.tenant?.email?.trim() || ''
+
+      if (!emailToPersist) {
+        const message = 'Unable to save profile because the account email is missing.'
+        setError(message)
+        addToast(message, 'error')
+        return
+      }
+
       const updated = await updateTenantProfile({
-        name: form.name,
-        phone: form.phone,
+        name: form.name?.trim(),
+        email: emailToPersist,
+        phone: form.phone?.trim(),
       })
 
       if (updated) {
@@ -202,12 +211,12 @@ export default function TenantProfile() {
     <div className="space-y-5 animate-in">
       <div className="flex items-start justify-between gap-3">
         <div>
-        <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">
-          My Profile
-        </h1>
-        <p className="text-sm text-slate-400 mt-0.5">
-          Manage your account information
-        </p>
+          <h1 className="font-display font-700 text-xl text-slate-800 dark:text-white">
+            My Profile
+          </h1>
+          <p className="text-sm text-slate-400 mt-0.5">
+            Manage your account information
+          </p>
         </div>
         <UpdatingBadge show={isRefreshing} />
       </div>
@@ -223,7 +232,9 @@ export default function TenantProfile() {
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-500/20 mb-4">
             {user?.initials || getInitials(form.name) || 'T'}
           </div>
-          <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={form.name || 'Tenant'} className="font-semibold text-lg text-slate-800 dark:text-white" spinnerClassName="h-5 w-5 text-slate-400" />
+          <span className="font-semibold text-lg text-slate-800 dark:text-white">
+            {form.name || 'Tenant'}
+          </span>
           <p className="text-sm text-slate-400 mt-0.5">
             {form.building || 'Tenant Account'}
           </p>

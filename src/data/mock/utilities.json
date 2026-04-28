@@ -1,20 +1,20 @@
 {
   "monthlyConsumption": {
     "12F-A": [
-      { "month": "Oct", "electricity": 1120, "water": 168, "thermal": 2480 },
-      { "month": "Nov", "electricity": 1180, "water": 172, "thermal": 2620 },
-      { "month": "Dec", "electricity": 1560, "water": 220, "thermal": 3340 },
-      { "month": "Jan", "electricity": 1420, "water": 208, "thermal": 3100 },
-      { "month": "Feb", "electricity": 1290, "water": 185, "thermal": 2840 },
-      { "month": "Mar", "electricity": 1380, "water": 196, "thermal": 2970 }
+      { "month": "Oct", "electricity": 1840, "water": 22.4, "thermal": 9650 },
+      { "month": "Nov", "electricity": 1915, "water": 23.1, "thermal": 10120 },
+      { "month": "Dec", "electricity": 2260, "water": 29.6, "thermal": 13280 },
+      { "month": "Jan", "electricity": 2175, "water": 28.8, "thermal": 12740 },
+      { "month": "Feb", "electricity": 1985, "water": 24.9, "thermal": 11260 },
+      { "month": "Mar", "electricity": 2070, "water": 26.3, "thermal": 11890 }
     ],
     "12F-B": [
-      { "month": "Oct", "electricity": 890, "water": 132, "thermal": 1950 },
-      { "month": "Nov", "electricity": 920, "water": 140, "thermal": 2100 },
-      { "month": "Dec", "electricity": 1200, "water": 175, "thermal": 2650 },
-      { "month": "Jan", "electricity": 1100, "water": 160, "thermal": 2400 },
-      { "month": "Feb", "electricity": 1020, "water": 148, "thermal": 2200 },
-      { "month": "Mar", "electricity": 1080, "water": 155, "thermal": 2350 }
+      { "month": "Oct", "electricity": 1435, "water": 17.2, "thermal": 7580 },
+      { "month": "Nov", "electricity": 1490, "water": 17.8, "thermal": 7920 },
+      { "month": "Dec", "electricity": 1775, "water": 23.4, "thermal": 10450 },
+      { "month": "Jan", "electricity": 1690, "water": 22.6, "thermal": 9820 },
+      { "month": "Feb", "electricity": 1545, "water": 19.1, "thermal": 8610 },
+      { "month": "Mar", "electricity": 1620, "water": 20.5, "thermal": 9140 }
     ]
   }
 }

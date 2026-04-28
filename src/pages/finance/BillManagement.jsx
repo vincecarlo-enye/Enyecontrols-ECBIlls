@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   FileText, Plus, Send, Edit2, Trash2, Search,
   Eye, CheckCircle2, X, Zap, Droplets, Flame,
-  LayoutList, Settings2, Filter,
+  LayoutList, Settings2, Filter, AlertTriangle, HelpCircle,
 } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import BillStatusBadge from '@/components/billing/BillStatusBadge'
@@ -309,7 +309,7 @@ function BillDetailModal({ bill, onClose }) {
   )
 }
 
-function PenaltyPreviewPanel({ rule, penaltyPreview, loading, onPreview, onApply }) {
+function PenaltyPreviewPanel({ rule, penaltyPreview, loading, onPreview }) {
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10))
   const rows = Array.isArray(penaltyPreview?.rows) ? penaltyPreview.rows : []
 
@@ -320,7 +320,7 @@ function PenaltyPreviewPanel({ rule, penaltyPreview, loading, onPreview, onApply
           <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Penalty Preview</h3>
           <p className="mt-1 text-xs text-slate-400">
             {rule?.isEnabled
-              ? 'Preview or apply the active late-fee rule to overdue balances.'
+              ? 'Overdue penalties are applied automatically. Use this preview to audit the active late-fee rule.'
               : 'Enable the penalty rule in Billing Rates to use this workflow.'}
           </p>
         </div>
@@ -337,13 +337,6 @@ function PenaltyPreviewPanel({ rule, penaltyPreview, loading, onPreview, onApply
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             Preview
-          </button>
-          <button
-            onClick={() => onApply(asOfDate)}
-            disabled={loading || !rule?.isEnabled}
-            className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-white transition-all hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Apply
           </button>
         </div>
       </div>
@@ -390,7 +383,7 @@ function PenaltyPreviewPanel({ rule, penaltyPreview, loading, onPreview, onApply
                   <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.due_date || '-'}</td>
                   <td className="px-3 py-3 text-slate-600 dark:text-slate-300">PHP {Number(row.outstanding_amount || 0).toLocaleString()}</td>
                   <td className="px-3 py-3 font-semibold text-amber-600 dark:text-amber-400">PHP {Number(row.penalty_amount || 0).toLocaleString()}</td>
-                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.eligible ? 'Eligible' : row.status}</td>
+                  <td className="px-3 py-3 text-slate-500 dark:text-slate-400">{row.eligible ? 'Pending automatic run' : row.status}</td>
                 </tr>
               ))}
             </tbody>
@@ -405,6 +398,7 @@ function ActionGuidePills() {
   const items = [
     ['Draft', 'Publish to Tenant first, then use Regenerate or Delete Draft only if needed'],
     ['Published', 'Waiting for Tenant Payment'],
+    ['Overdue', 'Tenant can still pay; penalty applies automatically when eligible'],
     ['Submitted', 'Review Submitted Payment'],
     ['Paid', 'Paid'],
   ]
@@ -421,6 +415,59 @@ function ActionGuidePills() {
             {label}: {action}
           </span>
         ))}
+      </div>
+    </div>
+  )
+}
+
+function PrepareBillsFlowPopover({ open, onClose }) {
+  if (!open) return null
+
+  const flowItems = [
+    ['1', 'Generate Drafts', 'Create missing monthly bills after Facility has approved readings.'],
+    ['2', 'Review Draft Queue', 'Check draft totals and remove or regenerate drafts when they look wrong.'],
+    ['3', 'Publish To Tenant', 'Send only finalized drafts so tenants can see and pay them.'],
+    ['4', 'Monitor Overdue', 'Overdue bills stay payable. Penalties are applied automatically when bills become eligible.'],
+  ]
+
+  return (
+    <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-[min(92vw,440px)] overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-4 shadow-2xl shadow-blue-950/10 dark:border-blue-900/60 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950/50 dark:shadow-black/30">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-wider text-blue-500 dark:text-blue-300">Prepare Bills Flow</p>
+          <h3 className="mt-1 text-sm font-semibold text-slate-800 dark:text-white">Billing workflow guide</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            Follow this order to keep bill creation, tenant publishing, and collections clean.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          aria-label="Close prepare bills flow"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {flowItems.map(([step, title, copy]) => (
+          <div key={title} className="flex gap-3 rounded-xl border border-white/70 bg-white/80 p-3 shadow-sm dark:border-slate-700/70 dark:bg-slate-800/70">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white shadow-sm shadow-blue-500/20">
+              {step}
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{copy}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 space-y-1.5 rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-xs leading-5 text-slate-600 dark:border-blue-900/50 dark:bg-blue-950/25 dark:text-slate-300">
+        <p><span className="font-semibold text-slate-700 dark:text-slate-200">Draft:</span> Publish, regenerate, or delete.</p>
+        <p><span className="font-semibold text-slate-700 dark:text-slate-200">Published:</span> Wait for tenant payment submission.</p>
+        <p><span className="font-semibold text-slate-700 dark:text-slate-200">Overdue:</span> Tenant can still pay; eligible penalties apply automatically.</p>
       </div>
     </div>
   )
@@ -461,10 +508,10 @@ export default function FinanceBillManagement() {
     penaltyPreview,
     previewLoading: penaltyLoading,
     previewPenalties,
-    applyPenalties,
   } = useBillingPenaltyRule()
 
   const [activeTab, setActiveTab] = useState('prepare')
+  const [showPrepareFlow, setShowPrepareFlow] = useState(false)
   const [manageSearch, setManageSearch] = useState('')
   const [manageStatus, setManageStatus] = useState('all')
   const [allSearch, setAllSearch] = useState('')
@@ -486,7 +533,7 @@ export default function FinanceBillManagement() {
       bills.filter((bill) => {
         const q = manageSearch.trim().toLowerCase()
         return (
-          ['draft', 'published'].includes(bill.status) &&
+          ['draft', 'published', 'overdue'].includes(bill.status) &&
           (!q ||
             bill.tenant.toLowerCase().includes(q) ||
             bill.unit.toLowerCase().includes(q) ||
@@ -693,13 +740,16 @@ export default function FinanceBillManagement() {
     { k: 'all', l: 'All' },
     { k: 'draft', l: 'Draft' },
     { k: 'published', l: 'Published' },
+    { k: 'overdue', l: 'Overdue' },
   ]
 
   const LEDGER_STATUS_TABS = [
     { k: 'all', l: 'All' },
     { k: 'draft', l: 'Draft' },
     { k: 'published', l: 'Published' },
+    { k: 'overdue', l: 'Overdue' },
     { k: 'payment_submitted', l: 'Submitted' },
+    { k: 'partial', l: 'Partial' },
     { k: 'paid', l: 'Paid' },
   ]
 
@@ -747,11 +797,6 @@ export default function FinanceBillManagement() {
   const handlePenaltyPreview = async (asOfDate) => {
     const result = await previewPenalties({ asOfDate })
     addToast(result?.success ? 'Penalty preview generated.' : result?.message || 'Failed to preview penalties.', result?.success ? 'success' : 'error')
-  }
-
-  const handlePenaltyApply = async (asOfDate) => {
-    const result = await applyPenalties({ asOfDate })
-    addToast(result?.success ? result?.message || 'Penalties applied.' : result?.message || 'Failed to apply penalties.', result?.success ? 'success' : 'error')
   }
 
   return (
@@ -814,23 +859,46 @@ export default function FinanceBillManagement() {
         </div>
       )}
 
-      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-1.5 shadow-sm w-fit">
-        {[ 
-          { key: 'prepare', label: 'Prepare Bills', Icon: Settings2 },
-          { key: 'payments', label: 'Payment Queue', Icon: Send },
-          { key: 'exceptions', label: 'Exceptions', Icon: Edit2 },
-          { key: 'ledger', label: 'Bill Ledger', Icon: LayoutList },
-        ].map(({ key, label, Icon }) => (
+      <div className="relative flex w-full items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-1.5 shadow-sm">
+          {[
+            { key: 'prepare', label: 'Prepare Bills', Icon: Settings2 },
+            { key: 'payments', label: 'Payment Queue', Icon: Send },
+            { key: 'exceptions', label: 'Exceptions', Icon: Edit2 },
+            { key: 'ledger', label: 'Bill Ledger', Icon: LayoutList },
+          ].map(({ key, label, Icon }) => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => {
+              setActiveTab(key)
+              setShowPrepareFlow(false)
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
               activeTab === key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <Icon className="w-4 h-4" />{label}
           </button>
-        ))}
+          ))}
+        </div>
+        {activeTab === 'prepare' && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowPrepareFlow((value) => !value)}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-slate-500 shadow-sm transition-all hover:-translate-y-0.5 dark:text-slate-300 ${
+                showPrepareFlow
+                  ? 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+                  : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
+              }`}
+              aria-label="Show prepare bills flow"
+              title="Prepare Bills Flow"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
+            <PrepareBillsFlowPopover open={showPrepareFlow} onClose={() => setShowPrepareFlow(false)} />
+          </>
+        )}
       </div>
 
       <div ref={printRef}>
@@ -840,7 +908,7 @@ export default function FinanceBillManagement() {
             {[
               { label: 'Drafts', value: draftBills.length, color: 'text-slate-600 dark:text-slate-300', sub: 'Not yet published' },
               { label: 'Published', value: publishedBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Tenants can see' },
-              { label: 'Ready To Publish', value: draftBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Draft queue' },
+              { label: 'Overdue', value: bills.filter((bill) => bill.status === 'overdue').length, color: 'text-rose-600 dark:text-rose-400', sub: 'Still payable by tenants' },
               { label: 'Waiting For Payment', value: publishedBills.length, color: 'text-indigo-600 dark:text-indigo-400', sub: 'Already sent to tenants' },
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
@@ -856,43 +924,13 @@ export default function FinanceBillManagement() {
             penaltyPreview={penaltyPreview}
             loading={penaltyLoading}
             onPreview={handlePenaltyPreview}
-            onApply={handlePenaltyApply}
           />
 
           <BillingPeriodLockPanel
             scope="finance"
             title="Finance Billing Period Lock"
-            description="Freeze finalized months before collections and audits so bill actions cannot be changed accidentally."
+            description="Finalized months auto-lock after cutoff. Manual lock and unlock are available for controlled exceptions."
           />
-
-          <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.95fr] gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">Prepare Bills Flow</p>
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                {[
-                  ['1. Generate Drafts', 'Create missing monthly bills after Facility has approved readings.'],
-                  ['2. Review Draft Queue', 'Check draft totals and remove or regenerate drafts when they look wrong.'],
-                  ['3. Publish To Tenant', 'Send only finalized drafts so tenants can see and pay them.'],
-                  ['4. Wait For Payment', 'Published bills move automatically to Payment Queue once a receipt is submitted.'],
-                ].map(([title, copy]) => (
-                  <div key={title} className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-slate-50/70 dark:bg-slate-800/30 p-4">
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{copy}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">What To Do Here</p>
-              <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Draft:</span> Publish, regenerate, or delete.</p>
-                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Published:</span> No more creation work. Wait for the tenant payment submission.</p>
-                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Need payment review:</span> Use the Payment Queue tab.</p>
-                <p><span className="font-semibold text-slate-700 dark:text-slate-200">Need corrections:</span> Use the Exceptions tab.</p>
-              </div>
-            </div>
-          </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[200px]">
@@ -989,7 +1027,15 @@ export default function FinanceBillManagement() {
                               <Send className="w-3 h-3" /> Waiting for Payment
                             </span>
                           )}
-                          {['published', 'payment_submitted', 'paid', 'partial'].includes(bill.status) && (
+                          {bill.status === 'overdue' && (
+                            <span
+                              title="This bill is overdue, but the tenant can still submit payment proof."
+                              className="text-[11px] text-rose-600 dark:text-rose-400 flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 dark:bg-rose-900/20 rounded-lg whitespace-nowrap"
+                            >
+                              <AlertTriangle className="w-3 h-3" /> Overdue - Payable
+                            </span>
+                          )}
+                          {['published', 'overdue', 'payment_submitted', 'paid', 'partial'].includes(bill.status) && (
                             <button
                               onClick={() => openAdjustment(bill)}
                               disabled={saving}

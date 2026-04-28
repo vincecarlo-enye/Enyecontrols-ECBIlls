@@ -21,7 +21,7 @@ function formatMonthLabel(value) {
 export default function BillingPeriodLockPanel({
   scope = 'finance',
   title = 'Billing Period Lock',
-  description = 'Lock a finalized month to prevent billing, rate, or usage changes.',
+  description = 'Finalized months auto-lock after cutoff. Manual controls are for early lock or approved unlock exceptions.',
 }) {
   const { addToast } = useApp()
   const {
@@ -106,6 +106,10 @@ export default function BillingPeriodLockPanel({
           {isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
           {isLocked ? 'Unlock Month' : 'Lock Month'}
         </button>
+      </div>
+
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300">
+        Periods with finalized bills auto-lock after the monthly cutoff. If a month is manually unlocked, automation leaves it open until it is locked again.
       </div>
 
       {selectedLock ? (

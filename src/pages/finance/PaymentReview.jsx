@@ -110,8 +110,15 @@ export default function FinancePaymentReview() {
         fetchFinanceBills(),
       ])
 
-      setPayments((Array.isArray(paymentsRes?.data) ? paymentsRes.data : []).map(normalizePayment))
-      setBills((Array.isArray(billsRes?.data) ? billsRes.data : []).map(normalizeBill))
+      const billRows = Array.isArray(billsRes?.data) ? billsRes.data : []
+      const billIds = new Set(billRows.map((bill) => String(bill?.id ?? '')).filter(Boolean))
+      setPayments((Array.isArray(paymentsRes?.data) ? paymentsRes.data : [])
+        .filter((payment) => {
+          const billId = String(payment?.bill?.id ?? payment?.bill_id ?? '')
+          return billId && billIds.has(billId)
+        })
+        .map(normalizePayment))
+      setBills(billRows.map(normalizeBill))
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load payment review data.')
       setPayments([])

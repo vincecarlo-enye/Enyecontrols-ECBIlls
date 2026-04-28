@@ -2,6 +2,40 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Upload, FileImage, CheckCircle2, ChevronRight, Calendar, Hash, FileText } from 'lucide-react'
 
+function peso(value) {
+  return Number(value || 0).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function getPenaltyAmount(bill) {
+  const penalties = Array.isArray(bill?.penalties)
+    ? bill.penalties
+    : Array.isArray(bill?.bill_penalties)
+      ? bill.bill_penalties
+      : Array.isArray(bill?.raw?.penalties)
+        ? bill.raw.penalties
+        : Array.isArray(bill?.raw?.bill_penalties)
+          ? bill.raw.bill_penalties
+          : []
+  const explicit = Number(
+    bill?.penaltyAmount ??
+      bill?.penalty_amount ??
+      bill?.late_fee ??
+      bill?.lateFee ??
+      bill?.raw?.penalty_amount ??
+      bill?.raw?.late_fee ??
+      bill?.raw?.lateFee ??
+      0
+  )
+
+  return penalties.reduce(
+    (sum, penalty) => sum + Number(penalty?.penalty_amount ?? penalty?.amount ?? 0),
+    explicit
+  )
+}
+
 export default function ReceiptUploadModal({ bill, isOpen, onClose, onSubmit }) {
   const [step, setStep] = useState(1)
   const [receiptFile, setReceiptFile] = useState(null)
@@ -13,6 +47,10 @@ export default function ReceiptUploadModal({ bill, isOpen, onClose, onSubmit }) 
   })
 
   if (!isOpen || !bill) return null
+  const penaltyAmount = getPenaltyAmount(bill)
+  const subtotal = Number(bill?.raw?.subtotal ?? bill?.subtotal ?? 0)
+  const rawPreviousBalance = Number(bill?.raw?.previous_balance ?? bill?.previous_balance ?? 0)
+  const previousBalance = Math.max(0, rawPreviousBalance - penaltyAmount)
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
@@ -80,9 +118,27 @@ export default function ReceiptUploadModal({ bill, isOpen, onClose, onSubmit }) 
                   <span className="text-slate-400">Billing Period</span>
                   <span className="text-slate-700 dark:text-slate-200">{bill.billingPeriod}</span>
                 </div>
+                {subtotal > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Subtotal</span>
+                    <span className="text-slate-700 dark:text-slate-200">₱{peso(subtotal)}</span>
+                  </div>
+                )}
+                {previousBalance > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Previous Balance</span>
+                    <span className="text-slate-700 dark:text-slate-200">₱{peso(previousBalance)}</span>
+                  </div>
+                )}
+                {penaltyAmount > 0 && (
+                  <div className="flex justify-between rounded-lg bg-amber-50 px-2 py-1 dark:bg-amber-900/20">
+                    <span className="font-medium text-amber-700 dark:text-amber-300">Late Payment Penalty</span>
+                    <span className="font-semibold text-amber-700 dark:text-amber-300">₱{peso(penaltyAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-semibold">
                   <span className="text-slate-400">Amount Due</span>
-                  <span className="text-blue-600 dark:text-blue-400">₱{bill.amount.toLocaleString()}</span>
+                  <span className="text-blue-600 dark:text-blue-400">₱{peso(bill.amount)}</span>
                 </div>
               </div>
 

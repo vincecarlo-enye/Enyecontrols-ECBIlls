@@ -17,6 +17,7 @@ import { getOutOfScopeReply, getPageContext, isEcbillsScopedQuestion } from './a
 import { useVoiceInput } from './useVoiceInput'
 import WaveAnimation from './WaveAnimation'
 import { clearAIChatHistory, getAIChatHistory, sendAIChat } from '@/services/adminService/aiService'
+import { getFinanceBillsSnapshot, getFinancePaymentsSnapshot } from '@/services/financeService/financeBillService'
 import { useAuth } from '@/context/AuthContext'
 
 function formatTime() {
@@ -28,6 +29,388 @@ function formatTime() {
 
 function formatGreeting(pageContext) {
   return `Hi! I'm your ECBills AI assistant.\n\nYou're on **${pageContext.page}** - ${pageContext.description}\n\nHow can I help you?`
+}
+
+function buildAIQuestion(content, pageContext) {
+  const normalized = content.toLowerCase().replace(/\s+/g, ' ').trim()
+  const asksForFinanceDashboardExplanation =
+    pageContext?.page === 'Finance Dashboard' && isFinanceDashboardExplanationRequest(normalized)
+  const asksForCollectionRate =
+    pageContext?.page === 'Finance Dashboard' && isCollectionRateRequest(normalized)
+  const asksForPendingPaymentReviews =
+    pageContext?.page === 'Finance Dashboard' && isPendingPaymentReviewsRequest(normalized)
+  const asksForOutstandingBalances =
+    pageContext?.page === 'Finance Dashboard' && isOutstandingBalancesRequest(normalized)
+
+  if (asksForCollectionRate) {
+    return `${content}
+
+Answer about the Finance Dashboard collection rate, not utility billing rates. Collection rate means verified/collected payments divided by total billed revenue, expressed as a percentage. Include billed amount, collected amount, and outstanding collection gap when available.`
+  }
+
+  if (asksForPendingPaymentReviews) {
+    return `${content}
+
+Answer about pending payment reviews in the Finance Dashboard. Explain that these are submitted payments or receipts waiting for finance verification. Include the count, total amount, and available payment details such as invoice, tenant, unit, amount, and submission/payment date. Also mention that finance should review the receipt before verifying or rejecting it.`
+  }
+
+  if (asksForOutstandingBalances) {
+    return `${content}
+
+Answer about outstanding balances in the Finance Dashboard. Outstanding balances mean bills that are not fully paid yet, such as unpaid, published, overdue, partial, pending, or payment-submitted bills. Summarize the total outstanding amount, status breakdown, and tenant breakdown when available. Do not return a broad system snapshot.`
+  }
+
+  if (!asksForFinanceDashboardExplanation) return content
+
+  return `${content}
+
+Answer literally by explaining what the Finance Dashboard page is for, what finance users can do from it, and what dashboard sections, cards, charts, and records they can see. Do not primarily list current numeric system data unless the user explicitly asks for live figures, totals, IDs, anomalies, or summaries.`
+}
+
+function isFinanceDashboardExplanationRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+
+  return (
+    normalized === 'explain this finance dashboard' ||
+    normalized === 'explain finance dashboard' ||
+    normalized === 'explain this dashboard' ||
+    normalized.includes('what is finance dashboard') ||
+    normalized.includes('what is the finance dashboard')
+  )
+}
+
+function isCollectionRateRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return normalized.includes('collection rate') || normalized.includes('collection percentage')
+}
+
+function isPendingPaymentReviewsRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return (
+    normalized.includes('pending payment review') ||
+    normalized.includes('pending payment reviews') ||
+    normalized.includes('show pending payments') ||
+    normalized.includes('pending receipts')
+  )
+}
+
+function isOutstandingBalancesRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return (
+    normalized.includes('outstanding balance') ||
+    normalized.includes('outstanding balances') ||
+    normalized.includes('unpaid balance') ||
+    normalized.includes('unpaid balances') ||
+    normalized.includes('collection gap')
+  )
+}
+
+function isGeneralSystemQuestion(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return (
+    normalized.includes('what is ec bills') ||
+    normalized.includes('what is ecbills') ||
+    normalized.includes('what is this system') ||
+    normalized.includes('what does this system do') ||
+    normalized.includes('what this system do') ||
+    normalized.includes('how does this system work') ||
+    normalized.includes('explain this system') ||
+    normalized.includes('explain ec bills') ||
+    normalized.includes('explain ecbills')
+  )
+}
+
+function isTenantPaymentHelpRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return (
+    normalized.includes('how to pay') ||
+    normalized.includes('how do i pay') ||
+    normalized.includes('how can i pay') ||
+    normalized.includes('submit a payment') ||
+    normalized.includes('submit payment') ||
+    normalized.includes('upload receipt') ||
+    normalized.includes('payment receipt') ||
+    normalized.includes('pay a bill') ||
+    normalized.includes('pay my bill')
+  )
+}
+
+function isTenantConcernHelpRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return (
+    normalized.includes('make a concern') ||
+    normalized.includes('create a concern') ||
+    normalized.includes('submit a concern') ||
+    normalized.includes('report a concern') ||
+    normalized.includes('billing concern') ||
+    normalized.includes('make report') ||
+    normalized.includes('report an issue') ||
+    normalized.includes('raise a concern') ||
+    normalized.includes('reopen a ticket')
+  )
+}
+
+function isBillGenerationHelpRequest(text = '') {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  return (
+    normalized.includes('generate a bill') ||
+    normalized.includes('generate bill') ||
+    normalized.includes('generate bills') ||
+    normalized.includes('run bill generation') ||
+    normalized.includes('regenerate bill') ||
+    normalized.includes('create a bill') ||
+    normalized.includes('create bill')
+  )
+}
+
+function getSystemOverviewAnswer(pageContext = {}) {
+  if (pageContext?.role === 'tenant') {
+    return `ECBills is a billing and utility management system for tenants and building staff.
+
+For tenants, it is mainly used to check your own billing information. You can view your bills, see payment status, submit or track payment receipts, review your utility usage, check billing reports, and send billing concerns when something needs clarification.
+
+The tenant AI can explain how the system works and help you understand your own account, bills, payments, usage, and concerns. It should not show other tenants' information, finance-wide records, admin tools, or system-wide reports.`
+  }
+
+  return `ECBills is a billing and utility management system for managing tenant bills, utility usage, payments, receipts, billing concerns, reports, and role-based workflows.
+
+The AI can explain the current page, summarize records you are allowed to access, and guide you through billing, payment, usage, report, and concern workflows based on your role.`
+}
+
+function getTenantPaymentHelpAnswer() {
+  return `To pay a bill in ECBills:
+
+1. Go to **My Bills**.
+2. Open the bill you want to pay.
+3. Check the bill amount, due date, and payment instructions.
+4. Pay using the available payment method shown in the bill instructions.
+5. After paying, click the option to submit or upload your payment receipt.
+6. Attach your receipt, then enter any required payment details.
+7. Submit the receipt.
+
+After submission, your payment will usually show as pending or submitted while finance reviews it. Once finance verifies the receipt, the bill status should update as paid or reflected accordingly.`
+}
+
+function getTenantConcernHelpAnswer() {
+  return `To report a billing concern in ECBills:
+
+1. Go to **Billing Reports** or open the bill related to your concern.
+2. Choose the option to report or submit a billing concern.
+3. Select the concern category, such as payment not reflected, wrong amount, usage concern, or another billing issue.
+4. Write a clear explanation of the problem.
+5. Attach a supporting file if you have one, such as a receipt or screenshot.
+6. Submit the concern.
+
+After submitting, you can track the concern status in **Billing Reports**. If finance responds or resolves it, you can open the ticket to view the update. If the issue still needs attention and reopening is allowed, use the reopen option and add a note.`
+}
+
+function getBillGenerationHelpAnswer(pageContext = {}) {
+  if (pageContext?.role === 'tenant') {
+    return 'Tenants cannot generate bills. In ECBills, bill generation is handled by Finance or authorized admin users. As a tenant, you can view your published bills in **My Bills**, submit payment receipts, and report billing concerns if something looks wrong.'
+  }
+
+  return `To generate a bill in ECBills:
+
+1. Go to **Billing Management**.
+2. Open the **Prepare Bills** tab.
+3. Make sure the Facility Manager has approved the meter readings for the billing month. Finance can only generate bills from approved readings.
+4. To generate one bill, click **Generate Bill**.
+5. Select the tenant.
+6. Select the billing month.
+7. Click **Generate Bill** to create the draft bill.
+
+To generate bills in batch:
+
+1. In **Prepare Bills**, click **Run Bill Generation**.
+2. Select the billing month.
+3. Turn on **Regenerate existing bills too** only if you want existing bills for that month to be recreated.
+4. Click **Generate All Bills**.
+
+After generation, review the draft bills first. When they are correct, publish them so tenants can see the bills.`
+}
+
+function extractSnapshotRows(snapshot) {
+  if (Array.isArray(snapshot)) return snapshot
+  if (Array.isArray(snapshot?.data)) return snapshot.data
+  if (Array.isArray(snapshot?.data?.data)) return snapshot.data.data
+  return []
+}
+
+function formatDateLabel(value) {
+  if (!value) return 'No date'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function formatPeso(value) {
+  return `PHP ${Number(value || 0).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function getFinanceCollectionRateAnswer() {
+  const bills = extractSnapshotRows(getFinanceBillsSnapshot())
+  const payments = extractSnapshotRows(getFinancePaymentsSnapshot())
+
+  if (bills.length === 0 && payments.length === 0) return ''
+
+  const totalBilled = bills.reduce((sum, bill) => sum + Number(bill?.amount || 0), 0)
+  const verifiedPayments = payments.filter((payment) => String(payment?.status || '').toLowerCase() === 'verified')
+  const totalCollected = verifiedPayments.reduce((sum, payment) => sum + Number(payment?.amount || 0), 0)
+  const collectionRate = totalBilled > 0 ? Number(((totalCollected / totalBilled) * 100).toFixed(1)) : 0
+  const collectionGap = Math.max(totalBilled - totalCollected, 0)
+
+  return `The collection rate is **${collectionRate}%**.
+
+This means finance has collected ${formatPeso(totalCollected)} from ${formatPeso(totalBilled)} in billed revenue.
+
+The current collection gap is ${formatPeso(collectionGap)}. This is the amount that is still not collected based on the current cached Finance Dashboard data.`
+}
+
+function getFinancePendingPaymentReviewsAnswer() {
+  const payments = extractSnapshotRows(getFinancePaymentsSnapshot())
+  if (payments.length === 0) return ''
+
+  const pendingPayments = payments.filter((payment) => String(payment?.status || '').toLowerCase() === 'pending')
+  const totalPending = pendingPayments.reduce((sum, payment) => sum + Number(payment?.amount || 0), 0)
+
+  if (pendingPayments.length === 0) {
+    return 'There are no pending payment reviews right now. That means there are no submitted receipts waiting for finance verification in the current cached Finance Dashboard data.'
+  }
+
+  const visiblePayments = pendingPayments.slice(0, 5).map((payment) => {
+    const bill = payment?.bill || {}
+    const invoice = bill?.id ?? payment?.bill_id ?? payment?.invoice_id ?? payment?.invoiceId ?? 'N/A'
+    const tenant = payment?.tenant?.name || bill?.tenant?.name || payment?.tenant_name || 'Unknown tenant'
+    const unit = bill?.unit?.unit_number || bill?.unit?.name || payment?.unit?.unit_number || payment?.unit?.name || 'N/A'
+    const date = payment?.paid_at || payment?.created_at || payment?.submitted_at || payment?.verified_at
+
+    return `- Invoice ${invoice}: ${tenant}, Unit ${unit}, ${formatPeso(payment?.amount)}, submitted ${formatDateLabel(date)}`
+  })
+
+  const extraCount = pendingPayments.length - visiblePayments.length
+  const extraLine = extraCount > 0 ? `\n\nThere are ${extraCount} more pending payment review${extraCount === 1 ? '' : 's'} not shown in this quick summary.` : ''
+
+  return `There are **${pendingPayments.length} pending payment reviews** worth **${formatPeso(totalPending)}**.
+
+These are payments or receipts submitted by tenants that finance still needs to check. Finance should open each payment review, confirm the receipt details, then either verify the payment or reject it with a reason.
+
+Pending items:
+${visiblePayments.join('\n')}${extraLine}`
+}
+
+function getBillTenantName(bill = {}) {
+  return bill?.tenant?.name || bill?.tenant_name || bill?.customer_name || 'Unknown tenant'
+}
+
+function getBillUnitName(bill = {}) {
+  return bill?.unit?.unit_number || bill?.unit?.name || bill?.unit_name || 'N/A'
+}
+
+function normalizeStatusLabel(status = '') {
+  return String(status || 'unknown')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function getFinanceOutstandingBalancesAnswer() {
+  const bills = extractSnapshotRows(getFinanceBillsSnapshot())
+  if (bills.length === 0) return ''
+
+  const outstandingStatuses = new Set([
+    'unpaid',
+    'published',
+    'overdue',
+    'partial',
+    'pending',
+    'submitted',
+    'payment_submitted',
+    'draft',
+  ])
+  const outstandingBills = bills.filter((bill) => {
+    const status = String(bill?.status || '').toLowerCase()
+    return outstandingStatuses.has(status) || (status && status !== 'paid' && status !== 'cancelled' && status !== 'void')
+  })
+
+  if (outstandingBills.length === 0) {
+    return 'There are no outstanding balances right now. All currently cached Finance Dashboard bills are either paid or not counted as collectible balances.'
+  }
+
+  const totalOutstanding = outstandingBills.reduce((sum, bill) => sum + Number(bill?.outstanding_amount ?? bill?.balance ?? bill?.amount ?? 0), 0)
+  const statusMap = new Map()
+  const tenantMap = new Map()
+
+  outstandingBills.forEach((bill) => {
+    const amount = Number(bill?.outstanding_amount ?? bill?.balance ?? bill?.amount ?? 0)
+    const status = normalizeStatusLabel(bill?.status)
+    const tenant = getBillTenantName(bill)
+
+    const statusRow = statusMap.get(status) || { count: 0, amount: 0 }
+    statusRow.count += 1
+    statusRow.amount += amount
+    statusMap.set(status, statusRow)
+
+    const tenantRow = tenantMap.get(tenant) || { count: 0, amount: 0 }
+    tenantRow.count += 1
+    tenantRow.amount += amount
+    tenantMap.set(tenant, tenantRow)
+  })
+
+  const statusLines = Array.from(statusMap.entries())
+    .sort((a, b) => b[1].amount - a[1].amount)
+    .map(([status, row]) => `- ${status}: ${row.count} bill${row.count === 1 ? '' : 's'} worth ${formatPeso(row.amount)}`)
+
+  const tenantLines = Array.from(tenantMap.entries())
+    .sort((a, b) => b[1].amount - a[1].amount)
+    .slice(0, 5)
+    .map(([tenant, row]) => `- ${tenant}: ${row.count} bill${row.count === 1 ? '' : 's'} worth ${formatPeso(row.amount)}`)
+
+  const sampleBills = outstandingBills
+    .slice()
+    .sort((a, b) => Number(b?.outstanding_amount ?? b?.balance ?? b?.amount ?? 0) - Number(a?.outstanding_amount ?? a?.balance ?? a?.amount ?? 0))
+    .slice(0, 5)
+    .map((bill) => {
+      const invoice = bill?.id ?? bill?.invoice_id ?? bill?.invoiceId ?? 'N/A'
+      const amount = Number(bill?.outstanding_amount ?? bill?.balance ?? bill?.amount ?? 0)
+      return `- Invoice ${invoice}: ${getBillTenantName(bill)}, Unit ${getBillUnitName(bill)}, ${normalizeStatusLabel(bill?.status)}, ${formatPeso(amount)}`
+    })
+
+  return `There are **${outstandingBills.length} outstanding bills** worth **${formatPeso(totalOutstanding)}**.
+
+Outstanding balances are bills that are not fully paid yet, such as unpaid, published, overdue, partial, pending, or submitted-payment bills.
+
+By status:
+${statusLines.join('\n')}
+
+By tenant:
+${tenantLines.join('\n')}
+
+Largest outstanding items:
+${sampleBills.join('\n')}`
+}
+
+function getFinanceDashboardExplanation() {
+  return `The Finance Dashboard is the main overview page for the finance team. It helps users quickly understand billing performance, payment activity, collections, and revenue movement without opening each billing or payment record one by one.
+
+On this dashboard, finance users can monitor how much has been billed, how much has been collected, what is still outstanding, and which payments still need review. They can also change the time range using the 1D, 1M, and 1Y filters to view daily, monthly, or yearly trends.
+
+What you can see here:
+- Utility revenue cards for electricity, thermal energy, and water.
+- Summary cards such as Total Revenue, Utility Revenue, Pending Payments, Paid Bills, and Total Bills Generated.
+- A Revenue Trend chart showing billed amounts, collected amounts, the collection gap, and collection rate.
+- A Utility Revenue Breakdown chart showing how electricity, water, and thermal charges contribute to revenue.
+- A Revenue Distribution chart showing the percentage share of each utility.
+- Billing Status data showing bills by status, such as paid, partial, submitted, overdue, or open.
+- Payment Review Status data showing pending, verified, and rejected payments.
+- Recent Transactions showing the latest payment records across tenants and utilities.
+
+In short, this page is used to check the financial health of billing: what was billed, what was paid, what still needs collection, and what finance tasks may need attention.`
 }
 
 function normalizeText(text = '') {
@@ -240,6 +623,7 @@ export default function AIAssistant() {
   const inputRef = useRef(null)
   const audioRef = useRef(null)
   const historyRequestIdRef = useRef(0)
+  const hasInitializedHistoryRef = useRef(false)
 
   const voice = useVoiceInput({
     onTranscript: (text) => {
@@ -280,9 +664,14 @@ export default function AIAssistant() {
 
   useEffect(() => {
     if (!isOpen) return
+    if (hasInitializedHistoryRef.current) {
+      setHasLoadedHistory(true)
+      return
+    }
 
     const requestId = historyRequestIdRef.current + 1
     historyRequestIdRef.current = requestId
+    hasInitializedHistoryRef.current = true
     setHasLoadedHistory(false)
 
     let cancelled = false
@@ -338,7 +727,7 @@ export default function AIAssistant() {
     return () => {
       cancelled = true
     }
-  }, [isOpen, location.pathname, pageContext])
+  }, [isOpen])
 
   useEffect(() => {
     if (isAISpeaking) {
@@ -523,13 +912,126 @@ export default function AIAssistant() {
       return
     }
 
+    if (isGeneralSystemQuestion(content)) {
+      const aiMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: getSystemOverviewAnswer(pageContext),
+        time: formatTime(),
+      }
+
+      setMessages((prev) => [...prev, aiMsg])
+      setIsTyping(false)
+      return
+    }
+
+    if (pageContext?.role === 'tenant' && isTenantPaymentHelpRequest(content)) {
+      const aiMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: getTenantPaymentHelpAnswer(),
+        time: formatTime(),
+      }
+
+      setMessages((prev) => [...prev, aiMsg])
+      setIsTyping(false)
+      return
+    }
+
+    if (pageContext?.role === 'tenant' && isTenantConcernHelpRequest(content)) {
+      const aiMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: getTenantConcernHelpAnswer(),
+        time: formatTime(),
+      }
+
+      setMessages((prev) => [...prev, aiMsg])
+      setIsTyping(false)
+      return
+    }
+
+    if (isBillGenerationHelpRequest(content)) {
+      const aiMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: getBillGenerationHelpAnswer(pageContext),
+        time: formatTime(),
+      }
+
+      setMessages((prev) => [...prev, aiMsg])
+      setIsTyping(false)
+      return
+    }
+
+    if (pageContext?.page === 'Finance Dashboard' && isFinanceDashboardExplanationRequest(content)) {
+      const aiMsg = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: getFinanceDashboardExplanation(),
+        time: formatTime(),
+      }
+
+      setMessages((prev) => [...prev, aiMsg])
+      setIsTyping(false)
+      return
+    }
+
+    if (pageContext?.page === 'Finance Dashboard' && isCollectionRateRequest(content)) {
+      const answer = getFinanceCollectionRateAnswer()
+      if (answer) {
+        const aiMsg = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: answer,
+          time: formatTime(),
+        }
+
+        setMessages((prev) => [...prev, aiMsg])
+        setIsTyping(false)
+        return
+      }
+    }
+
+    if (pageContext?.page === 'Finance Dashboard' && isPendingPaymentReviewsRequest(content)) {
+      const answer = getFinancePendingPaymentReviewsAnswer()
+      if (answer) {
+        const aiMsg = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: answer,
+          time: formatTime(),
+        }
+
+        setMessages((prev) => [...prev, aiMsg])
+        setIsTyping(false)
+        return
+      }
+    }
+
+    if (pageContext?.page === 'Finance Dashboard' && isOutstandingBalancesRequest(content)) {
+      const answer = getFinanceOutstandingBalancesAnswer()
+      if (answer) {
+        const aiMsg = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: answer,
+          time: formatTime(),
+        }
+
+        setMessages((prev) => [...prev, aiMsg])
+        setIsTyping(false)
+        return
+      }
+    }
+
     try {
       const generateAudio = outputMode !== 'text'
       const ttsMode = outputMode === 'custom' ? 'clone' : 'edge'
 
       const result = await sendAIChat({
         pathname: location.pathname,
-        question: content,
+        question: buildAIQuestion(content, pageContext),
         generateAudio,
         ttsMode,
       })

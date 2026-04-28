@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import GridBackground from '@/components/common/GridBackground'
-import { UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -65,7 +64,6 @@ export default function LoginPage() {
               <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-white">Welcome back</h2>
               <p className="text-sm text-slate-400 dark:text-slate-500">Sign in to continue to your portal</p>
             </div>
-            <UpdatingBadge show={loading} />
           </div>
 
           {error && (

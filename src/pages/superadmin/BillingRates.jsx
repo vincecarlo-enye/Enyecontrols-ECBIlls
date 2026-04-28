@@ -336,7 +336,7 @@ export default function BillingRates() {
       <BillingPeriodLockPanel
         scope="admin"
         title="Billing Period Lock Control"
-        description="Lock finalized billing months here before touching rates so historical computations stay protected."
+        description="Finalized months auto-lock after cutoff. Manual control protects historical computations when exceptions are approved."
       />
 
       <PenaltyRuleCard

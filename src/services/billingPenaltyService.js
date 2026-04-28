@@ -30,5 +30,9 @@ export async function previewFinanceBillPenalties(payload) {
 
 export async function applyFinanceBillPenalties(payload) {
   const res = await api.post('/api/finance/bill-penalties/apply', payload)
+  invalidateCache([
+    'finance:bills',
+    'finance:payments',
+  ])
   return res.data
 }

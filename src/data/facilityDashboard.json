@@ -1,51 +1,51 @@
 {
   "chartData": {
     "ELEC": {
-      "Daily":   [{"t":"12AM","v":118},{"t":"3AM","v":89},{"t":"6AM","v":165},{"t":"9AM","v":312},{"t":"12PM","v":428},{"t":"3PM","v":394},{"t":"6PM","v":348},{"t":"9PM","v":211}],
-      "Monthly": [{"t":"Oct","v":12400},{"t":"Nov","v":13200},{"t":"Dec","v":15100},{"t":"Jan","v":14800},{"t":"Feb","v":16200},{"t":"Mar","v":17991}],
-      "Yearly":  [{"t":"2020","v":132000},{"t":"2021","v":140000},{"t":"2022","v":155000},{"t":"2023","v":162000},{"t":"2024","v":170000},{"t":"2025","v":178000}]
+      "Daily": [{"t":"12AM","v":420},{"t":"3AM","v":365},{"t":"6AM","v":510},{"t":"9AM","v":1240},{"t":"12PM","v":1585},{"t":"3PM","v":1490},{"t":"6PM","v":1180},{"t":"9PM","v":690}],
+      "Monthly": [{"t":"Oct","v":54820},{"t":"Nov","v":56640},{"t":"Dec","v":62190},{"t":"Jan","v":60240},{"t":"Feb","v":57980},{"t":"Mar","v":59460}],
+      "Yearly": [{"t":"2020","v":612400},{"t":"2021","v":638900},{"t":"2022","v":661500},{"t":"2023","v":687200},{"t":"2024","v":704800},{"t":"2025","v":717600}]
     },
     "WATER": {
-      "Daily":   [{"t":"Mon","v":38},{"t":"Tue","v":44},{"t":"Wed","v":59},{"t":"Thu","v":51},{"t":"Fri","v":67},{"t":"Sat","v":40},{"t":"Sun","v":33}],
-      "Monthly": [{"t":"Oct","v":3200},{"t":"Nov","v":3600},{"t":"Dec","v":4100},{"t":"Jan","v":3900},{"t":"Feb","v":4300},{"t":"Mar","v":4800}],
-      "Yearly":  [{"t":"2020","v":38000},{"t":"2021","v":40200},{"t":"2022","v":42800},{"t":"2023","v":44000},{"t":"2024","v":46500},{"t":"2025","v":49000}]
+      "Daily": [{"t":"Mon","v":22.8},{"t":"Tue","v":25.4},{"t":"Wed","v":26.1},{"t":"Thu","v":24.9},{"t":"Fri","v":28.6},{"t":"Sat","v":16.3},{"t":"Sun","v":12.8}],
+      "Monthly": [{"t":"Oct","v":682},{"t":"Nov","v":701},{"t":"Dec","v":768},{"t":"Jan","v":744},{"t":"Feb","v":715},{"t":"Mar","v":736}],
+      "Yearly": [{"t":"2020","v":7410},{"t":"2021","v":7685},{"t":"2022","v":7920},{"t":"2023","v":8215},{"t":"2024","v":8460},{"t":"2025","v":8635}]
     },
     "THERMAL": {
-      "Daily":   [{"t":"12AM","v":62},{"t":"3AM","v":48},{"t":"6AM","v":75},{"t":"9AM","v":142},{"t":"12PM","v":198},{"t":"3PM","v":184},{"t":"6PM","v":168},{"t":"9PM","v":110}],
-      "Monthly": [{"t":"Oct","v":8100},{"t":"Nov","v":9200},{"t":"Dec","v":11300},{"t":"Jan","v":10800},{"t":"Feb","v":11900},{"t":"Mar","v":12400}],
-      "Yearly":  [{"t":"2020","v":88000},{"t":"2021","v":95000},{"t":"2022","v":102000},{"t":"2023","v":108000},{"t":"2024","v":115000},{"t":"2025","v":121000}]
+      "Daily": [{"t":"12AM","v":2180},{"t":"3AM","v":1890},{"t":"6AM","v":2460},{"t":"9AM","v":6120},{"t":"12PM","v":7480},{"t":"3PM","v":7025},{"t":"6PM","v":5360},{"t":"9PM","v":3240}],
+      "Monthly": [{"t":"Oct","v":286400},{"t":"Nov","v":298900},{"t":"Dec","v":346200},{"t":"Jan","v":332800},{"t":"Feb","v":309600},{"t":"Mar","v":319400}],
+      "Yearly": [{"t":"2020","v":3260000},{"t":"2021","v":3415000},{"t":"2022","v":3552000},{"t":"2023","v":3698000},{"t":"2024","v":3824000},{"t":"2025","v":3951000}]
     },
     "COMPARISON": {
-      "Daily":   [{"t":"Tue","electricity":1640,"water":390,"thermal":870},{"t":"Wed","electricity":2100,"water":520,"thermal":1140},{"t":"Thu","electricity":1960,"water":450,"thermal":1020},{"t":"Fri","electricity":2340,"water":590,"thermal":1280},{"t":"Sat","electricity":1520,"water":360,"thermal":780},{"t":"Sun","electricity":1240,"water":290,"thermal":640}],
-      "Monthly": [{"t":"Oct","electricity":12400,"water":3200,"thermal":8100},{"t":"Nov","electricity":13200,"water":3600,"thermal":9200},{"t":"Dec","electricity":15100,"water":4100,"thermal":11300},{"t":"Jan","electricity":14800,"water":3900,"thermal":10800},{"t":"Feb","electricity":16200,"water":4300,"thermal":11900},{"t":"Mar","electricity":17991,"water":4800,"thermal":12400}],
-      "Yearly":  [{"t":"2021","electricity":140000,"water":38000,"thermal":95000},{"t":"2022","electricity":155000,"water":41000,"thermal":102000},{"t":"2023","electricity":162000,"water":44000,"thermal":108000},{"t":"2024","electricity":170000,"water":46500,"thermal":115000},{"t":"2025","electricity":178000,"water":49000,"thermal":121000}]
+      "Daily": [{"t":"Tue","electricity":815,"water":25.4,"thermal":4520},{"t":"Wed","electricity":842,"water":26.1,"thermal":4680},{"t":"Thu","electricity":868,"water":24.9,"thermal":4815},{"t":"Fri","electricity":910,"water":28.6,"thermal":5120},{"t":"Sat","electricity":545,"water":16.3,"thermal":3010},{"t":"Sun","electricity":428,"water":12.8,"thermal":2390}],
+      "Monthly": [{"t":"Oct","electricity":54820,"water":682,"thermal":286400},{"t":"Nov","electricity":56640,"water":701,"thermal":298900},{"t":"Dec","electricity":62190,"water":768,"thermal":346200},{"t":"Jan","electricity":60240,"water":744,"thermal":332800},{"t":"Feb","electricity":57980,"water":715,"thermal":309600},{"t":"Mar","electricity":59460,"water":736,"thermal":319400}],
+      "Yearly": [{"t":"2021","electricity":638900,"water":7685,"thermal":3415000},{"t":"2022","electricity":661500,"water":7920,"thermal":3552000},{"t":"2023","electricity":687200,"water":8215,"thermal":3698000},{"t":"2024","electricity":704800,"water":8460,"thermal":3824000},{"t":"2025","electricity":717600,"water":8635,"thermal":3951000}]
     }
   },
   "units": [
-    { "unit": "Unit 101", "floor": "1F", "elec": 312, "water": 38,  "thermal": 170, "status": "Normal"     },
-    { "unit": "Unit 102", "floor": "1F", "elec": 285, "water": 31,  "thermal": 145, "status": "Normal"     },
-    { "unit": "Unit 201", "floor": "2F", "elec": 510, "water": 52,  "thermal": 290, "status": "High Usage" },
-    { "unit": "Unit 202", "floor": "2F", "elec": 290, "water": 34,  "thermal": 155, "status": "Normal"     },
-    { "unit": "Unit 203", "floor": "2F", "elec": 360, "water": 118, "thermal": 182, "status": "Warning"    },
-    { "unit": "Unit 301", "floor": "3F", "elec": 630, "water": 61,  "thermal": 380, "status": "Warning"    },
-    { "unit": "Unit 302", "floor": "3F", "elec": 270, "water": 29,  "thermal": 140, "status": "Normal"     },
-    { "unit": "Unit 401", "floor": "4F", "elec": 308, "water": 36,  "thermal": 168, "status": "Normal"     },
-    { "unit": "Unit 402", "floor": "4F", "elec": 195, "water": 22,  "thermal": 105, "status": "Normal"     },
-    { "unit": "Unit 501", "floor": "5F", "elec": 440, "water": 58,  "thermal": 240, "status": "High Usage" }
+    { "unit": "Unit 101", "floor": "1F", "elec": 1280, "water": 15.8, "thermal": 6420, "status": "Normal" },
+    { "unit": "Unit 102", "floor": "1F", "elec": 1465, "water": 18.4, "thermal": 7110, "status": "Normal" },
+    { "unit": "Unit 201", "floor": "2F", "elec": 2380, "water": 31.6, "thermal": 14280, "status": "High Usage" },
+    { "unit": "Unit 202", "floor": "2F", "elec": 2070, "water": 26.3, "thermal": 11890, "status": "Normal" },
+    { "unit": "Unit 203", "floor": "2F", "elec": 2215, "water": 48.9, "thermal": 12340, "status": "Warning" },
+    { "unit": "Unit 301", "floor": "3F", "elec": 3125, "water": 37.4, "thermal": 16890, "status": "Warning" },
+    { "unit": "Unit 302", "floor": "3F", "elec": 1545, "water": 19.1, "thermal": 8610, "status": "Normal" },
+    { "unit": "Unit 401", "floor": "4F", "elec": 1690, "water": 22.6, "thermal": 9820, "status": "Normal" },
+    { "unit": "Unit 402", "floor": "4F", "elec": 1210, "water": 13.7, "thermal": 5880, "status": "Normal" },
+    { "unit": "Unit 501", "floor": "5F", "elec": 2560, "water": 33.2, "thermal": 14920, "status": "High Usage" }
   ],
   "alerts": [
-    { "id": 1, "severity": "High",   "msg": "Water usage spike detected in Unit 203",           "location": "Unit 203, 2F", "time": "Mar 12 · 08:14 AM", "resolved": false },
-    { "id": 2, "severity": "High",   "msg": "Thermal energy overload on 3rd Floor (+32%)",       "location": "3rd Floor",    "time": "Mar 12 · 07:50 AM", "resolved": false },
-    { "id": 3, "severity": "Medium", "msg": "Electric Meter E-104 offline",                      "location": "Unit 104, 1F", "time": "Mar 12 · 06:30 AM", "resolved": false },
-    { "id": 4, "severity": "Medium", "msg": "Electricity 28% above average in Unit 501",         "location": "Unit 501, 5F", "time": "Mar 11 · 11:20 PM", "resolved": false },
-    { "id": 5, "severity": "Low",    "msg": "Water Meter W-302 reading inconsistency detected",  "location": "Unit 302, 3F", "time": "Mar 11 · 09:05 PM", "resolved": false }
+    { "id": 1, "severity": "High", "msg": "Water usage is 46% above baseline in Unit 203", "location": "Unit 203, 2F", "time": "Mar 12 - 08:14 AM", "resolved": false },
+    { "id": 2, "severity": "High", "msg": "Thermal load is 24% above normal on the 3rd floor", "location": "3rd Floor", "time": "Mar 12 - 07:50 AM", "resolved": false },
+    { "id": 3, "severity": "Medium", "msg": "Electric Meter E-104 missed its scheduled reading", "location": "Unit 104, 1F", "time": "Mar 12 - 06:30 AM", "resolved": false },
+    { "id": 4, "severity": "Medium", "msg": "Electricity is 18% above average in Unit 501", "location": "Unit 501, 5F", "time": "Mar 11 - 11:20 PM", "resolved": false },
+    { "id": 5, "severity": "Low", "msg": "Water Meter W-302 has a minor reading variance", "location": "Unit 302, 3F", "time": "Mar 11 - 09:05 PM", "resolved": false }
   ],
   "maintenanceTickets": [
-    { "id": "MNT-001", "issue": "Water leak – Unit 203",        "location": "Unit 203", "technician": "Rodel Santos",  "status": "In Progress", "updated": "Mar 12, 08:30 AM" },
-    { "id": "MNT-002", "issue": "Electric Meter E-104 offline", "location": "Unit 104", "technician": "Eduardo Cruz",  "status": "Pending",     "updated": "Mar 12, 07:00 AM" },
-    { "id": "MNT-003", "issue": "HVAC malfunction – 3rd Floor", "location": "3rd Floor","technician": "Allan Rivera",  "status": "In Progress", "updated": "Mar 11, 04:15 PM" },
-    { "id": "MNT-004", "issue": "Pressure drop – Water main",   "location": "B1 Level", "technician": "Unassigned",   "status": "Pending",     "updated": "Mar 11, 02:00 PM" },
-    { "id": "MNT-005", "issue": "Faulty circuit breaker – B1",  "location": "Basement", "technician": "Eduardo Cruz",  "status": "Resolved",    "updated": "Mar 10, 11:30 AM" }
+    { "id": "MNT-001", "issue": "Investigate water spike - Unit 203", "location": "Unit 203", "technician": "Rodel Santos", "status": "In Progress", "updated": "Mar 12, 08:30 AM" },
+    { "id": "MNT-002", "issue": "Electric Meter E-104 offline", "location": "Unit 104", "technician": "Eduardo Cruz", "status": "Pending", "updated": "Mar 12, 07:00 AM" },
+    { "id": "MNT-003", "issue": "Balance chilled-water branch - 3rd Floor", "location": "3rd Floor", "technician": "Allan Rivera", "status": "In Progress", "updated": "Mar 11, 04:15 PM" },
+    { "id": "MNT-004", "issue": "Inspect domestic water pressure - B1", "location": "B1 Level", "technician": "Unassigned", "status": "Pending", "updated": "Mar 11, 02:00 PM" },
+    { "id": "MNT-005", "issue": "Replace weak breaker - B1 Panel", "location": "Basement", "technician": "Eduardo Cruz", "status": "Resolved", "updated": "Mar 10, 11:30 AM" }
   ],
   "technicians": ["Rodel Santos", "Eduardo Cruz", "Allan Rivera", "Marlo Reyes", "Unassigned"]
 }
