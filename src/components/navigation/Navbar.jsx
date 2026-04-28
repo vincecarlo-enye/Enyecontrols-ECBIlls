@@ -4,7 +4,7 @@ import { Bell, Sun, Moon, Search, Menu, ChevronDown, LogOut, AlertTriangle, Info
 import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUnitFilter } from '@/context/UnitFilterContext'
-import { fetchNotifications, getNotificationsSnapshot, markNotificationAsRead } from '@/services/notificationService'
+import { fetchNotifications, getNotificationsSnapshot, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService'
 
 const NAVBAR_NOTIFICATION_PARAMS = {
   per_page: 25,
@@ -143,14 +143,12 @@ export default function Navbar({ onMenuClick }) {
   const handleMarkAllRead = async () => {
     if (markingAllRead || unreadCount === 0) return
 
-    const unreadItems = (notifications || []).filter((item) => !item.is_read)
-
     // Optimistic update
     setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
 
     try {
       setMarkingAllRead(true)
-      await Promise.all(unreadItems.map((item) => markNotificationAsRead(item.id)))
+      await markAllNotificationsAsRead(notifications)
     } catch {
       // Keep optimistic state — partial reads are acceptable
     } finally {

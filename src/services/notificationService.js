@@ -4,8 +4,17 @@ import { getAdminNotificationPreferences } from '@/services/adminService/adminNo
 
 const NOTIFICATIONS_CACHE_PREFIX = 'notifications'
 
+function getCurrentUserId() {
+  const user = getStoredAuthUser()
+  return user?.id || user?.email || user?.username || 'anonymous'
+}
+
 function buildNotificationKey(params = {}) {
-  return buildCacheKey(NOTIFICATIONS_CACHE_PREFIX, params)
+  return buildCacheKey(`${NOTIFICATIONS_CACHE_PREFIX}:${getCurrentUserId()}`, params)
+}
+
+function invalidateCurrentUserCache() {
+  invalidateCache(`${NOTIFICATIONS_CACHE_PREFIX}:${getCurrentUserId()}`)
 }
 
 function getStoredAuthUser() {
@@ -99,7 +108,7 @@ export async function addLocalNotification(notification = {}) {
   }
 
   const res = await api.post('/api/notifications', payload)
-  invalidateCache(NOTIFICATIONS_CACHE_PREFIX)
+  invalidateCurrentUserCache()
   return res.data?.data || res.data || null
 }
 
@@ -147,6 +156,13 @@ export async function fetchNotification(id) {
 
 export async function markNotificationAsRead(id) {
   const res = await api.post(`/api/notifications/${id}/read`)
-  invalidateCache(NOTIFICATIONS_CACHE_PREFIX)
+  invalidateCurrentUserCache()
   return res.data
+}
+
+export async function markAllNotificationsAsRead(notifications = []) {
+  const unread = notifications.filter((item) => !item.is_read)
+  if (unread.length === 0) return
+  await Promise.all(unread.map((item) => api.post(`/api/notifications/${item.id}/read`)))
+  invalidateCurrentUserCache()
 }

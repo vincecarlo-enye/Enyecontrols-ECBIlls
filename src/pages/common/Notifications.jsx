@@ -2,7 +2,7 @@ import { formatDate } from '@/utils/filterUtils'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Bell, CheckCheck, Clock3, RefreshCw } from 'lucide-react'
-import { fetchNotification, fetchNotifications, getNotificationsSnapshot, markNotificationAsRead } from '@/services/notificationService'
+import { fetchNotification, fetchNotifications, getNotificationsSnapshot, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { LoadingValue, UpdatingBadge } from '@/components/common/InlineLoadingState'
 import PaginationBar from '@/components/common/PaginationBar'
@@ -32,6 +32,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(!hasInitialSnapshot)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
+  const [markingAllRead, setMarkingAllRead] = useState(false)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
   const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
@@ -124,6 +125,22 @@ export default function NotificationsPage() {
     [notifications]
   )
 
+  const handleMarkAllRead = async () => {
+    if (markingAllRead || unreadCount === 0) return
+
+    // Optimistic update
+    setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+
+    try {
+      setMarkingAllRead(true)
+      await markAllNotificationsAsRead(notifications)
+    } catch {
+      // Keep optimistic state — partial reads are acceptable
+    } finally {
+      setMarkingAllRead(false)
+    }
+  }
+
   const handleSelect = async (notification) => {
     setSelectedId(notification.id)
     setSelected(notification)
@@ -159,6 +176,16 @@ export default function NotificationsPage() {
             <CheckCheck className="w-4 h-4 text-blue-500" />
             <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={`${unreadCount} unread on this page`} className="text-xs font-semibold text-blue-700 dark:text-blue-300" spinnerClassName="h-4 w-4 text-blue-500" />
           </div>
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              disabled={markingAllRead}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <CheckCheck className="w-4 h-4" />
+              {markingAllRead ? 'Marking...' : 'Read All'}
+            </button>
+          )}
           <button
             onClick={() => loadNotifications(page, perPage)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
