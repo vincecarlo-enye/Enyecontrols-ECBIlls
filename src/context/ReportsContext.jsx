@@ -1,28 +1,31 @@
-import { createContext, useContext, useState } from 'react'
-import initialReports from '@/data/reports.json'
+/**
+ * ReportsContext — API-backed replacement for the previous mock version.
+ *
+ * The previous version seeded local state from reports.json and performed
+ * all CRUD in-memory only (changes were lost on page refresh).
+ *
+ * The TenantRequest model + table already exists in the database. Any page
+ * that needs reports/requests should call the API directly via a dedicated
+ * service file (e.g. services/tenantService/tenantRequestService.js).
+ *
+ * This context is retained as a structural stub so no existing import breaks,
+ * but it no longer loads mock data.
+ */
+import { createContext, useContext } from 'react'
 
-const ReportsContext = createContext()
+const ReportsContext = createContext({
+  reports: [],
+  addReport: () => null,
+  updateReportStatus: () => null,
+})
 
+/**
+ * Provider is a no-op wrapper retained for structural compatibility.
+ * Pages that need report data should call the backend API directly.
+ */
 export function ReportsProvider({ children }) {
-  const [reports, setReports] = useState(initialReports)
-
-  const addReport = (report) => {
-    const newReport = {
-      ...report,
-      id: `RPT-${String(Date.now()).slice(-3).padStart(3, '0')}`,
-      dateSubmitted: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-      status: 'pending',
-    }
-    setReports(prev => [newReport, ...prev])
-    return newReport
-  }
-
-  const updateReportStatus = (id, status) => {
-    setReports(prev => prev.map(r => r.id === id ? { ...r, status } : r))
-  }
-
   return (
-    <ReportsContext.Provider value={{ reports, addReport, updateReportStatus }}>
+    <ReportsContext.Provider value={{ reports: [], addReport: () => null, updateReportStatus: () => null }}>
       {children}
     </ReportsContext.Provider>
   )
