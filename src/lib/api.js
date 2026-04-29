@@ -6,14 +6,14 @@ function resolveBaseURL() {
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://127.0.0.1:8000'
+    if (host === 'localhost' || host === '192.168.0.119') {
+      return 'http://192.168.0.119:8000'
     }
 
     return `${window.location.protocol}//${host}:8000`
   }
 
-  return 'http://127.0.0.1:8000'
+  return 'http://192.168.0.119:8000'
 }
 
 const api = axios.create({
