@@ -26,11 +26,12 @@ export function buildUtilityCardMetric({
   unit = '',
   trend = 0,
   rates = null,
+  fallbackCurrentRate = 0,
   fallbackEstimatedCost = 0,
   series = [],
 }) {
   const safeUsage = Number(usage || 0)
-  const appliedRate = getUtilityRate(rates, type)
+  const appliedRate = getUtilityRate(rates, type) || Number(fallbackCurrentRate || 0)
   const rateBasedEstimatedCost = safeUsage * appliedRate
 
   return {

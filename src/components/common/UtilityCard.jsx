@@ -225,9 +225,17 @@ export default function UtilityCard({
             })}
           </p>
         )}
-        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-600 dark:text-slate-600">
-          {safeTrend >= 0 ? '+' : '-'}{Math.abs(safeTrend).toFixed(1)}%
-        </p>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-600 dark:text-slate-600">
+            {safeTrend >= 0 ? '+' : '-'}{Math.abs(safeTrend).toFixed(1)}%
+          </p>
+          <p className="mt-0.5 text-[10px] font-mono text-slate-500 dark:text-slate-500">
+            PHP {safeRate.toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}/{displayUnit}
+          </p>
+        </div>
       </div>
 
       <div className="flex items-end gap-2">

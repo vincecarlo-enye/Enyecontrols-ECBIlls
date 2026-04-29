@@ -98,6 +98,29 @@ function formatPeso(value) {
   return `PHP ${toNumber(value).toLocaleString()}`
 }
 
+function getTodayKey() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function getCurrentDailyEntry(series = []) {
+  if (!Array.isArray(series) || series.length === 0) return null
+
+  const today = getTodayKey()
+  return series.find((entry) => entry?.date === today) || series[series.length - 1] || null
+}
+
+function mapDailyCardSeries(series = []) {
+  return (Array.isArray(series) ? series : []).map((entry, index) => ({
+    label: entry?.day || entry?.label || entry?.date || `Day ${index + 1}`,
+    value: toNumber(entry?.usage ?? entry?.value),
+  }))
+}
+
 function formatShortPeriodDate(value) {
   if (!value) return '-'
   const date = new Date(value)
@@ -315,30 +338,29 @@ export default function SuperAdminDashboard() {
   )
 
   const filteredUtilityCards = useMemo(() => {
-    const buildCard = (key, unit, fallbackCost, rateKey) => {
-      const values = comparisonData.map((row) => ({
-        label: row.label,
-        value: Number(row[key] || 0),
-      }))
-      const total = values.reduce((sum, row) => sum + row.value, 0)
+    const buildCard = (series, unit, fallbackCost, fallbackRate, rateKey) => {
+      const values = mapDailyCardSeries(series)
+      const currentEntry = getCurrentDailyEntry(series)
+      const currentUsage = toNumber(currentEntry?.usage ?? currentEntry?.value)
 
       return buildUtilityCardMetric({
         type: rateKey,
-        usage: total,
+        usage: currentUsage,
         unit,
         trend: computeUsageTrend(values),
         rates: billingRates,
+        fallbackCurrentRate: fallbackRate,
         fallbackEstimatedCost: fallbackCost,
         series: values,
       })
     }
 
     return {
-      electricity: buildCard('electricity', summary.electric?.unit || 'kWh', summary.electric?.estimatedCost, 'electricity'),
-      thermal: buildCard('thermal', summary.thermal?.unit || 'kBTU', summary.thermal?.estimatedCost, 'thermal'),
-      water: buildCard('water', summary.water?.unit || 'm3', summary.water?.estimatedCost, 'water'),
+      electricity: buildCard(daily.electric, summary.electric?.unit || 'kWh', summary.electric?.estimatedCost, summary.electric?.rate, 'electricity'),
+      thermal: buildCard(daily.thermal, summary.thermal?.unit || 'kBTU', summary.thermal?.estimatedCost, summary.thermal?.rate, 'thermal'),
+      water: buildCard(daily.water, summary.water?.unit || 'm3', summary.water?.estimatedCost, summary.water?.rate, 'water'),
     }
-  }, [billingRates, comparisonData, summary])
+  }, [billingRates, daily.electric, daily.thermal, daily.water, summary])
 
   const dashboardMetrics = useMemo(() => {
     const normalizedBills = bills.map((bill) => ({
@@ -543,6 +565,9 @@ export default function SuperAdminDashboard() {
 
       <div>
         <h2 className="section-title mb-3">System Utility Consumption</h2>
+        <p className="-mt-2 mb-3 text-xs text-slate-500 dark:text-slate-400">
+          Daily consumption with the active billing rate applied to the current daily usage.
+        </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <UtilityCard type="electricity" {...filteredUtilityCards.electricity} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
           <UtilityCard type="thermal" {...filteredUtilityCards.thermal} loading={isInitialLoading || isComparisonRangeLoading} updating={isRefreshing} />
