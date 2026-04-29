@@ -1,1 +1,0 @@
-import{a as t}from"./index-CFq7nmog.js";async function c(){return(await t.get("/api/facility/maintenance")).data}async function s(a){return(await t.post("/api/facility/maintenance",a)).data}async function o(a,n){return(await t.patch(`/api/facility/maintenance/${a}/status`,n)).data}export{s as c,c as f,o as u};

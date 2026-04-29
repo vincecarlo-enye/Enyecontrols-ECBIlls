@@ -39,7 +39,7 @@ export async function fetchUtilitySummary() {
       return res.data
     },
     {
-      ttl: 30000,
+      ttl: 5000,
       persist: true,
     }
   )
@@ -54,7 +54,7 @@ export async function fetchUtilityDaily() {
       return res.data
     },
     {
-      ttl: 30000,
+      ttl: 5000,
       persist: true,
     }
   )
