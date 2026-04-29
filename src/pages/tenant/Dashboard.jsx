@@ -212,7 +212,7 @@ export default function TenantDashboard() {
   const { addToast } = useApp()
   const { selectedUnit, selectedTimeRange } = useUnitFilter()
   const { rates: billingRates } = useTenantRates()
-  const { rawSnapshots } = useTenantDashboardData(selectedUnit)
+  const { rawSnapshots, utilities, dailyConsumption } = useTenantDashboardData(selectedUnit)
   const {
     bills,
     loading: billsLoading,
@@ -276,6 +276,14 @@ export default function TenantDashboard() {
   }, [unitBills])
 
   const selectedSummary = useMemo(() => {
+    if (utilities) {
+      return {
+        electric: { consumption: Number(utilities.electric?.consumption || 0), unit: utilities.electric?.unit || 'kWh' },
+        water: { consumption: Number(utilities.water?.consumption || 0), unit: utilities.water?.unit || 'm3' },
+        thermal: { consumption: Number(utilities.thermal?.consumption || 0), unit: utilities.thermal?.unit || 'kBTU' },
+      }
+    }
+
     return rangeBills.reduce((acc, bill) => {
       const metrics = getBillUtilityMetrics(bill, billingRates)
       acc.electric.consumption += metrics.electricity.usage
@@ -287,7 +295,7 @@ export default function TenantDashboard() {
       water: { consumption: 0, unit: 'm3' },
       thermal: { consumption: 0, unit: 'kBTU' },
     })
-  }, [billingRates, rangeBills])
+  }, [billingRates, rangeBills, utilities])
 
   const currentBillValue = useMemo(() => {
     if (selectedUnit === 'all') {
@@ -353,6 +361,15 @@ export default function TenantDashboard() {
   const electric = selectedSummary?.electric || {}
   const water = selectedSummary?.water || {}
   const thermal = selectedSummary?.thermal || {}
+  const todayConsumption = useMemo(() => {
+    if (!dailyConsumption) return null
+    const today = new Date().toISOString().split('T')[0]
+    return {
+      electric: dailyConsumption.electric?.find(d => d.date === today) || null,
+      water: dailyConsumption.water?.find(d => d.date === today) || null,
+      thermal: dailyConsumption.thermal?.find(d => d.date === today) || null,
+    }
+  }, [dailyConsumption])
 
   const unitLabel = selectedUnit === 'all'
     ? tenantUnits.length > 1
@@ -366,36 +383,48 @@ export default function TenantDashboard() {
 
   const stats = [
     {
+      label: 'Today\'s Electric Usage',
+      value: todayConsumption?.electric
+        ? `${Number(todayConsumption.electric.consumption || 0).toLocaleString()} ${todayConsumption.electric.unit || 'kWh'}`
+        : (Number(electric.consumption || 0).toLocaleString() + ` ${electric.unit || 'kWh'}`),
+      sub: todayConsumption?.electric
+        ? `Today · ${formatPeso(todayConsumption.electric.cost || 0)}`
+        : `${selectedRangeLabel} consumption`,
+      icon: Zap,
+      grad: 'from-amber-500 to-amber-600',
+      glow: 'shadow-amber-500/20',
+    },
+    {
+      label: 'Today\'s Water Usage',
+      value: todayConsumption?.water
+        ? `${Number(todayConsumption.water.consumption || 0).toLocaleString()} ${todayConsumption.water.unit || 'm3'}`
+        : (Number(water.consumption || 0).toLocaleString() + ` ${water.unit || 'm3'}`),
+      sub: todayConsumption?.water
+        ? `Today · ${formatPeso(todayConsumption.water.cost || 0)}`
+        : `${selectedRangeLabel} consumption`,
+      icon: Droplets,
+      grad: 'from-cyan-500 to-cyan-600',
+      glow: 'shadow-cyan-500/20',
+    },
+    {
+      label: 'Today\'s Thermal Usage',
+      value: todayConsumption?.thermal
+        ? `${Number(todayConsumption.thermal.consumption || 0).toLocaleString()} ${todayConsumption.thermal.unit || 'kBTU'}`
+        : (Number(thermal.consumption || 0).toLocaleString() + ` ${thermal.unit || 'kBTU'}`),
+      sub: todayConsumption?.thermal
+        ? `Today · ${formatPeso(todayConsumption.thermal.cost || 0)}`
+        : `${selectedRangeLabel} consumption`,
+      icon: Flame,
+      grad: 'from-rose-500 to-rose-600',
+      glow: 'shadow-rose-500/20',
+    },
+    {
       label: 'Current Bill',
       value: currentBillValue > 0 ? formatPeso(currentBillValue) : 'No current bill',
       sub: currentDueLabel ? `Due ${currentDueLabel}` : 'No published bill yet',
       icon: Receipt,
       grad: 'from-blue-500 to-blue-600',
       glow: 'shadow-blue-500/20',
-    },
-    {
-      label: 'Electricity',
-      value: `${Number(electric.consumption || 0).toLocaleString()} ${electric.unit || 'kWh'}`,
-      sub: `${selectedRangeLabel} consumption`,
-      icon: Zap,
-      grad: 'from-amber-500 to-amber-600',
-      glow: 'shadow-amber-500/20',
-    },
-    {
-      label: 'Water',
-      value: `${Number(water.consumption || 0).toLocaleString()} ${water.unit || 'm3'}`,
-      sub: `${selectedRangeLabel} consumption`,
-      icon: Droplets,
-      grad: 'from-cyan-500 to-cyan-600',
-      glow: 'shadow-cyan-500/20',
-    },
-    {
-      label: 'Thermal',
-      value: `${Number(thermal.consumption || 0).toLocaleString()} ${thermal.unit || 'kBTU'}`,
-      sub: `${selectedRangeLabel} consumption`,
-      icon: Flame,
-      grad: 'from-rose-500 to-rose-600',
-      glow: 'shadow-rose-500/20',
     },
     {
       label: 'Due Date',
@@ -407,26 +436,22 @@ export default function TenantDashboard() {
     },
   ]
 
-  const utilityMeters = {
-    electric: {
-      usage: Number(electric.consumption || 0),
-      unit: electric.unit || 'kWh',
-      estimatedCost: Number((Number(electric.consumption || 0) * getRateValue(billingRates, 'electricity')).toFixed(2)),
-      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).electricity.usage || 0))),
-    },
-    water: {
-      usage: Number(water.consumption || 0),
-      unit: water.unit || 'm3',
-      estimatedCost: Number((Number(water.consumption || 0) * getRateValue(billingRates, 'water')).toFixed(2)),
-      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).water.usage || 0))),
-    },
-    thermal: {
-      usage: Number(thermal.consumption || 0),
-      unit: thermal.unit || 'kBTU',
-      estimatedCost: Number((Number(thermal.consumption || 0) * getRateValue(billingRates, 'thermal')).toFixed(2)),
-      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).thermal.usage || 0))),
-    },
-  }
+  const utilityMeters = useMemo(() => {
+    const buildMeter = (type, summary, rates, bills, computeTrend) => ({
+      usage: Number(summary.consumption || 0),
+      unit: summary.unit || (type === 'electric' ? 'kWh' : type === 'water' ? 'm3' : 'kBTU'),
+      estimatedCost: utilities
+        ? Number(utilities[type]?.cost || 0)
+        : Number((Number(summary.consumption || 0) * getRateValue(rates, type === 'electric' ? 'electricity' : type)).toFixed(2)),
+      trend: computeTrend(bills.map((bill) => Number(getBillUtilityMetrics(bill, rates)[type === 'electric' ? 'electricity' : type].usage || 0))),
+    })
+
+    return {
+      electric: buildMeter('electric', electric, billingRates, rangeBills, computeTrendFromValues),
+      water: buildMeter('water', water, billingRates, rangeBills, computeTrendFromValues),
+      thermal: buildMeter('thermal', thermal, billingRates, rangeBills, computeTrendFromValues),
+    }
+  }, [electric, water, thermal, billingRates, rangeBills, utilities])
   const isInitialLoading = (pageLoading || billsLoading) && bills.length === 0
   const isRefreshing = !isInitialLoading && billsLoading
 

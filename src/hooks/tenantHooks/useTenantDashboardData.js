@@ -14,6 +14,8 @@ const EMPTY_RAW = {
 
 export function useTenantDashboardData(selectedUnit = 'all') {
   const [rawSnapshots, setRawSnapshots] = useState(EMPTY_RAW)
+  const [utilities, setUtilities] = useState(null)
+  const [dailyConsumption, setDailyConsumption] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -25,8 +27,12 @@ export function useTenantDashboardData(selectedUnit = 'all') {
       setError('')
       const data = await getTenantDashboard(unit)
       setRawSnapshots(data?.raw_snapshots || EMPTY_RAW)
+      setUtilities(data?.utilities || null)
+      setDailyConsumption(data?.daily_consumption || null)
     } catch (err) {
       setRawSnapshots(EMPTY_RAW)
+      setUtilities(null)
+      setDailyConsumption(null)
       setError(err?.response?.data?.message || 'Failed to load tenant dashboard raw meter data.')
     } finally {
       if (!silent) setLoading(false)
@@ -39,6 +45,8 @@ export function useTenantDashboardData(selectedUnit = 'all') {
 
   return {
     rawSnapshots,
+    utilities,
+    dailyConsumption,
     loading,
     error,
     refreshDashboard,
