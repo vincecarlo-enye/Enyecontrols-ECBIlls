@@ -8,6 +8,50 @@ import {
   updateSuperAdminUser,
   updateSuperAdminUserStatus,
 } from '@/services/superAdminService/superAdminUserService'
+import { getStoredAvatar } from '@/utils/avatarStorage'
+
+function parseDate(value) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function derivePresence(user) {
+  const explicit =
+    user.is_online ??
+    user.online ??
+    user.isOnline ??
+    user.presence?.online ??
+    null
+
+  if (explicit !== null && explicit !== undefined) {
+    return Boolean(explicit) ? 'online' : 'offline'
+  }
+
+  const presenceStatus = String(
+    user.presence_status ||
+    user.presence?.status ||
+    user.online_status ||
+    ''
+  ).toLowerCase()
+
+  if (presenceStatus === 'online' || presenceStatus === 'offline') {
+    return presenceStatus
+  }
+
+  const lastSeenAt = parseDate(
+    user.last_seen_at ||
+    user.last_active_at ||
+    user.last_activity_at ||
+    user.presence?.last_seen_at
+  )
+
+  if (lastSeenAt) {
+    return Date.now() - lastSeenAt.getTime() <= 120000 ? 'online' : 'offline'
+  }
+
+  return 'offline'
+}
 
 function normalizeUsers(rows = []) {
   return rows.map((user) => ({
@@ -17,7 +61,10 @@ function normalizeUsers(rows = []) {
     role: user.role || 'tenant',
     title: user.title || '',
     status: user.status || 'active',
+    presenceStatus: derivePresence(user),
+    lastSeenAt: user.last_seen_at || user.last_active_at || user.last_activity_at || user.presence?.last_seen_at || '',
     initials: user.initials || '',
+    avatar: getStoredAvatar(user) || user.avatar || user.tenant?.avatar || '',
   }))
 }
 
@@ -46,13 +93,15 @@ export function useSuperAdminUsers() {
   const [error, setError] = useState('')
   const [meta, setMeta] = useState(initialSnapshot?.meta || DEFAULT_META)
 
-  const loadUsers = useCallback(async (nextPage = page, nextPerPage = perPage) => {
+  const loadUsers = useCallback(async (nextPage = page, nextPerPage = perPage, options = {}) => {
     try {
       setLoading((current) => current || !hasInitialUsers)
       setError('')
       const response = await fetchSuperAdminUsers({
         page: nextPage,
         per_page: nextPerPage,
+      }, {
+        force: options.force === true,
       })
       setUsers(normalizeUsers(Array.isArray(response?.data) ? response.data : []))
       setMeta(response?.meta || {
@@ -71,6 +120,15 @@ export function useSuperAdminUsers() {
 
   useEffect(() => {
     loadUsers(page, perPage)
+  }, [loadUsers, page, perPage])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      loadUsers(page, perPage, { force: true })
+    }, 30000)
+
+    return () => window.clearInterval(interval)
   }, [loadUsers, page, perPage])
 
   const createUser = useCallback(async (payload) => {

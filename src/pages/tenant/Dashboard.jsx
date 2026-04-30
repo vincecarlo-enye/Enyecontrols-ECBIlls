@@ -212,7 +212,7 @@ export default function TenantDashboard() {
   const { addToast } = useApp()
   const { selectedUnit, selectedTimeRange } = useUnitFilter()
   const { rates: billingRates } = useTenantRates()
-  const { rawSnapshots } = useTenantDashboardData(selectedUnit)
+  const { rawSnapshots, utilities: liveUtilities } = useTenantDashboardData(selectedUnit, selectedTimeRange)
   const {
     bills,
     loading: billsLoading,
@@ -275,7 +275,7 @@ export default function TenantDashboard() {
     return unitBills.find((bill) => bill.status === 'published') || unitBills[0] || null
   }, [unitBills])
 
-  const selectedSummary = useMemo(() => {
+  const billSelectedSummary = useMemo(() => {
     return rangeBills.reduce((acc, bill) => {
       const metrics = getBillUtilityMetrics(bill, billingRates)
       acc.electric.consumption += metrics.electricity.usage
@@ -288,6 +288,12 @@ export default function TenantDashboard() {
       thermal: { consumption: 0, unit: 'kBTU' },
     })
   }, [billingRates, rangeBills])
+
+  const selectedSummary = useMemo(() => {
+    const hasLiveUsage = ['electric', 'water', 'thermal'].some((type) => Number(liveUtilities?.[type]?.consumption || 0) > 0)
+
+    return hasLiveUsage ? liveUtilities : billSelectedSummary
+  }, [billSelectedSummary, liveUtilities])
 
   const currentBillValue = useMemo(() => {
     if (selectedUnit === 'all') {

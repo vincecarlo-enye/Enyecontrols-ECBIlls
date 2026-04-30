@@ -30,7 +30,7 @@ export function getUtilityComparisonSnapshot(range = '7D') {
   return peekCachedResource(buildCacheKey(ADMIN_UTILITY_COMPARISON_CACHE_PREFIX, { role, range }))
 }
 
-export async function fetchUtilitySummary() {
+export async function fetchUtilitySummary(options = {}) {
   const role = getStoredRole()
   return getCachedResource(
     buildCacheKey(ADMIN_UTILITY_SUMMARY_CACHE_PREFIX, { role }),
@@ -41,11 +41,12 @@ export async function fetchUtilitySummary() {
     {
       ttl: 30000,
       persist: true,
+      force: Boolean(options.force),
     }
   )
 }
 
-export async function fetchUtilityDaily() {
+export async function fetchUtilityDaily(options = {}) {
   const role = getStoredRole()
   return getCachedResource(
     buildCacheKey(ADMIN_UTILITY_DAILY_CACHE_PREFIX, { role }),
@@ -56,11 +57,12 @@ export async function fetchUtilityDaily() {
     {
       ttl: 30000,
       persist: true,
+      force: Boolean(options.force),
     }
   )
 }
 
-export async function fetchUtilityComparison(range = '7D') {
+export async function fetchUtilityComparison(range = '7D', options = {}) {
   const role = getStoredRole()
   return getCachedResource(
     buildCacheKey(ADMIN_UTILITY_COMPARISON_CACHE_PREFIX, { role, range }),
@@ -73,6 +75,7 @@ export async function fetchUtilityComparison(range = '7D') {
     {
       ttl: 30000,
       persist: true,
+      force: Boolean(options.force),
     }
   )
 }

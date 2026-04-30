@@ -218,7 +218,7 @@ export default function Consumption() {
         <div className="px-5 py-4 border-b border-slate-200/70 dark:border-slate-700/50">
           <h2 className="font-semibold text-slate-800 dark:text-white">Consumption per Unit</h2>
           <p className="text-xs text-slate-400 mt-1">
-            {selectedUtility === 'all' ? 'All utility totals for the selected month' : `Showing ${utilityMeta[selectedUtility].label} totals for the selected month`}
+            {selectedUtility === 'all' ? 'Period consumption with latest cumulative readings' : `Showing ${utilityMeta[selectedUtility].label} period consumption and current reading`}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -229,7 +229,8 @@ export default function Consumption() {
                 <th className="text-left px-5 py-3 text-xs font-mono uppercase tracking-wider text-slate-400">Floor</th>
                 {tableColumns.map((utility) => (
                   <th key={utility} className="text-right px-5 py-3 text-xs font-mono uppercase tracking-wider text-slate-400">
-                    {utilityMeta[utility].label} ({utilityMeta[utility].unit})
+                    {utilityMeta[utility].label}
+                    <span className="block normal-case text-[10px] text-slate-400">Consumption / current reading</span>
                   </th>
                 ))}
                 <th className="text-center px-5 py-3 text-xs font-mono uppercase tracking-wider text-slate-400">Status</th>
@@ -255,7 +256,10 @@ export default function Consumption() {
                           : 'text-slate-700 dark:text-slate-200'
                       }`}
                     >
-                      {Number(row[utility] || 0).toLocaleString()}
+                      <span className="block">{Number(row?.period_consumption?.[utility] ?? row[utility] ?? 0).toLocaleString()} {utilityMeta[utility].unit}</span>
+                      <span className="mt-1 block text-[11px] font-normal text-slate-400">
+                        {row?.current_readings?.[utility] == null ? 'No reading' : `${Number(row.current_readings[utility]).toLocaleString()} current`}
+                      </span>
                     </td>
                   ))}
                   <td className="px-5 py-3.5 text-center">

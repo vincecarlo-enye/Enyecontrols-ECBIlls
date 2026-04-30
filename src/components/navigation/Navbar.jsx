@@ -5,6 +5,8 @@ import { useTheme } from '@/context/ThemeContext'
 import { useAuth } from '@/context/AuthContext'
 import { useUnitFilter } from '@/context/UnitFilterContext'
 import { fetchNotifications, getNotificationsSnapshot, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService'
+import { TenantAvatar } from '@/components/common/AvatarPicker'
+import { getStoredAvatar } from '@/utils/avatarStorage'
 
 const NAVBAR_NOTIFICATION_PARAMS = {
   per_page: 25,
@@ -254,15 +256,7 @@ export default function Navbar({ onMenuClick }) {
     : 'Admin'
 
 
-    const getInitials = (name) => {
-  if (!name) return 'U'
-
-  const words = name.trim().split(' ')
-
-  return words.length === 1
-    ? words[0][0].toUpperCase()
-    : (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
+  const navbarAvatar = getStoredAvatar(user) || user?.avatar || user?.tenant?.avatar
 
   return (
     <header className={`sticky top-0 z-10 h-16 border-b flex items-center px-4 lg:px-6 gap-4 transition-colors
@@ -495,14 +489,12 @@ export default function Navbar({ onMenuClick }) {
             onClick={() => { setShowProfile(v => !v); setShowNotifs(false) }}
             className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all"
           >
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow
-              ${isSuperAdmin
-                ? 'bg-gradient-to-br from-violet-600 to-indigo-500'
-                : 'bg-gradient-to-br from-blue-500 to-cyan-400'
-              }`}
-            >
-              {getInitials(user?.name)}
-            </div>
+            <TenantAvatar
+              src={navbarAvatar}
+              name={user?.name || 'User'}
+              size="sm"
+              className={`shadow ${isSuperAdmin ? 'ring-1 ring-violet-300/70 dark:ring-violet-700/60' : ''}`}
+            />
             <div className="hidden sm:block text-left">
               <div className="flex items-center gap-1">
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{user?.name || 'User'}</p>

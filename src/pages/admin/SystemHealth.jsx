@@ -91,8 +91,8 @@ export default function SystemHealth() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {summaryCards.map((card) => (
-          <SummaryCard key={card.key} {...card} loading={isInitialLoading} updating={isRefreshing} />
+        {summaryCards.map(({ key, ...card }) => (
+          <SummaryCard key={key} {...card} loading={isInitialLoading} updating={isRefreshing} />
         ))}
       </div>
 

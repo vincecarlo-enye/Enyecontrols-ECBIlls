@@ -315,28 +315,29 @@ export default function SuperAdminDashboard() {
   )
 
   const filteredUtilityCards = useMemo(() => {
-    const buildCard = (key, unit, fallbackCost, rateKey) => {
+    const buildCard = (summaryKey, rateKey, rowKey) => {
+      const cardSummary = summary?.[summaryKey] || {}
       const values = comparisonData.map((row) => ({
         label: row.label,
-        value: Number(row[key] || 0),
+        value: toNumber(row?.[rowKey]),
       }))
-      const total = values.reduce((sum, row) => sum + row.value, 0)
+      const seriesTotal = values.reduce((sum, row) => sum + row.value, 0)
 
       return buildUtilityCardMetric({
         type: rateKey,
-        usage: total,
-        unit,
-        trend: computeUsageTrend(values),
+        usage: seriesTotal > 0 ? seriesTotal : toNumber(cardSummary.usage ?? cardSummary.value),
+        unit: cardSummary.unit || (summaryKey === 'electric' ? 'kWh' : summaryKey === 'thermal' ? 'kBTU' : 'm3'),
+        trend: seriesTotal > 0 ? computeUsageTrend(values) : toNumber(cardSummary.trend ?? cardSummary.delta),
         rates: billingRates,
-        fallbackEstimatedCost: fallbackCost,
+        fallbackEstimatedCost: toNumber(cardSummary.estimatedCost ?? cardSummary.cost),
         series: values,
       })
     }
 
     return {
-      electricity: buildCard('electricity', summary.electric?.unit || 'kWh', summary.electric?.estimatedCost, 'electricity'),
-      thermal: buildCard('thermal', summary.thermal?.unit || 'kBTU', summary.thermal?.estimatedCost, 'thermal'),
-      water: buildCard('water', summary.water?.unit || 'm3', summary.water?.estimatedCost, 'water'),
+      electricity: buildCard('electric', 'electricity', 'electricity'),
+      thermal: buildCard('thermal', 'thermal', 'thermal'),
+      water: buildCard('water', 'water', 'water'),
     }
   }, [billingRates, comparisonData, summary])
 
@@ -396,7 +397,7 @@ export default function SuperAdminDashboard() {
       revenue: distributeTotal(dashboardMetrics.totalBilled, weights, index),
       collections: distributeTotal(dashboardMetrics.totalCollected, weights, index),
       tenants: dashboardMetrics.activeTenants,
-      consumption: Math.round(row.electricity + row.water + row.thermal),
+      consumption: toNumber(row.electricity) + toNumber(row.water) + toNumber(row.thermal),
     }))
   }, [comparisonData, dashboardMetrics])
 

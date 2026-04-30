@@ -64,6 +64,25 @@ export function useFacilityConsumption(filters = {}) {
     loadConsumption()
   }, [loadConsumption])
 
+  useEffect(() => {
+    const refresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      loadConsumption()
+    }
+
+    const interval = window.setInterval(refresh, 60000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [loadConsumption])
+
   return {
     summary,
     trendData,

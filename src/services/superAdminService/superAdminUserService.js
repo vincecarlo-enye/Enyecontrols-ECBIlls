@@ -12,7 +12,7 @@ export function getSuperAdminUsersSnapshot(params = {}) {
   return peekCachedResource(buildCacheKey(SUPER_ADMIN_USERS_CACHE_PREFIX, requestParams))
 }
 
-export async function fetchSuperAdminUsers(params = {}) {
+export async function fetchSuperAdminUsers(params = {}, options = {}) {
   const requestParams = {
     paginate: 1,
     ...params,
@@ -29,6 +29,7 @@ export async function fetchSuperAdminUsers(params = {}) {
     {
       ttl: 30000,
       persist: true,
+      force: options.force === true,
     }
   )
 }

@@ -75,7 +75,31 @@ const UTILITY_FOCUS = {
   },
 }
 
-function mapTrendData(filter, trendData) {
+function findCurrentMonthRow(rows = []) {
+  const now = new Date()
+  const shortMonth = now.toLocaleDateString('en-US', { month: 'short' }).toLowerCase()
+  const longMonth = now.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
+  const numericMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  return (Array.isArray(rows) ? rows : []).find((row) => {
+    const raw = String(row.date || row.day || row.month || row.label || row.t || '').trim().toLowerCase()
+    return raw === shortMonth || raw === longMonth || raw === numericMonth || raw.includes(shortMonth) || raw.includes(longMonth)
+  })
+}
+
+function buildCurrentWeekBucketsFromMonthlyRow(row = null, summary = {}) {
+  const weekIndex = Math.min(3, Math.floor((new Date().getDate() - 1) / 7))
+  const source = row || summary || {}
+
+  return ['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((label, index) => ({
+    t: label,
+    electricity: index === weekIndex ? Number(source.electricity || 0) : 0,
+    water: index === weekIndex ? Number(source.water || 0) : 0,
+    thermal: index === weekIndex ? Number(source.thermal || 0) : 0,
+  }))
+}
+
+function mapTrendData(filter, trendData, summary = {}) {
   if (!Array.isArray(trendData)) return []
 
   const normalizedRows = trendData
@@ -135,12 +159,7 @@ function mapTrendData(filter, trendData) {
       return buckets
     }
     // No date-parseable data — return empty buckets (no fabrication)
-    return ['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((label) => ({
-      t: label,
-      electricity: 0,
-      water: 0,
-      thermal: 0,
-    }))
+    return buildCurrentWeekBucketsFromMonthlyRow(findCurrentMonthRow(trendData), summary)
   }
 
   // 1Y
@@ -341,7 +360,10 @@ export default function FacilityDashboard() {
   const isInitialLoading = coreLoading
   const isRefreshing = !isInitialLoading && (monitoring.loading || consumption.loading || maintenance.loading || equipment.loading)
 
-  const chartData = useMemo(() => mapTrendData(filter, consumption.trendData), [filter, consumption.trendData])
+  const chartData = useMemo(
+    () => mapTrendData(filter, consumption.trendData, consumption.summary),
+    [consumption.summary, consumption.trendData, filter]
+  )
   const activeAlerts = monitoring.floorData.filter((row) => row.status === 'alert' || row.status === 'high')
   const recentTickets = maintenance.tickets.slice(0, 6)
   const recentFloors = monitoring.floorData.slice(0, 6)

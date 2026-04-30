@@ -12,6 +12,7 @@ import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadin
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import PaginationBar from '@/components/common/PaginationBar'
 import { useSuperAdminUsers } from '@/hooks/superAdminHooks/useSuperAdminUsers'
+import { TenantAvatar } from '@/components/common/AvatarPicker'
 
 const ROLE_OPTIONS = [
   { value: 'super_admin', label: 'Super Admin', color: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' },
@@ -23,6 +24,27 @@ const ROLE_OPTIONS = [
 
 function getRoleBadge(role) {
   return ROLE_OPTIONS.find((r) => r.value === role) || ROLE_OPTIONS[4]
+}
+
+function PresenceBadge({ status }) {
+  const isOnline = status === 'online'
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+        isOnline
+          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          isOnline ? 'bg-emerald-500' : 'bg-slate-400'
+        }`}
+      />
+      {isOnline ? 'Online' : 'Offline'}
+    </span>
+  )
 }
 
 const EMPTY_FORM = { name: '', email: '', role: 'tenant', title: '' }
@@ -301,14 +323,15 @@ export default function UserManagement() {
                 <TableLoadingRow colSpan={5} />
               ) : filtered.map((u) => {
                 const badge = getRoleBadge(u.role)
-                const isSelf = u.id === currentUser.id
+                const isSelf = String(u.id) === String(currentUser?.id)
                 const isSA = u.role === 'super_admin'
                 const modifiable = !isSA || isSelf
+                const presenceStatus = isSelf ? 'online' : u.presenceStatus
                 return (
                   <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{u.initials}</div>
+                        <TenantAvatar src={u.avatar} name={u.name || u.initials} size="sm" className="rounded-full" />
                         <div>
                           <p className="text-sm font-medium text-slate-800 dark:text-white">{u.name} {isSelf && <span className="text-[10px] text-slate-400">(you)</span>}</p>
                           <p className="text-xs text-slate-400">{u.title || '-'}</p>
@@ -320,9 +343,7 @@ export default function UserManagement() {
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${badge.color}`}>{badge.label}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${u.status === 'suspended' ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'}`}>
-                        {u.status === 'suspended' ? 'Suspended' : 'Active'}
-                      </span>
+                      <PresenceBadge status={presenceStatus} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">

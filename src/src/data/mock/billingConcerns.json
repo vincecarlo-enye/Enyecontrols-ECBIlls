@@ -1,0 +1,26 @@
+[
+  {
+    "id": "BC-2026-001",
+    "billId": "BL-2026-001",
+    "tenantId": "T-001",
+    "tenantName": "Vince Carlo",
+    "company": "ABC Corporation",
+    "unit": "12F-A",
+    "email": "tenant@enye.com",
+    "category": "Incorrect Amount",
+    "message": "The total amount on my March 2026 bill seems higher than expected. The electricity charge is PHP 7,200 but based on my meter readings, it should be around PHP 5,800. Please review and adjust accordingly.",
+    "attachment": null,
+    "status": "assigned",
+    "assignedTo": "finance",
+    "priority": "high",
+    "dateSubmitted": "March 10, 2026",
+    "dateUpdated": "March 11, 2026",
+    "adminNotes": "Assigned to finance team for investigation.",
+    "financeNotes": "Reviewing meter readings for the billing period.",
+    "timeline": [
+      { "id": "t1", "action": "Ticket submitted", "by": "Vince Carlo", "role": "tenant", "date": "March 10, 2026", "note": "" },
+      { "id": "t2", "action": "Ticket reviewed by admin", "by": "Admin Enye", "role": "admin", "date": "March 11, 2026", "note": "Assigned to Finance team for meter reading verification." },
+      { "id": "t3", "action": "Assigned to Finance", "by": "Admin Enye", "role": "admin", "date": "March 11, 2026", "note": "" }
+    ]
+  }
+]

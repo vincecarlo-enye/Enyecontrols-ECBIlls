@@ -9,6 +9,8 @@ import {
   Calendar,
   Save,
   CheckCircle,
+  Camera,
+  X,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useApp } from '@/context/AppContext'
@@ -19,15 +21,17 @@ import {
   updateTenantPassword,
   updateTenantProfile,
 } from '@/services/tenantService/tenantProfileService'
-
-function getInitials(name = '') {
-  return name
-    .split(' ')
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
+import AvatarPicker, {
+  DEFAULT_AVATAR,
+  getAvatarPublicPath,
+  normalizeAvatarValue,
+  TenantAvatar,
+} from '@/components/common/AvatarPicker'
+import {
+  applyStoredAvatarToUser,
+  getStoredAvatar,
+  persistUserAvatar,
+} from '@/utils/avatarStorage'
 
 function getProfileState(user) {
   const tenant = user?.tenant ?? {}
@@ -40,6 +44,7 @@ function getProfileState(user) {
     building: unit?.building_name ?? '',
     unit: unit?.unit_number ?? '',
     memberSince: user?.created_at ?? tenant?.move_in_date ?? '',
+    avatar: getStoredAvatar(user) || user?.avatar || tenant?.avatar || DEFAULT_AVATAR,
   }
 }
 
@@ -66,9 +71,14 @@ function mergeProfileIntoUser(baseUser, profile) {
       ...profile.tenant.unit,
     }
   }
+  const profileAvatar = normalizeAvatarValue(profile?.avatar || profile?.tenant?.avatar || getStoredAvatar(nextUser))
+  if (profileAvatar) {
+    nextUser.avatar = profileAvatar
+    nextTenant.avatar = profileAvatar
+  }
 
   nextUser.tenant = nextTenant
-  return nextUser
+  return applyStoredAvatarToUser(nextUser)
 }
 
 export default function TenantProfile() {
@@ -81,8 +91,12 @@ export default function TenantProfile() {
   const [saved, setSaved] = useState(false)
   const [pwSaving, setPwSaving] = useState(false)
   const [pwSaved, setPwSaved] = useState(false)
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [avatarSaved, setAvatarSaved] = useState(false)
   const [showEditInformation, setShowEditInformation] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
+  const [showAvatarModal, setShowAvatarModal] = useState(false)
+  const [selectedAvatar, setSelectedAvatar] = useState(() => getProfileState(user).avatar)
   const [error, setError] = useState('')
   const [form, setForm] = useState(() => getProfileState(user))
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
@@ -94,7 +108,7 @@ export default function TenantProfile() {
       try {
         setProfileLoading(true)
         setError('')
-        const authUser = await refreshCurrentUser()
+        const authUser = applyStoredAvatarToUser(await refreshCurrentUser())
 
         try {
           const profile = await getTenantProfile()
@@ -119,9 +133,25 @@ export default function TenantProfile() {
     loadProfile()
   }, [refreshCurrentUser, updateCurrentUser])
 
-  const handleSave = async () => {
+  useEffect(() => {
+    if (showAvatarModal) {
+      setSelectedAvatar(form.avatar || DEFAULT_AVATAR)
+    }
+  }, [form.avatar, showAvatarModal])
+
+  const persistProfile = async ({
+    avatar = form.avatar || DEFAULT_AVATAR,
+    successMessage = 'Profile updated successfully.',
+    closeAvatarModal = false,
+    saveAvatarOnly = false,
+  } = {}) => {
     try {
-      setSaving(true)
+      if (saveAvatarOnly) {
+        setAvatarSaving(true)
+        setAvatarSaved(false)
+      } else {
+        setSaving(true)
+      }
       setError('')
 
       const emailToPersist = form.email?.trim() || user?.email?.trim() || user?.tenant?.email?.trim() || ''
@@ -133,22 +163,66 @@ export default function TenantProfile() {
         return
       }
 
-      const updated = await updateTenantProfile({
+      const avatarToPersist = normalizeAvatarValue(avatar)
+      const avatarPath = getAvatarPublicPath(avatarToPersist)
+
+      const avatarOwner = mergeProfileIntoUser(user, {
         name: form.name?.trim(),
         email: emailToPersist,
         phone: form.phone?.trim(),
+        avatar: avatarToPersist,
+        tenant: { avatar: avatarToPersist, email: emailToPersist },
       })
+      persistUserAvatar(avatarOwner, avatarToPersist)
 
-      if (updated) {
-        const freshUser = await refreshCurrentUser()
-        const mergedUser = mergeProfileIntoUser(freshUser, updated)
-        updateCurrentUser(mergedUser)
-        setForm(getProfileState(mergedUser))
+      const profilePayload = {
+        name: form.name?.trim(),
+        email: emailToPersist,
+        phone: form.phone?.trim(),
+        avatar: avatarToPersist,
+        avatar_path: avatarPath,
+        avatar_url: avatarPath,
+        profile_photo: avatarPath,
+        profile_photo_path: avatarPath,
       }
 
-      setSaved(true)
-      addToast('Profile updated successfully.', 'success')
-      setTimeout(() => setSaved(false), 2000)
+      let updated
+      try {
+        updated = await updateTenantProfile(profilePayload)
+      } catch (err) {
+        const status = err?.response?.status
+        const avatarRejected = saveAvatarOnly && (status === 400 || status === 422)
+        if (!avatarRejected) throw err
+
+        updated = await updateTenantProfile({
+          name: profilePayload.name,
+          email: profilePayload.email,
+          phone: profilePayload.phone,
+        })
+      }
+
+      const freshUser = await refreshCurrentUser()
+      const mergedUser = mergeProfileIntoUser(freshUser, {
+        ...(updated || {}),
+        avatar: avatarToPersist,
+        tenant: {
+          ...(updated?.tenant || {}),
+          avatar: avatarToPersist,
+        },
+      })
+      updateCurrentUser(mergedUser)
+      setForm(getProfileState(mergedUser))
+
+      if (saveAvatarOnly) {
+        setAvatarSaved(true)
+        setTimeout(() => setAvatarSaved(false), 2000)
+      } else {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+
+      addToast(successMessage, 'success')
+      if (closeAvatarModal) setShowAvatarModal(false)
     } catch (err) {
       const message =
         err?.response?.data?.message ||
@@ -158,8 +232,19 @@ export default function TenantProfile() {
       addToast(message, 'error')
     } finally {
       setSaving(false)
+      setAvatarSaving(false)
     }
   }
+
+  const handleSave = () => persistProfile()
+
+  const handleAvatarSave = () =>
+    persistProfile({
+      avatar: selectedAvatar || DEFAULT_AVATAR,
+      successMessage: 'Avatar updated successfully.',
+      closeAvatarModal: true,
+      saveAvatarOnly: true,
+    })
 
   const handlePwSave = async () => {
     if (!pwForm.current || !pwForm.next || !pwForm.confirm) {
@@ -229,9 +314,94 @@ export default function TenantProfile() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="glass rounded-2xl p-6 shadow-lg flex flex-col items-center text-center">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-500/20 mb-4">
-            {user?.initials || getInitials(form.name) || 'T'}
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowAvatarModal(true)}
+            className="group relative mb-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400/60"
+            title="Change avatar"
+          >
+            <TenantAvatar
+              src={form.avatar}
+              name={form.name || 'Tenant'}
+              size="xl"
+              className="shadow-lg shadow-blue-500/20"
+            />
+            <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              <Camera className="h-6 w-6 text-white drop-shadow" />
+            </span>
+          </button>
+
+          {showAvatarModal && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+              onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                  setShowAvatarModal(false)
+                }
+              }}
+            >
+              <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-700/60">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+                      Choose Avatar
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Select a profile image
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarModal(false)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                    aria-label="Close avatar picker"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3 dark:border-slate-700/60 dark:bg-slate-800/40">
+                  <TenantAvatar src={selectedAvatar} name={form.name} size="md" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                      Selected avatar
+                    </p>
+                    <p className="truncate text-[10px] font-mono text-slate-400">
+                      {selectedAvatar || DEFAULT_AVATAR}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="max-h-[55vh] overflow-y-auto p-5">
+                  <AvatarPicker
+                    value={selectedAvatar}
+                    onChange={setSelectedAvatar}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-700/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarModal(false)}
+                    disabled={avatarSaving}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAvatarSave}
+                    disabled={avatarSaving}
+                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:opacity-60"
+                  >
+                    {avatarSaved ? <CheckCircle className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                    {avatarSaving ? 'Saving...' : avatarSaved ? 'Saved!' : 'Save Avatar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <span className="font-semibold text-lg text-slate-800 dark:text-white">
             {form.name || 'Tenant'}
           </span>

@@ -21,6 +21,8 @@ import { fetchAdminReconciliation } from '@/services/adminService/adminReconcili
 import { fetchAdminOccupancyTimeline } from '@/services/adminService/adminOccupancyTimelineService'
 import { fetchAdminOwnerPortal, fetchAdminOwnerPortalServiceStatus } from '@/services/adminService/adminOwnerPortalService'
 import { fetchActivityLogs } from '@/services/activityLogService'
+import { getTenantDashboard } from '@/services/tenantService/tenantDashboardService'
+import { fetchTenantBills } from '@/services/tenantService/tenantBillingService'
 
 const DEFAULT_USAGE_PAGE = 'Main (Basement)'
 
@@ -141,6 +143,23 @@ export default function AppShellLayout() {
     const timeoutId = window.setTimeout(runPrefetch, 300)
     return () => window.clearTimeout(timeoutId)
   }, [location.pathname, user?.role])
+
+  useEffect(() => {
+    if (user?.role !== 'tenant') return
+
+    const refreshTenantData = () => {
+      Promise.allSettled([
+        getTenantDashboard('all', { force: true }),
+        fetchTenantBills(),
+        fetchNotifications({ per_page: 25, status: 'all' }),
+      ])
+    }
+
+    refreshTenantData()
+    const interval = window.setInterval(refreshTenantData, 60000)
+
+    return () => window.clearInterval(interval)
+  }, [user?.role])
 
   return (
     <div className="app-shell min-h-screen mesh-bg dark:bg-slate-900">

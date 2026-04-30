@@ -1,0 +1,20 @@
+{
+  "monthlyConsumption": {
+    "12F-A": [
+      { "month": "Oct", "electricity": 1840, "water": 22.4, "thermal": 9650 },
+      { "month": "Nov", "electricity": 1915, "water": 23.1, "thermal": 10120 },
+      { "month": "Dec", "electricity": 2260, "water": 29.6, "thermal": 13280 },
+      { "month": "Jan", "electricity": 2175, "water": 28.8, "thermal": 12740 },
+      { "month": "Feb", "electricity": 1985, "water": 24.9, "thermal": 11260 },
+      { "month": "Mar", "electricity": 2070, "water": 26.3, "thermal": 11890 }
+    ],
+    "12F-B": [
+      { "month": "Oct", "electricity": 1435, "water": 17.2, "thermal": 7580 },
+      { "month": "Nov", "electricity": 1490, "water": 17.8, "thermal": 7920 },
+      { "month": "Dec", "electricity": 1775, "water": 23.4, "thermal": 10450 },
+      { "month": "Jan", "electricity": 1690, "water": 22.6, "thermal": 9820 },
+      { "month": "Feb", "electricity": 1545, "water": 19.1, "thermal": 8610 },
+      { "month": "Mar", "electricity": 1620, "water": 20.5, "thermal": 9140 }
+    ]
+  }
+}

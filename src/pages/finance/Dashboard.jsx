@@ -153,6 +153,43 @@ function buildRollingDailySeries(rows = [], length = 7, defaults = {}) {
   }))
 }
 
+function getCurrentMonthMatch(row = {}, now = new Date()) {
+  const raw = String(row?.month || row?.label || row?.date || '').trim()
+  if (!raw) return false
+
+  const shortMonth = now.toLocaleDateString('en-US', { month: 'short' }).toLowerCase()
+  const longMonth = now.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
+  const numericMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const lower = raw.toLowerCase()
+
+  return (
+    lower === shortMonth ||
+    lower === longMonth ||
+    lower === numericMonth ||
+    lower === `${shortMonth} ${now.getFullYear()}` ||
+    lower.includes(shortMonth) ||
+    lower.includes(longMonth)
+  )
+}
+
+function buildCurrentMonthWeekSeries(rows = [], defaults = {}) {
+  const now = new Date()
+  const currentMonthRows = (Array.isArray(rows) ? rows : []).filter((row) => getCurrentMonthMatch(row, now))
+  const weekIndex = Math.min(3, Math.floor((now.getDate() - 1) / 7))
+  const buckets = Array.from({ length: 4 }, (_, index) => ({
+    month: `W${index + 1}`,
+    ...defaults,
+  }))
+
+  currentMonthRows.forEach((row) => {
+    Object.keys(defaults).forEach((key) => {
+      buckets[weekIndex][key] += Number(row?.[key] || 0)
+    })
+  })
+
+  return buckets
+}
+
 function computeRangeTrend(rows = [], key) {
   if (!Array.isArray(rows) || rows.length < 2) return 0
   const last = Number(rows[rows.length - 1]?.[key] ?? 0)
@@ -542,7 +579,7 @@ export default function FinanceDashboard() {
       })
     }
     if (chartRange === '1Y') return yearlyRevenue
-    return buildRollingMonthlySeries(monthlyRevenue, 12, {
+    return buildCurrentMonthWeekSeries(monthlyRevenue, {
       revenue: 0,
       collected: 0,
       outstanding: 0,
@@ -558,7 +595,7 @@ export default function FinanceDashboard() {
       })
     }
     if (chartRange === '1Y') return yearlyUtilityRevenue
-    return buildRollingMonthlySeries(utilityRevenue, 12, {
+    return buildCurrentMonthWeekSeries(utilityRevenue, {
       electricity: 0,
       water: 0,
       thermal: 0,
@@ -799,7 +836,7 @@ export default function FinanceDashboard() {
             ? 'Billed vs collected by day, with remaining collection gap'
             : chartRange === '1Y'
               ? 'Billed vs collected by year, with remaining collection gap'
-              : 'Billed vs collected by month, with remaining collection gap'
+              : 'Billed vs collected by week for the current month'
         }
         action={<Activity className="w-4 h-4 text-blue-500" />}
         badge={(
@@ -909,7 +946,7 @@ export default function FinanceDashboard() {
               ? 'Daily income by utility type'
               : chartRange === '1Y'
                 ? 'Yearly income by utility type'
-                : 'Monthly income by utility type'
+                : 'Weekly income by utility type for the current month'
           }
           action={<BarChart3 className="w-4 h-4 text-slate-400" />}
         >

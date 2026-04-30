@@ -1,0 +1,35 @@
+{
+  "monthly": [
+    { "month": "Jan", "revenue": 1148600, "expenses": 214500, "collected": 1042800 },
+    { "month": "Feb", "revenue": 1089200, "expenses": 207800, "collected": 1016400 },
+    { "month": "Mar", "revenue": 1127400, "expenses": 216300, "collected": 1039800 },
+    { "month": "Apr", "revenue": 1096800, "expenses": 211900, "collected": 1021200 },
+    { "month": "May", "revenue": 1165200, "expenses": 223400, "collected": 1084500 },
+    { "month": "Jun", "revenue": 1210900, "expenses": 229600, "collected": 1136200 },
+    { "month": "Jul", "revenue": 1197400, "expenses": 226800, "collected": 1118800 },
+    { "month": "Aug", "revenue": 1248600, "expenses": 236200, "collected": 1174900 },
+    { "month": "Sep", "revenue": 1221500, "expenses": 231700, "collected": 1153300 },
+    { "month": "Oct", "revenue": 1274300, "expenses": 239400, "collected": 1198400 },
+    { "month": "Nov", "revenue": 1259800, "expenses": 235600, "collected": 1187600 },
+    { "month": "Dec", "revenue": 1379200, "expenses": 251800, "collected": 1294500 }
+  ],
+  "utilityByMonth": [
+    { "month": "Jan", "electricity": 38554, "water": 50302, "thermal": 1171456 },
+    { "month": "Feb", "electricity": 37107, "water": 48341, "thermal": 1089792 },
+    { "month": "Mar", "electricity": 38054, "water": 49763, "thermal": 1124288 },
+    { "month": "Apr", "electricity": 37216, "water": 48961, "thermal": 1085824 },
+    { "month": "May", "electricity": 39018, "water": 51857, "thermal": 1160544 },
+    { "month": "Jun", "electricity": 40346, "water": 54156, "thermal": 1217216 },
+    { "month": "Jul", "electricity": 39942, "water": 53209, "thermal": 1196448 },
+    { "month": "Aug", "electricity": 41510, "water": 55961, "thermal": 1253120 },
+    { "month": "Sep", "electricity": 40771, "water": 54291, "thermal": 1221088 },
+    { "month": "Oct", "electricity": 42496, "water": 58162, "thermal": 1274240 },
+    { "month": "Nov", "electricity": 41782, "water": 57215, "thermal": 1259712 },
+    { "month": "Dec", "electricity": 45174, "water": 65316, "thermal": 1379840 }
+  ],
+  "utilityPie": [
+    { "name": "Electricity", "value": 3, "color": "#f59e0b" },
+    { "name": "Water", "value": 4, "color": "#06b6d4" },
+    { "name": "Thermal", "value": 93, "color": "#f43f5e" }
+  ]
+}

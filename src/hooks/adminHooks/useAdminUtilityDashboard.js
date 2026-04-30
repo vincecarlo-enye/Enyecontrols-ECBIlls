@@ -8,6 +8,8 @@ function normalizeSummaryCard(card = {}, fallbackUnit = '') {
   return {
     usage: Number(card?.usage ?? card?.value ?? 0),
     value: Number(card?.value ?? card?.usage ?? 0),
+    periodConsumption: Number(card?.period_consumption ?? card?.usage ?? card?.value ?? 0),
+    currentReading: card?.current_reading ?? card?.currentReading ?? null,
     unit: card?.unit ?? fallbackUnit,
     estimatedCost: Number(card?.estimatedCost ?? card?.cost ?? 0),
     cost: Number(card?.cost ?? card?.estimatedCost ?? 0),
@@ -38,7 +40,7 @@ export function useAdminUtilityDashboard() {
     ),
     water: normalizeSummaryCard(
       summarySnapshotData?.water ?? {},
-      'mÂ³'
+      'm3'
     ),
     thermal: normalizeSummaryCard(
       summarySnapshotData?.thermal ?? {},
@@ -98,14 +100,14 @@ export function useAdminUtilityDashboard() {
     return normalized
   }, [])
 
-  const loadUtilityDashboard = useCallback(async () => {
+  const loadUtilityDashboard = useCallback(async (options = {}) => {
     try {
       setLoading((current) => current || (!hasHydratedSummary && !hasHydratedDaily))
       setError('')
 
       const [summaryRes, dailyRes] = await Promise.all([
-        fetchUtilitySummary(),
-        fetchUtilityDaily(),
+        fetchUtilitySummary(options),
+        fetchUtilityDaily(options),
       ])
       const summaryPayload = unwrapPayload(summaryRes)
       const dailyPayload = unwrapPayload(dailyRes)
@@ -117,7 +119,7 @@ export function useAdminUtilityDashboard() {
         ),
         water: normalizeSummaryCard(
           summaryPayload?.water ?? {},
-          'm³'
+          'm3'
         ),
         thermal: normalizeSummaryCard(
           summaryPayload?.thermal ?? {},
@@ -149,8 +151,9 @@ export function useAdminUtilityDashboard() {
     }
   }, [])
 
-  const ensureComparisonRange = useCallback(async (range) => {
-    if (!range || range === '7D' || loadedComparisonRanges.has(range)) return
+  const ensureComparisonRange = useCallback(async (range, options = {}) => {
+    if (!range || range === '7D') return
+    if (!options.force && loadedComparisonRanges.has(range)) return
 
     try {
       setLoading(true)
@@ -159,7 +162,7 @@ export function useAdminUtilityDashboard() {
         next.add(range)
         return next
       })
-      const response = await fetchUtilityComparison(range)
+      const response = await fetchUtilityComparison(range, options)
       applyComparisonRange(range, response)
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to load utility comparison data.')
@@ -174,8 +177,21 @@ export function useAdminUtilityDashboard() {
   }, [applyComparisonRange, loadedComparisonRanges])
 
   useEffect(() => {
-    loadUtilityDashboard()
+    loadUtilityDashboard({ force: true })
   }, [loadUtilityDashboard])
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      loadUtilityDashboard({ force: true })
+      for (const range of loadedComparisonRanges) {
+        if (range !== '7D') ensureComparisonRange(range, { force: true })
+      }
+    }
+
+    const interval = window.setInterval(refresh, 60000)
+    return () => window.clearInterval(interval)
+  }, [ensureComparisonRange, loadedComparisonRanges, loadUtilityDashboard])
 
   const trends = useMemo(() => {
     const electric = computeTrendPercent(daily.electric)

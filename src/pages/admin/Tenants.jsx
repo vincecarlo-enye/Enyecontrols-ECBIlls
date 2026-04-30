@@ -25,6 +25,8 @@ import {
 import { useAdminTenants } from '@/hooks/adminHooks/useAdminTenants'
 import { useAdminUnits } from '@/hooks/adminHooks/useAdminUnits'
 import { useAuth } from '@/context/AuthContext'
+import { TenantAvatar } from '@/components/common/AvatarPicker'
+import { getStoredAvatar } from '@/utils/avatarStorage'
 
 const emptyForm = {
   user_id: '',
@@ -499,9 +501,16 @@ export default function Tenants() {
                     <tr key={tenant.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3.5 min-w-[240px]">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-md">
-                            {tenant.name?.charAt(0) || '?'}
-                          </div>
+                          <TenantAvatar
+                            src={getStoredAvatar({
+                              id: tenant.user_id,
+                              email: tenant.email,
+                              tenant,
+                            }) || tenant.avatar || tenant.user?.avatar}
+                            name={tenant.name}
+                            size="md"
+                            className="shadow-md"
+                          />
                           <div>
                             <p className="font-semibold text-slate-800 dark:text-white">{tenant.name}</p>
                             <p className="text-xs text-slate-400">Tenant User ID: {tenant.user_id || '-'}</p>

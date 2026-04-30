@@ -1,0 +1,13 @@
+[
+  {
+    "id": "RPT-001",
+    "tenantName": "Vince Carlo",
+    "email": "tenant@enye.com",
+    "contactNumber": "+63 917 100 0001",
+    "unitNo": "12F-A",
+    "subject": "Water Leak in Ceiling",
+    "message": "There is a water leak coming from the ceiling near the window. It has been dripping for 2 days now.",
+    "dateSubmitted": "March 8, 2026",
+    "status": "pending"
+  }
+]

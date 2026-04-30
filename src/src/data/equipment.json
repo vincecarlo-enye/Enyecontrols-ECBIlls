@@ -1,0 +1,12 @@
+{
+  "meters": [
+    { "id": "E-101", "type": "Electric", "name": "Electric Meter E-101", "assigned": "Unit 101", "status": "online",  "lastRead": "Mar 12, 2026 08:00" },
+    { "id": "E-102", "type": "Electric", "name": "Electric Meter E-102", "assigned": "Unit 102", "status": "online",  "lastRead": "Mar 12, 2026 08:00" },
+    { "id": "E-104", "type": "Electric", "name": "Electric Meter E-104", "assigned": "Unit 104", "status": "offline", "lastRead": "Mar 11, 2026 23:45" },
+    { "id": "E-203", "type": "Electric", "name": "Electric Meter E-203", "assigned": "Unit 203", "status": "online",  "lastRead": "Mar 12, 2026 08:00" },
+    { "id": "W-101", "type": "Water",    "name": "Water Meter W-101",    "assigned": "Unit 101", "status": "online",  "lastRead": "Mar 12, 2026 08:00" },
+    { "id": "W-203", "type": "Water",    "name": "Water Meter W-203",    "assigned": "Unit 203", "status": "online",  "lastRead": "Mar 12, 2026 08:00" },
+    { "id": "T-1F",  "type": "Thermal",  "name": "Thermal Meter T-1F",   "assigned": "1st Floor", "status": "online", "lastRead": "Mar 12, 2026 08:00" },
+    { "id": "T-3F",  "type": "Thermal",  "name": "Thermal Meter T-3F",   "assigned": "3rd Floor", "status": "warning","lastRead": "Mar 12, 2026 07:30" }
+  ]
+}

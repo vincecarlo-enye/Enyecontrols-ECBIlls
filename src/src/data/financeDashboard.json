@@ -1,0 +1,45 @@
+{
+  "monthlyRevenue": [
+    { "month": "Jan", "revenue": 1148600, "expenses": 214500 },
+    { "month": "Feb", "revenue": 1089200, "expenses": 207800 },
+    { "month": "Mar", "revenue": 1127400, "expenses": 216300 },
+    { "month": "Apr", "revenue": 1096800, "expenses": 211900 },
+    { "month": "May", "revenue": 1165200, "expenses": 223400 },
+    { "month": "Jun", "revenue": 1210900, "expenses": 229600 },
+    { "month": "Jul", "revenue": 1197400, "expenses": 226800 },
+    { "month": "Aug", "revenue": 1248600, "expenses": 236200 },
+    { "month": "Sep", "revenue": 1221500, "expenses": 231700 },
+    { "month": "Oct", "revenue": 1274300, "expenses": 239400 },
+    { "month": "Nov", "revenue": 1259800, "expenses": 235600 },
+    { "month": "Dec", "revenue": 1379200, "expenses": 251800 }
+  ],
+  "utilityRevenue": [
+    { "month": "Jan", "electricity": 38554, "water": 50302, "thermal": 1171456 },
+    { "month": "Feb", "electricity": 37107, "water": 48341, "thermal": 1089792 },
+    { "month": "Mar", "electricity": 38054, "water": 49763, "thermal": 1124288 },
+    { "month": "Apr", "electricity": 37216, "water": 48961, "thermal": 1085824 },
+    { "month": "May", "electricity": 39018, "water": 51857, "thermal": 1160544 },
+    { "month": "Jun", "electricity": 40346, "water": 54156, "thermal": 1217216 },
+    { "month": "Jul", "electricity": 39942, "water": 53209, "thermal": 1196448 },
+    { "month": "Aug", "electricity": 41510, "water": 55961, "thermal": 1253120 },
+    { "month": "Sep", "electricity": 40771, "water": 54291, "thermal": 1221088 },
+    { "month": "Oct", "electricity": 42496, "water": 58162, "thermal": 1274240 },
+    { "month": "Nov", "electricity": 41782, "water": 57215, "thermal": 1259712 },
+    { "month": "Dec", "electricity": 45174, "water": 65316, "thermal": 1379840 }
+  ],
+  "utilityPie": [
+    { "name": "Electricity", "value": 3, "color": "#f59e0b" },
+    { "name": "Water", "value": 4, "color": "#06b6d4" },
+    { "name": "Thermal", "value": 93, "color": "#f43f5e" }
+  ],
+  "recentTransactions": [
+    { "id": "TXN-2026-0391", "tenant": "Vertex Logistics", "unit": "202", "utility": "Mixed Utilities", "amount": 38216.42, "status": "Paid", "date": "Mar 12, 2026" },
+    { "id": "TXN-2026-0390", "tenant": "Northstar Foods", "unit": "301", "utility": "Mixed Utilities", "amount": 51784.90, "status": "Pending", "date": "Mar 11, 2026" },
+    { "id": "TXN-2026-0389", "tenant": "Harbor Point Trading", "unit": "12F-A", "utility": "Mixed Utilities", "amount": 46208.15, "status": "Paid", "date": "Mar 11, 2026" },
+    { "id": "TXN-2026-0388", "tenant": "Mosaic Design Studio", "unit": "12F-B", "utility": "Mixed Utilities", "amount": 33792.44, "status": "Paid", "date": "Mar 10, 2026" },
+    { "id": "TXN-2026-0387", "tenant": "BluePeak Analytics", "unit": "501", "utility": "Mixed Utilities", "amount": 54916.20, "status": "Pending", "date": "Mar 10, 2026" },
+    { "id": "TXN-2026-0386", "tenant": "Crescent Retail Group", "unit": "401", "utility": "Mixed Utilities", "amount": 35488.73, "status": "Paid", "date": "Mar 09, 2026" },
+    { "id": "TXN-2026-0385", "tenant": "PrimeCare Diagnostics", "unit": "203", "utility": "Water", "amount": 3306.13, "status": "Overdue", "date": "Mar 09, 2026" },
+    { "id": "TXN-2026-0384", "tenant": "Atlas Workspace", "unit": "102", "utility": "Mixed Utilities", "amount": 28142.88, "status": "Paid", "date": "Mar 08, 2026" }
+  ]
+}

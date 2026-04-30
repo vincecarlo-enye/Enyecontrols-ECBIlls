@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import api from '../lib/api'
 import { buildCacheKey, getCachedResource, invalidateCache } from '@/lib/requestCache'
+import { applyStoredAvatarToUser } from '@/utils/avatarStorage'
 
 const AuthContext = createContext()
 let restoreUserPromise = null
@@ -10,15 +11,6 @@ const AUTH_USER_STORAGE_KEY = 'sb_auth_user'
 const AUTH_TOKEN_STORAGE_KEY = 'auth_token'
 const AUTH_USER_REFRESHED_AT_KEY = 'sb_auth_user_refreshed_at'
 const AUTH_USER_TTL = 300000
-
-function readStoredUser() {
-  try {
-    const saved = localStorage.getItem(AUTH_USER_STORAGE_KEY)
-    return saved ? JSON.parse(saved) : null
-  } catch {
-    return null
-  }
-}
 
 function isStoredUserFresh() {
   try {
@@ -39,10 +31,11 @@ function fetchRestoredUser(savedToken) {
     buildCacheKey(AUTH_USER_CACHE_PREFIX, { token: savedToken }),
     async () => {
       const response = await api.get('/api/user')
-      return response.data
+      return applyStoredAvatarToUser(response.data)
     },
     {
       ttl: AUTH_USER_TTL,
+      force: true,
       persist: true,
     }
   )
@@ -59,9 +52,9 @@ function fetchRestoredUser(savedToken) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => readStoredUser())
+  const [user, setUser] = useState(null)
   const [token, setToken] = useState(() => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
-  const [loading, setLoading] = useState(() => !user && !!localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
+  const [loading, setLoading] = useState(() => !!localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
 
   useEffect(() => {
     if (user) {
@@ -89,30 +82,22 @@ export function AuthProvider({ children }) {
 
     const restoreAuth = async () => {
       const savedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
-      const savedUser = readStoredUser()
 
       if (!savedToken) {
+        if (!cancelled) {
+          setUser(null)
+          setToken(null)
+        }
         if (!cancelled) setLoading(false)
         return
-      }
-
-      if (savedUser) {
-        if (!cancelled) {
-          setUser(savedUser)
-          setLoading(false)
-        }
       }
 
       try {
         if (!cancelled) setToken(savedToken)
         api.defaults.headers.common.Authorization = `Bearer ${savedToken}`
 
-        if (savedUser && isStoredUserFresh()) {
-          return
-        }
-
         const restoredUser = await fetchRestoredUser(savedToken)
-        if (!cancelled) setUser(restoredUser)
+        if (!cancelled) setUser(applyStoredAvatarToUser(restoredUser))
       } catch {
         if (!cancelled) {
           setUser(null)
@@ -135,11 +120,43 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (!token || !user) return
+
+    let cancelled = false
+
+    const heartbeat = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+
+      try {
+        const response = await api.get('/api/user')
+        if (cancelled) return
+        setUser(applyStoredAvatarToUser(response.data))
+        invalidateCache(AUTH_USER_CACHE_PREFIX)
+      } catch {
+        // Session validation failures are handled by normal API interceptors.
+      }
+    }
+
+    const interval = window.setInterval(heartbeat, 60000)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') heartbeat()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [token, user])
+
   const refreshCurrentUser = useCallback(async () => {
     const response = await api.get('/api/user')
-    setUser(response.data)
+    const nextUser = applyStoredAvatarToUser(response.data)
+    setUser(nextUser)
     invalidateCache(AUTH_USER_CACHE_PREFIX)
-    return response.data
+    return nextUser
   }, [])
 
   const forceChangePassword = useCallback(async (password, passwordConfirmation) => {
@@ -149,14 +166,15 @@ export function AuthProvider({ children }) {
     })
     const nextUser = response?.data?.user || null
     if (nextUser) {
-      setUser(nextUser)
+      setUser(applyStoredAvatarToUser(nextUser))
     }
     return response.data
   }, [])
 
   const updateCurrentUser = useCallback((nextUser) => {
-    setUser(nextUser)
-    return nextUser
+    const userWithStoredAvatar = applyStoredAvatarToUser(nextUser)
+    setUser(userWithStoredAvatar)
+    return userWithStoredAvatar
   }, [])
 
   const login = async (email, password) => {
@@ -174,7 +192,7 @@ export function AuthProvider({ children }) {
 
       const meResponse = await api.get('/api/user')
       const me = meResponse.data
-      setUser(me)
+      setUser(applyStoredAvatarToUser(me))
       invalidateCache(AUTH_USER_CACHE_PREFIX)
       return me
     } catch (error) {

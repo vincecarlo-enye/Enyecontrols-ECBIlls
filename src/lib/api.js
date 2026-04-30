@@ -109,6 +109,7 @@ api.interceptors.response.use(
     if (error?.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('sb_auth_user')
+      localStorage.removeItem('sb_auth_user_refreshed_at')
       localStorage.removeItem('omni_token')
       delete api.defaults.headers.common.Authorization
 
