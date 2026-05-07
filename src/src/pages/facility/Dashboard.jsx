@@ -75,6 +75,10 @@ const UTILITY_FOCUS = {
   },
 }
 
+function isSevenDayFilter(filter) {
+  return filter === '7D' || filter === '1D'
+}
+
 function mapTrendData(filter, trendData) {
   if (!Array.isArray(trendData)) return []
 
@@ -94,7 +98,7 @@ function mapTrendData(filter, trendData) {
     .filter((row) => row.date instanceof Date && !Number.isNaN(row.date.getTime()))
     .sort((left, right) => left.date - right.date)
 
-  if (filter === '1D') {
+  if (isSevenDayFilter(filter)) {
     if (normalizedRows.length > 0) {
       return normalizedRows.slice(-7).map((row) => ({
         t: row.date.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -353,11 +357,11 @@ export default function FacilityDashboard() {
   ), [chartData])
 
   const utilityMeters = useMemo(() => {
-    const totals = utilityTrendData.reduce((acc, row) => ({
-      electricity: acc.electricity + safeNumber(row.electricity),
-      water: acc.water + safeNumber(row.water),
-      thermal: acc.thermal + safeNumber(row.thermal),
-    }), { electricity: 0, water: 0, thermal: 0 })
+    const totals = {
+      electricity: safeNumber(consumption.summary.electricity),
+      water: safeNumber(consumption.summary.water),
+      thermal: safeNumber(consumption.summary.thermal),
+    }
 
     return {
       electric: buildUtilityCardMetric({
@@ -385,7 +389,7 @@ export default function FacilityDashboard() {
         unit: 'kBTU',
       }),
     }
-  }, [billingRates, utilityTrendData])
+  }, [billingRates, consumption.summary.electricity, consumption.summary.thermal, consumption.summary.water, utilityTrendData])
 
   const utilityDistributionData = useMemo(() => ([
     { name: 'Electricity', value: safeNumber(consumption.summary.electricity), color: '#f59e0b' },
@@ -609,7 +613,7 @@ export default function FacilityDashboard() {
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>
           </div>
-          <FilterPills options={['1D', '1M', '1Y']} value={filter} onChange={setFilter} />
+          <FilterPills options={['7D', '1M', '1Y']} value={filter} onChange={setFilter} />
         </div>
       </div>
 
@@ -635,7 +639,7 @@ export default function FacilityDashboard() {
           exportRows={utilityTrendData}
           loading={isInitialLoading && utilityTrendData.length === 0}
           updating={isRefreshing}
-          subtitle={`${filter === '1D' ? 'Daily (7 days)' : filter === '1M' ? 'Monthly (4 weeks)' : 'Yearly (12 months)'} operational view across facility utilities`}
+          subtitle={`${isSevenDayFilter(filter) ? 'Daily (7 days)' : filter === '1M' ? 'Monthly (4 weeks)' : 'Yearly (12 months)'} operational view across facility utilities`}
           accentHex={utilityFocusConfig.color}
           action={(
             <div className="flex flex-wrap items-center gap-1">

@@ -157,8 +157,8 @@ export default function UtilityCard({
       )}
 
       <div className={`relative overflow-hidden rounded-[18px] bg-slate-50 transition-all duration-300 dark:bg-[#090c13] ${modelExpanded ? 'mb-0 min-h-[398px] flex-1' : 'mb-4 h-44'}`}>
-        <div className={`absolute inset-0 bg-gradient-to-br ${palette.gradient} opacity-[0.10] transition-opacity duration-300 group-hover:opacity-[0.18] dark:opacity-[0.10] dark:group-hover:opacity-[0.18]`} />
-        <div className={`absolute inset-x-6 bottom-3 h-16 rounded-full bg-gradient-to-br ${palette.gradient} opacity-20 blur-2xl transition-all duration-300 group-hover:inset-x-3 group-hover:opacity-30`} />
+        <div className={`absolute inset-0 bg-gradient-to-br ${palette.gradient} opacity-0 transition-opacity duration-300 dark:opacity-[0.10] dark:group-hover:opacity-[0.18]`} />
+        <div className={`absolute inset-x-6 bottom-3 h-16 rounded-full bg-gradient-to-br ${palette.gradient} opacity-0 blur-2xl transition-all duration-300 group-hover:inset-x-3 dark:opacity-20 dark:group-hover:opacity-30`} />
         <button
           type="button"
           onClick={() => setModelExpanded((current) => !current)}
