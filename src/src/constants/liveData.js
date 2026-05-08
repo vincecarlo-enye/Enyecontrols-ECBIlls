@@ -1,2 +1,0 @@
-export const DASHBOARD_READ_REFRESH_MS = 10_000
-export const FAST_READ_REFRESH_MS = 5_000

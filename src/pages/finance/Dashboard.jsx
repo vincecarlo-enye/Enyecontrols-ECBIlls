@@ -16,7 +16,9 @@ import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import PageSection, { PageHeader } from '@/components/layout/PageSection'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { buildUtilityCardMetric } from '@/utils/utilityCards'
+import { buildUtilityComparisonRows, computeUsageTrend } from '@/utils/dashboardCharts'
 import { fetchFinanceBills, fetchFinancePayments, fetchSharedRates, getFinanceBillsSnapshot, getFinancePaymentsSnapshot, getSharedRatesSnapshot } from '@/services/financeService/financeBillService'
+import { useFinanceUtilityDashboard } from '@/hooks/financeHooks/useFinanceUtilityDashboard'
 import {
   CHART_AXIS_TICK,
   CHART_AXIS_TICK_SM,
@@ -30,7 +32,7 @@ import {
 import { ChartLoadingState, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 const fmt = (n) => `PHP ${Number(n || 0).toLocaleString()}`
-const FINANCE_FILTER_OPTIONS = ['1D', '1M', '1Y']
+const FINANCE_FILTER_OPTIONS = ['7D', '1M', '1Y']
 
 function formatMonthKey(value) {
   if (!value) return 'Unknown'
@@ -59,6 +61,47 @@ function formatDayKey(value) {
 
 function formatWeekdayLabel(date) {
   return date.toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+function parseDateValue(value) {
+  if (!value) return null
+  const direct = new Date(value)
+  if (!Number.isNaN(direct.getTime())) return direct
+  const fallback = new Date(String(value).replace(/-/g, '/'))
+  return Number.isNaN(fallback.getTime()) ? null : fallback
+}
+
+function getDateKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function getRangeTimestamp(value) {
+  const date = parseDateValue(value)
+  return date ? date.getTime() : 0
+}
+
+function isDateInDashboardRange(value, range) {
+  const date = parseDateValue(value)
+  if (!date) return false
+
+  const today = new Date()
+
+  if (range === '7D') {
+    const start = new Date(today)
+    start.setHours(0, 0, 0, 0)
+    start.setDate(start.getDate() - 6)
+    const end = new Date(today)
+    end.setHours(23, 59, 59, 999)
+    return date >= start && date <= end
+  }
+
+  if (range === '1M') {
+    return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth()
+  }
+
+  const start = new Date(today.getFullYear(), today.getMonth() - 6, 1)
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)
+  return date >= start && date <= end
 }
 
 function formatYearKey(value) {
@@ -91,14 +134,19 @@ function formatMonthLabel(date) {
 }
 
 function buildRollingMonthlySeries(rows = [], length = 12, defaults = {}) {
-  if (!Array.isArray(rows) || rows.length === 0) return []
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const today = new Date()
+    return Array.from({ length }, (_, index) => {
+      const date = addMonths(today, index - (length - 1))
+      return { month: formatMonthLabel(date), ...defaults }
+    })
+  }
 
   const sortedRows = rows
     .slice()
     .sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
 
-  const latestRow = sortedRows[sortedRows.length - 1]
-  const latestDate = new Date(getMonthTimestamp(latestRow.month))
+  const latestDate = new Date()
 
   if (Number.isNaN(latestDate.getTime())) {
     return sortedRows.slice(-length)
@@ -120,14 +168,20 @@ function buildRollingMonthlySeries(rows = [], length = 12, defaults = {}) {
 }
 
 function buildRollingDailySeries(rows = [], length = 7, defaults = {}) {
-  if (!Array.isArray(rows) || rows.length === 0) return []
+  if (!Array.isArray(rows) || rows.length === 0) {
+    const today = new Date()
+    return Array.from({ length }, (_, index) => {
+      const date = new Date(today)
+      date.setDate(today.getDate() + index - (length - 1))
+      return { month: formatWeekdayLabel(date), ...defaults }
+    })
+  }
 
   const sortedRows = rows
     .slice()
     .sort((a, b) => getMonthTimestamp(a.month) - getMonthTimestamp(b.month))
 
-  const latestRow = sortedRows[sortedRows.length - 1]
-  const latestDate = new Date(getMonthTimestamp(latestRow.month))
+  const latestDate = new Date()
 
   if (Number.isNaN(latestDate.getTime())) {
     return sortedRows.slice(-length)
@@ -174,20 +228,136 @@ function getCurrentMonthMatch(row = {}, now = new Date()) {
 
 function buildCurrentMonthWeekSeries(rows = [], defaults = {}) {
   const now = new Date()
-  const currentMonthRows = (Array.isArray(rows) ? rows : []).filter((row) => getCurrentMonthMatch(row, now))
-  const weekIndex = Math.min(3, Math.floor((now.getDate() - 1) / 7))
   const buckets = Array.from({ length: 4 }, (_, index) => ({
     month: `W${index + 1}`,
     ...defaults,
   }))
 
-  currentMonthRows.forEach((row) => {
+  ;(Array.isArray(rows) ? rows : []).forEach((row) => {
+    const date = parseDateValue(row?.dateValue || row?.date || row?.rawDate || row?.month)
+    if (!date) {
+      if (!getCurrentMonthMatch(row, now)) return
+      const weekIndex = Math.min(3, Math.floor((now.getDate() - 1) / 7))
+      Object.keys(defaults).forEach((key) => {
+        buckets[weekIndex][key] += Number(row?.[key] || 0)
+      })
+      return
+    }
+    if (date.getFullYear() !== now.getFullYear() || date.getMonth() !== now.getMonth()) return
+    const weekIndex = Math.min(3, Math.floor((date.getDate() - 1) / 7))
     Object.keys(defaults).forEach((key) => {
       buckets[weekIndex][key] += Number(row?.[key] || 0)
     })
   })
 
   return buckets
+}
+
+function buildFinanceUtilityComparisonRows(filter, source = {}) {
+  const sharedRows = buildUtilityComparisonRows(
+    filter,
+    source.electric || [],
+    source.water || [],
+    source.thermal || [],
+  )
+
+  const byDate = new Map()
+  const addSeries = (rows = [], key) => {
+    rows.forEach((row) => {
+      const date = parseDateValue(row?.date || row?.day || row?.label)
+      if (!date) return
+      const dateKey = getDateKey(date)
+      if (!byDate.has(dateKey)) {
+        byDate.set(dateKey, {
+          date,
+          electricity: 0,
+          water: 0,
+          thermal: 0,
+        })
+      }
+      byDate.get(dateKey)[key] += Number(row?.usage ?? row?.value ?? 0)
+    })
+  }
+
+  addSeries(source.electric, 'electricity')
+  addSeries(source.water, 'water')
+  addSeries(source.thermal, 'thermal')
+
+  if (filter === '7D') {
+    const today = new Date()
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today)
+      date.setDate(today.getDate() + index - 6)
+      const row = byDate.get(getDateKey(date))
+      const fallback = byDate.size > 0 ? null : sharedRows[index]
+      return {
+        label: formatWeekdayLabel(date),
+        electricity: row?.electricity ?? Number(fallback?.electricity || 0),
+        water: row?.water ?? Number(fallback?.water || 0),
+        thermal: row?.thermal ?? Number(fallback?.thermal || 0),
+      }
+    })
+  }
+
+  if (filter === '1M') {
+    const today = new Date()
+    const buckets = Array.from({ length: 4 }, (_, index) => ({
+      label: `W${index + 1}`,
+      electricity: 0,
+      water: 0,
+      thermal: 0,
+    }))
+
+    if (byDate.size > 0) {
+      byDate.forEach((row) => {
+        if (row.date.getMonth() !== today.getMonth() || row.date.getFullYear() !== today.getFullYear()) return
+        const weekIndex = Math.min(3, Math.floor((row.date.getDate() - 1) / 7))
+        buckets[weekIndex].electricity += row.electricity
+        buckets[weekIndex].water += row.water
+        buckets[weekIndex].thermal += row.thermal
+      })
+      return buckets
+    }
+
+    return buckets.map((bucket, index) => ({
+      ...bucket,
+      electricity: Number(sharedRows[index]?.electricity || 0),
+      water: Number(sharedRows[index]?.water || 0),
+      thermal: Number(sharedRows[index]?.thermal || 0),
+    }))
+  }
+
+  const today = new Date()
+  const buckets = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today.getFullYear(), today.getMonth() + index - 6, 1)
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth(),
+      label: date.toLocaleDateString('en-US', { month: 'short' }),
+      electricity: 0,
+      water: 0,
+      thermal: 0,
+    }
+  })
+
+  if (byDate.size > 0) {
+    byDate.forEach((row) => {
+      const bucket = buckets.find((item) => item.year === row.date.getFullYear() && item.month === row.date.getMonth())
+      if (!bucket) return
+      bucket.electricity += row.electricity
+      bucket.water += row.water
+      bucket.thermal += row.thermal
+    })
+    return buckets.map(({ label, electricity, water, thermal }) => ({ label, electricity, water, thermal }))
+  }
+
+  const fallbackRows = sharedRows.slice(-7)
+  return buckets.map((bucket, index) => ({
+    label: bucket.label,
+    electricity: Number(fallbackRows[index]?.electricity || 0),
+    water: Number(fallbackRows[index]?.water || 0),
+    thermal: Number(fallbackRows[index]?.thermal || 0),
+  }))
 }
 
 function computeRangeTrend(rows = [], key) {
@@ -212,6 +382,7 @@ function buildActiveKeySet(rows = [], key = 'month') {
 function normalizeBill(row = {}) {
   const items = Array.isArray(row?.items) ? row.items : []
   const breakdown = { electricity: 0, water: 0, thermal: 0 }
+  const dateValue = row?.billing_end || row?.due_date || row?.created_at || ''
   items.forEach((item) => {
     const type = String(item?.type || '').toLowerCase()
     const amount = Number(item?.amount ?? 0)
@@ -226,9 +397,10 @@ function normalizeBill(row = {}) {
     unit: row?.unit?.unit_number || row?.unit?.name || 'N/A',
     amount: Number(row?.amount ?? 0),
     status: String(row?.status || 'draft').toLowerCase(),
-    dayKey: formatDayKey(row?.billing_end || row?.due_date || row?.created_at || ''),
+    dateValue,
+    dayKey: formatDayKey(dateValue),
     monthKey: formatMonthKey(row?.billing_month || row?.billing_end || row?.created_at || ''),
-    yearKey: formatYearKey(row?.billing_end || row?.due_date || row?.created_at || ''),
+    yearKey: formatYearKey(dateValue),
     dueDate: formatDate(row?.due_date || ''),
     breakdown,
   }
@@ -237,6 +409,7 @@ function normalizeBill(row = {}) {
 function normalizePayment(row = {}) {
   const bill = row?.bill || {}
   const breakdown = normalizeBill(bill).breakdown
+  const dateValue = row?.paid_at || row?.verified_at || row?.created_at || ''
   return {
     id: row?.id,
     invoiceId: String(bill?.id ?? row?.bill_id ?? ''),
@@ -244,10 +417,11 @@ function normalizePayment(row = {}) {
     unit: bill?.unit?.unit_number || bill?.unit?.name || 'N/A',
     amount: Number(row?.amount ?? 0),
     status: String(row?.status || 'pending').toLowerCase(),
-    date: formatDate(row?.paid_at || row?.verified_at || row?.created_at || ''),
-    dayKey: formatDayKey(row?.paid_at || row?.verified_at || row?.created_at || ''),
+    date: formatDate(dateValue),
+    dateValue,
+    dayKey: formatDayKey(dateValue),
     monthKey: formatMonthKey(bill?.billing_month || row?.created_at || ''),
-    yearKey: formatYearKey(row?.paid_at || row?.verified_at || row?.created_at || ''),
+    yearKey: formatYearKey(dateValue),
     breakdown,
   }
 }
@@ -281,9 +455,20 @@ export default function FinanceDashboard() {
   const [billingRates, setBillingRates] = useState(initialBillingRates)
   const [loading, setLoading] = useState(!(initialBills.length || initialPayments.length))
   const [error, setError] = useState('')
-  const [chartRange, setChartRange] = useState('1M')
+  const [chartRange, setChartRange] = useState('7D')
+  const utilityComparisonFilter = chartRange
   const [transactionSearch, setTransactionSearch] = useState('')
   const [transactionStatus, setTransactionStatus] = useState('all')
+
+  // Real meter consumption data — mirrors Super Admin / Admin / Facility pattern
+  const {
+    summary: utilitySummary,
+    daily: utilityDaily,
+    comparison: utilityComparison,
+    loading: utilityLoading,
+    comparisonLoadingRanges: utilityComparisonLoadingRanges,
+    ensureComparisonRange,
+  } = useFinanceUtilityDashboard()
 
   useEffect(() => {
     let cancelled = false
@@ -372,7 +557,7 @@ export default function FinanceDashboard() {
       const yearKey = bill.yearKey
 
       if (!dailyRevenueMap.has(dayKey)) {
-        dailyRevenueMap.set(dayKey, { month: dayKey, revenue: 0, expenses: 0 })
+        dailyRevenueMap.set(dayKey, { month: dayKey, dateValue: bill.dateValue, revenue: 0, expenses: 0 })
       }
       if (!monthlyRevenueMap.has(monthKey)) {
         monthlyRevenueMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0 })
@@ -381,7 +566,7 @@ export default function FinanceDashboard() {
         yearlyRevenueMap.set(yearKey, { month: yearKey, revenue: 0, expenses: 0 })
       }
       if (!dailyUtilityRevenueMap.has(dayKey)) {
-        dailyUtilityRevenueMap.set(dayKey, { month: dayKey, electricity: 0, water: 0, thermal: 0 })
+        dailyUtilityRevenueMap.set(dayKey, { month: dayKey, dateValue: bill.dateValue, electricity: 0, water: 0, thermal: 0 })
       }
       if (!utilityRevenueMap.has(monthKey)) {
         utilityRevenueMap.set(monthKey, { month: monthKey, electricity: 0, water: 0, thermal: 0 })
@@ -430,6 +615,7 @@ export default function FinanceDashboard() {
 
           return {
             month: key,
+            dateValue: revenueMap.get(key)?.dateValue || key,
             revenue,
             collected,
             outstanding: Math.max(revenue - collected, 0),
@@ -467,7 +653,7 @@ export default function FinanceDashboard() {
 
     const recentTransactions = payments
       .slice()
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .sort((a, b) => getRangeTimestamp(b.dateValue) - getRangeTimestamp(a.dateValue))
       .slice(0, 8)
       .map((payment) => {
         const activeUtilities = Object.entries(payment.breakdown || {})
@@ -494,6 +680,7 @@ export default function FinanceDashboard() {
           amount: payment.amount,
           status: payment.status === 'verified' ? 'Paid' : payment.status === 'rejected' ? 'Rejected' : 'Pending',
           date: payment.date,
+          dateValue: payment.dateValue,
           dayKey: payment.dayKey,
           monthKey: payment.monthKey,
           yearKey: payment.yearKey,
@@ -571,36 +758,48 @@ export default function FinanceDashboard() {
   }, [billingRates, bills, payments])
 
   const rangedMonthlyRevenue = useMemo(() => {
-    if (chartRange === '1D') {
+    if (chartRange === '7D') {
       return buildRollingDailySeries(dailyRevenue, 7, {
         revenue: 0,
         collected: 0,
         outstanding: 0,
       })
     }
-    if (chartRange === '1Y') return yearlyRevenue
-    return buildCurrentMonthWeekSeries(monthlyRevenue, {
+    if (chartRange === '1Y') {
+      return buildRollingMonthlySeries(monthlyRevenue, 7, {
+        revenue: 0,
+        collected: 0,
+        outstanding: 0,
+      })
+    }
+    return buildCurrentMonthWeekSeries(dailyRevenue, {
       revenue: 0,
       collected: 0,
       outstanding: 0,
     })
-  }, [chartRange, dailyRevenue, monthlyRevenue, yearlyRevenue])
+  }, [chartRange, dailyRevenue, monthlyRevenue])
 
   const rangedUtilityRevenue = useMemo(() => {
-    if (chartRange === '1D') {
+    if (chartRange === '7D') {
       return buildRollingDailySeries(dailyUtilityRevenue, 7, {
         electricity: 0,
         water: 0,
         thermal: 0,
       })
     }
-    if (chartRange === '1Y') return yearlyUtilityRevenue
-    return buildCurrentMonthWeekSeries(utilityRevenue, {
+    if (chartRange === '1Y') {
+      return buildRollingMonthlySeries(utilityRevenue, 7, {
+        electricity: 0,
+        water: 0,
+        thermal: 0,
+      })
+    }
+    return buildCurrentMonthWeekSeries(dailyUtilityRevenue, {
       electricity: 0,
       water: 0,
       thermal: 0,
     })
-  }, [chartRange, dailyUtilityRevenue, utilityRevenue, yearlyUtilityRevenue])
+  }, [chartRange, dailyUtilityRevenue, utilityRevenue])
 
   const rangedUtilityPie = useMemo(() => {
     const totals = rangedUtilityRevenue.reduce((acc, row) => ({
@@ -617,40 +816,46 @@ export default function FinanceDashboard() {
     ]
   }, [rangedUtilityRevenue])
 
-  const rangedUtilityMeters = useMemo(() => {
-    const totals = rangedUtilityRevenue.reduce((acc, row) => ({
-      electricity: acc.electricity + Number(row.electricity || 0),
-      water: acc.water + Number(row.water || 0),
-      thermal: acc.thermal + Number(row.thermal || 0),
-    }), { electricity: 0, water: 0, thermal: 0 })
+  // Utility meter cards — built from real meter readings (same source as Admin/SuperAdmin/Facility)
+  // normalizeSeries() produces { day, date, usage } — UtilityCard expects { label, value }
+  const utilityComparisonRows = useMemo(() => {
+    const activeSeries = (utilityComparison?.[utilityComparisonFilter] && (
+      (utilityComparison[utilityComparisonFilter].electric || []).length > 0 ||
+      (utilityComparison[utilityComparisonFilter].water || []).length > 0 ||
+      (utilityComparison[utilityComparisonFilter].thermal || []).length > 0
+    ))
+      ? utilityComparison[utilityComparisonFilter]
+      : { electric: utilityDaily.electric, water: utilityDaily.water, thermal: utilityDaily.thermal }
+
+    return buildFinanceUtilityComparisonRows(utilityComparisonFilter, activeSeries)
+  }, [utilityComparison, utilityComparisonFilter, utilityDaily])
+
+  const filteredUtilityCards = useMemo(() => {
+    const buildCard = (summaryKey, rateKey, rowKey) => {
+      const cardSummary = utilitySummary?.[summaryKey] || {}
+      const values = utilityComparisonRows.map((row) => ({
+        label: row.label,
+        value: Number(row?.[rowKey] || 0),
+      }))
+      const seriesTotal = values.reduce((sum, row) => sum + row.value, 0)
+
+      return buildUtilityCardMetric({
+        type: rateKey,
+        usage: seriesTotal > 0 ? seriesTotal : Number(cardSummary.periodConsumption ?? cardSummary.usage ?? cardSummary.value ?? 0),
+        unit: cardSummary.unit || (summaryKey === 'electric' ? 'kWh' : summaryKey === 'thermal' ? 'kBTU' : 'm3'),
+        fallbackEstimatedCost: Number(cardSummary.estimatedCost ?? cardSummary.cost ?? 0),
+        trend: seriesTotal > 0 ? computeUsageTrend(values) : Number(cardSummary.trend ?? cardSummary.delta ?? 0),
+        rates: billingRates,
+        series: values,
+      })
+    }
 
     return {
-      electric: buildUtilityCardMetric({
-        type: 'electricity',
-        usage: totals.electricity,
-        unit: 'kWh',
-        fallbackEstimatedCost: totals.electricity,
-        rates: billingRates,
-        trend: computeRangeTrend(rangedUtilityRevenue, 'electricity'),
-      }),
-      water: buildUtilityCardMetric({
-        type: 'water',
-        usage: totals.water,
-        unit: 'm3',
-        fallbackEstimatedCost: totals.water,
-        rates: billingRates,
-        trend: computeRangeTrend(rangedUtilityRevenue, 'water'),
-      }),
-      thermal: buildUtilityCardMetric({
-        type: 'thermal',
-        usage: totals.thermal,
-        unit: 'kBTU',
-        fallbackEstimatedCost: totals.thermal,
-        rates: billingRates,
-        trend: computeRangeTrend(rangedUtilityRevenue, 'thermal'),
-      }),
+      electric: buildCard('electric', 'electricity', 'electricity'),
+      water: buildCard('water', 'water', 'water'),
+      thermal: buildCard('thermal', 'thermal', 'thermal'),
     }
-  }, [billingRates, rangedUtilityRevenue])
+  }, [billingRates, utilityComparisonRows, utilitySummary])
 
   const revenueTrendMeta = useMemo(() => {
     const totals = rangedMonthlyRevenue.reduce((acc, row) => ({
@@ -673,49 +878,20 @@ export default function FinanceDashboard() {
     }
   }, [rangedMonthlyRevenue])
 
-  const activeRangeKeys = useMemo(() => buildActiveKeySet(rangedMonthlyRevenue), [rangedMonthlyRevenue])
-
   const scopedBills = useMemo(() => {
-    // If no range keys are available (data still loading or no bills), show all bills
-    if (activeRangeKeys.size === 0) return bills
-
-    return bills.filter((bill) => {
-      const key = chartRange === '1D'
-        ? bill.dayKey
-        : chartRange === '1Y'
-          ? bill.yearKey
-          : bill.monthKey
-
-      return activeRangeKeys.has(String(key ?? '').trim())
-    })
-  }, [activeRangeKeys, bills, chartRange])
+    return bills.filter((bill) => isDateInDashboardRange(bill.dateValue, chartRange))
+  }, [bills, chartRange])
 
   const scopedPayments = useMemo(() => {
-    // If no range keys are available (data still loading or no payments), show all payments
-    if (activeRangeKeys.size === 0) return payments
-
-    return payments.filter((payment) => {
-      const key = chartRange === '1D'
-        ? payment.dayKey
-        : chartRange === '1Y'
-          ? payment.yearKey
-          : payment.monthKey
-
-      return activeRangeKeys.has(String(key ?? '').trim())
-    })
-  }, [activeRangeKeys, chartRange, payments])
+    return payments.filter((payment) => isDateInDashboardRange(payment.dateValue, chartRange))
+  }, [chartRange, payments])
 
   const filteredTransactions = useMemo(() => {
     const query = transactionSearch.trim().toLowerCase()
 
     return recentTransactions.filter((row) => {
-      const rangeKey = chartRange === '1D'
-        ? row.dayKey
-        : chartRange === '1Y'
-          ? row.yearKey
-          : row.monthKey
       const matchesStatus = transactionStatus === 'all' || row.status.toLowerCase() === transactionStatus
-      const matchesRange = activeRangeKeys.size === 0 || activeRangeKeys.has(String(rangeKey ?? '').trim())
+      const matchesRange = isDateInDashboardRange(row.dateValue, chartRange)
       const haystack = [row.id, row.tenant, row.unit, row.utility, row.date]
         .filter(Boolean)
         .join(' ')
@@ -724,7 +900,7 @@ export default function FinanceDashboard() {
 
       return matchesStatus && matchesRange && matchesSearch
     })
-  }, [activeRangeKeys, chartRange, recentTransactions, transactionSearch, transactionStatus])
+  }, [chartRange, recentTransactions, transactionSearch, transactionStatus])
 
   const billingStatusData = useMemo(() => {
     const counts = scopedBills.reduce((acc, bill) => {
@@ -772,9 +948,16 @@ export default function FinanceDashboard() {
     ]
   }, [scopedPayments])
 
+  // Ensure the right comparison range is loaded when the filter changes
+  useEffect(() => {
+    ensureComparisonRange(utilityComparisonFilter)
+  }, [utilityComparisonFilter, ensureComparisonRange])
+
   const loadingState = (pageLoading && bills.length === 0 && payments.length === 0) || (loading && bills.length === 0 && payments.length === 0 && !error)
   const isInitialLoading = loadingState
   const isRefreshing = loading && (bills.length > 0 || payments.length > 0)
+  const isUtilityLoading = utilityLoading
+  const isUtilityComparisonLoading = utilityComparisonLoadingRanges?.has?.(utilityComparisonFilter)
   const utilityColor = {
     Electricity: 'text-amber-600 dark:text-amber-400',
     Water: 'text-cyan-600 dark:text-cyan-400',
@@ -797,12 +980,13 @@ export default function FinanceDashboard() {
         icon={BarChart3}
         actions={(
           <div className="flex items-center justify-end gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live</span>
+            </div>
             <UpdatingBadge show={isRefreshing} />
             <FilterPills options={FINANCE_FILTER_OPTIONS} value={chartRange} onChange={setChartRange} />
-            <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
-              <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
-            </div>
+            
           </div>
         )}
       />
@@ -814,9 +998,9 @@ export default function FinanceDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 mb-4">
-        <UtilityCard type="electric" {...rangedUtilityMeters.electric} loading={isInitialLoading} updating={isRefreshing} />
-        <UtilityCard type="thermal" {...rangedUtilityMeters.thermal} loading={isInitialLoading} updating={isRefreshing} />
-        <UtilityCard type="water" {...rangedUtilityMeters.water} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="electric" {...filteredUtilityCards.electric} loading={isInitialLoading || isUtilityLoading} updating={isUtilityComparisonLoading} />
+        <UtilityCard type="thermal" {...filteredUtilityCards.thermal} loading={isInitialLoading || isUtilityLoading} updating={isUtilityComparisonLoading} />
+        <UtilityCard type="water" {...filteredUtilityCards.water} loading={isInitialLoading || isUtilityLoading} updating={isUtilityComparisonLoading} />
       </div>
 
       <SummaryCardStrip
@@ -832,10 +1016,10 @@ export default function FinanceDashboard() {
         exportable
         exportRows={rangedMonthlyRevenue}
         subtitle={
-          chartRange === '1D'
+          chartRange === '7D'
             ? 'Billed vs collected by day, with remaining collection gap'
             : chartRange === '1Y'
-              ? 'Billed vs collected by year, with remaining collection gap'
+              ? 'Billed vs collected by month for the last 7 months'
               : 'Billed vs collected by week for the current month'
         }
         action={<Activity className="w-4 h-4 text-blue-500" />}
@@ -936,39 +1120,47 @@ export default function FinanceDashboard() {
       <div className="grid gap-4 lg:grid-cols-5 mb-4">
         <ChartCard
           className="lg:col-span-3"
-          title="Utility Revenue Breakdown"
+          title="Utility Consumption"
           exportable
-          exportRows={rangedUtilityRevenue}
-          loading={isInitialLoading && rangedUtilityRevenue.length === 0}
-          updating={isRefreshing}
+          exportRows={utilityComparisonRows}
+          loading={isUtilityLoading}
+          updating={isUtilityComparisonLoading}
           subtitle={
-            chartRange === '1D'
-              ? 'Daily income by utility type'
-              : chartRange === '1Y'
-                ? 'Yearly income by utility type'
-                : 'Weekly income by utility type for the current month'
+            utilityComparisonFilter === '7D'
+              ? 'Daily meter readings for the last 7 days'
+              : utilityComparisonFilter === '1M'
+                ? 'Weekly consumption for the current month'
+                : 'Monthly consumption for the last 7 months'
           }
-          action={<BarChart3 className="w-4 h-4 text-slate-400" />}
+          action={(
+            <div className="flex items-center gap-2">
+              <FilterPills options={['7D', '1M', '1Y']} value={chartRange} onChange={setChartRange} />
+              <BarChart3 className="w-4 h-4 text-slate-400" />
+            </div>
+          )}
         >
           <div className="mb-4 grid grid-cols-3 gap-2">
             {[
-              { label: 'Electricity', value: totalElec, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', icon: Zap },
-              { label: 'Water', value: totalWater, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20', icon: Droplets },
-              { label: 'Thermal', value: totalThermal, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20', icon: Flame },
-            ].map(({ label, value, color, bg, icon: Icon }) => (
+              { label: 'Electricity', value: utilitySummary.electric.periodConsumption, unit: utilitySummary.electric.unit || 'kWh', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', icon: Zap },
+              { label: 'Water', value: utilitySummary.water.periodConsumption, unit: utilitySummary.water.unit || 'm3', color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20', icon: Droplets },
+              { label: 'Thermal', value: utilitySummary.thermal.periodConsumption, unit: utilitySummary.thermal.unit || 'kBTU', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20', icon: Flame },
+            ].map(({ label, value, unit, color, bg, icon: Icon }) => (
               <div key={label} className={`rounded-xl p-3 text-center ${bg}`}>
                 <Icon className={`mx-auto mb-1 h-4 w-4 ${color}`} />
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">{label}</p>
-                <p className={`text-sm font-bold ${color}`}>{fmt(value)}</p>
+                <p className={`text-sm font-bold ${color}`}>{Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-[10px] font-normal">{unit}</span></p>
               </div>
             ))}
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={rangedUtilityRevenue} margin={CHART_MARGIN_STANDARD}>
+            <BarChart
+              data={utilityComparisonRows}
+              margin={CHART_MARGIN_STANDARD}
+            >
               <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
-              <XAxis dataKey="month" tick={CHART_AXIS_TICK} />
-              <YAxis tick={CHART_AXIS_TICK} tickFormatter={formatCompactChartCurrency} />
-              <Tooltip content={<ThemedChartTooltip formatter={(value, name) => [formatChartCurrency(value), name]} />} />
+              <XAxis dataKey="label" tick={CHART_AXIS_TICK} />
+              <YAxis tick={CHART_AXIS_TICK} tickFormatter={formatChartNumber} />
+              <Tooltip content={<ThemedChartTooltip formatter={(value, name) => [`${formatChartNumber(value)}`, name]} />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="electricity" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Electricity" />
               <Bar dataKey="water" fill="#06b6d4" radius={[4, 4, 0, 0]} name="Water" />

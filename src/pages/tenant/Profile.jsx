@@ -23,7 +23,6 @@ import {
 } from '@/services/tenantService/tenantProfileService'
 import AvatarPicker, {
   DEFAULT_AVATAR,
-  getAvatarPublicPath,
   normalizeAvatarValue,
   TenantAvatar,
 } from '@/components/common/AvatarPicker'
@@ -164,7 +163,6 @@ export default function TenantProfile() {
       }
 
       const avatarToPersist = normalizeAvatarValue(avatar)
-      const avatarPath = getAvatarPublicPath(avatarToPersist)
 
       const avatarOwner = mergeProfileIntoUser(user, {
         name: form.name?.trim(),
@@ -175,15 +173,20 @@ export default function TenantProfile() {
       })
       persistUserAvatar(avatarOwner, avatarToPersist)
 
+      if (saveAvatarOnly) {
+        updateCurrentUser(avatarOwner)
+        setForm(getProfileState(avatarOwner))
+        setAvatarSaved(true)
+        setTimeout(() => setAvatarSaved(false), 2000)
+        addToast(successMessage, 'success')
+        if (closeAvatarModal) setShowAvatarModal(false)
+        return
+      }
+
       const profilePayload = {
         name: form.name?.trim(),
         email: emailToPersist,
         phone: form.phone?.trim(),
-        avatar: avatarToPersist,
-        avatar_path: avatarPath,
-        avatar_url: avatarPath,
-        profile_photo: avatarPath,
-        profile_photo_path: avatarPath,
       }
 
       let updated

@@ -30,7 +30,10 @@ import {
 } from '@/components/charts/rechartsTheme.jsx'
 import { TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
-const inputCls = 'w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all'
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const inputCls =
+  'w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all'
 
 const ticketStatusCls = {
   open: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
@@ -47,159 +50,34 @@ const floorStatusCls = {
 const TECHNICIANS = ['Unassigned', 'Mark Reyes', 'John Dela Cruz', 'Carlo Santos', 'Anne Flores']
 const EMPTY_TICKET = { title: '', type: 'Electrical', priority: 'medium', technician: 'Unassigned', status: 'open' }
 const PIE_COLORS = ['#f59e0b', '#06b6d4', '#f43f5e']
-const STATUS_COLORS = {
-  online: '#10b981',
-  warning: '#f59e0b',
-  offline: '#ef4444',
-}
+const STATUS_COLORS = { online: '#10b981', warning: '#f59e0b', offline: '#ef4444' }
+
 const UTILITY_FOCUS = {
-  all: {
-    label: 'All',
-    series: ['electricity', 'water', 'thermal'],
-    color: '#3b82f6',
-  },
-  electricity: {
-    label: 'Electricity',
-    series: ['electricity'],
-    color: '#f59e0b',
-  },
-  water: {
-    label: 'Water',
-    series: ['water'],
-    color: '#06b6d4',
-  },
-  thermal: {
-    label: 'Thermal',
-    series: ['thermal'],
-    color: '#f43f5e',
-  },
+  all: { label: 'All', series: ['electricity', 'water', 'thermal'], color: '#3b82f6' },
+  electricity: { label: 'Electricity', series: ['electricity'], color: '#f59e0b' },
+  water: { label: 'Water', series: ['water'], color: '#06b6d4' },
+  thermal: { label: 'Thermal', series: ['thermal'], color: '#f43f5e' },
 }
 
-function isSevenDayFilter(filter) {
-  return filter === '7D' || filter === '1D'
-}
+const FILTER_OPTIONS = ['7D', '1M', '1Y']
 
-function findCurrentMonthRow(rows = []) {
-  const now = new Date()
-  const shortMonth = now.toLocaleDateString('en-US', { month: 'short' }).toLowerCase()
-  const longMonth = now.toLocaleDateString('en-US', { month: 'long' }).toLowerCase()
-  const numericMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-
-  return (Array.isArray(rows) ? rows : []).find((row) => {
-    const raw = String(row.date || row.day || row.month || row.label || row.t || '').trim().toLowerCase()
-    return raw === shortMonth || raw === longMonth || raw === numericMonth || raw.includes(shortMonth) || raw.includes(longMonth)
-  })
-}
-
-function buildCurrentWeekBucketsFromMonthlyRow(row = null, summary = {}) {
-  const weekIndex = Math.min(3, Math.floor((new Date().getDate() - 1) / 7))
-  const source = row || summary || {}
-
-  return ['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((label, index) => ({
-    t: label,
-    electricity: index === weekIndex ? Number(source.electricity || 0) : 0,
-    water: index === weekIndex ? Number(source.water || 0) : 0,
-    thermal: index === weekIndex ? Number(source.thermal || 0) : 0,
-  }))
-}
-
-function mapTrendData(filter, trendData, summary = {}) {
-  if (!Array.isArray(trendData)) return []
-
-  const normalizedRows = trendData
-    .map((row, index) => {
-      const rawDate = row.date || row.day || row.label || null
-      const parsedDate = parseDateValue(rawDate)
-
-      return {
-        index,
-        date: parsedDate,
-        electricity: Number(row.electricity || 0),
-        water: Number(row.water || 0),
-        thermal: Number(row.thermal || 0),
-      }
-    })
-    .filter((row) => row.date instanceof Date && !Number.isNaN(row.date.getTime()))
-    .sort((left, right) => left.date - right.date)
-
-  if (isSevenDayFilter(filter)) {
-    if (normalizedRows.length > 0) {
-      return normalizedRows.slice(-7).map((row) => ({
-        t: row.date.toLocaleDateString('en-US', { weekday: 'short' }),
-        electricity: row.electricity,
-        water: row.water,
-        thermal: row.thermal,
-      }))
-    }
-    // Fallback: use raw label/day fields as-is — no fabrication
-    return trendData.map((row) => ({
-      t: row.day || row.label || '',
-      electricity: Number(row.electricity || 0),
-      water: Number(row.water || 0),
-      thermal: Number(row.thermal || 0),
-    }))
-  }
-
-  if (filter === '1M') {
-    if (normalizedRows.length > 0) {
-      const latest = normalizedRows[normalizedRows.length - 1].date
-      const latestMonth = latest.getMonth()
-      const latestYear = latest.getFullYear()
-      const buckets = ['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((label) => ({
-        t: label,
-        electricity: 0,
-        water: 0,
-        thermal: 0,
-      }))
-
-      normalizedRows.forEach((row) => {
-        if (row.date.getMonth() !== latestMonth || row.date.getFullYear() !== latestYear) return
-        const weekIndex = Math.min(3, Math.floor((row.date.getDate() - 1) / 7))
-        buckets[weekIndex].electricity += row.electricity
-        buckets[weekIndex].water += row.water
-        buckets[weekIndex].thermal += row.thermal
-      })
-
-      return buckets
-    }
-    // No date-parseable data — return empty buckets (no fabrication)
-    return buildCurrentWeekBucketsFromMonthlyRow(findCurrentMonthRow(trendData), summary)
-  }
-
-  // 1Y
-  if (normalizedRows.length > 0) {
-    const latest = normalizedRows[normalizedRows.length - 1].date
-    const latestYear = latest.getFullYear()
-    const buckets = Array.from({ length: 12 }, (_, index) => ({
-      t: new Date(latestYear, index, 1).toLocaleDateString('en-US', { month: 'short' }),
-      electricity: 0,
-      water: 0,
-      thermal: 0,
-    }))
-
-    normalizedRows.forEach((row) => {
-      if (row.date.getFullYear() !== latestYear) return
-      const monthIndex = row.date.getMonth()
-      buckets[monthIndex].electricity += row.electricity
-      buckets[monthIndex].water += row.water
-      buckets[monthIndex].thermal += row.thermal
-    })
-
-    return buckets
-  }
-
-  // No date-parseable data — return empty monthly buckets (no fabrication)
-  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((label) => ({
-    t: label,
-    electricity: 0,
-    water: 0,
-    thermal: 0,
-  }))
-}
+// ─── Pure helpers ─────────────────────────────────────────────────────────────
 
 function safeNumber(value) {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseDateValue(value) {
+  if (!value) return null
+  const direct = new Date(value)
+  if (!Number.isNaN(direct.getTime())) return direct
+  const fallback = new Date(String(value).replace(/-/g, '/'))
+  return Number.isNaN(fallback.getTime()) ? null : fallback
+}
+
+function isSevenDayFilter(filter) {
+  return filter === '7D' || filter === '1D'
 }
 
 function mapUtilityType(type) {
@@ -211,66 +89,177 @@ function mapUtilityType(type) {
 }
 
 function getAreaLabel(row = {}, index = 0) {
-  return row.floor
-    || row.floor_label
-    || row.zone
-    || row.area
-    || row.page_name
-    || row.building_name
-    || row.unit_label
-    || `Area ${index + 1}`
+  return (
+    row.floor || row.floor_label || row.zone || row.area ||
+    row.page_name || row.building_name || row.unit_label ||
+    `Area ${index + 1}`
+  )
 }
 
-function buildAreaUsageRows(rows = []) {
-  return rows
-    .map((row, index) => ({
-      name: getAreaLabel(row, index),
-      electricity: safeNumber(row.electricity),
-      water: safeNumber(row.water),
-      thermal: safeNumber(row.thermal),
+// ─── Trend data mapping ────────────────────────────────────────────────────────
+function mapTrendData(filter, trendData) {
+  if (!Array.isArray(trendData) || trendData.length === 0) return buildEmptyBuckets(filter)
+
+  const normalizedRows = trendData
+    .map((row) => {
+      const rawDate = row.date || row.day || row.label || null
+      const parsedDate = parseDateValue(rawDate)
+      return {
+        date: parsedDate,
+        electricity: Number(row.electricity || 0),
+        water: Number(row.water || 0),
+        thermal: Number(row.thermal || 0),
+      }
+    })
+    .filter((row) => row.date instanceof Date && !Number.isNaN(row.date.getTime()))
+    .sort((a, b) => a.date - b.date)
+
+  // ── 7D: anchor last 7 days ending today ──────────────────────────────────
+  if (isSevenDayFilter(filter)) {
+    const today = new Date()
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(today)
+      day.setDate(today.getDate() - (6 - i))
+      const dayKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
+      const match = normalizedRows.find((row) => {
+        const r = row.date
+        return `${r.getFullYear()}-${r.getMonth()}-${r.getDate()}` === dayKey
+      })
+      return {
+        t: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        electricity: match?.electricity ?? 0,
+        water: match?.water ?? 0,
+        thermal: match?.thermal ?? 0,
+      }
+    })
+  }
+
+  // ── 1M: bucket into current month's 4 weeks ──────────────────────────────
+  if (filter === '1M') {
+    if (normalizedRows.length > 0) {
+      const today = new Date()
+      const month = today.getMonth()
+      const year = today.getFullYear()
+      const buckets = ['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((label) => ({
+        t: label, electricity: 0, water: 0, thermal: 0,
+      }))
+      normalizedRows.forEach((row) => {
+        if (row.date.getMonth() !== month || row.date.getFullYear() !== year) return
+        const weekIndex = Math.min(3, Math.floor((row.date.getDate() - 1) / 7))
+        buckets[weekIndex].electricity += row.electricity
+        buckets[weekIndex].water += row.water
+        buckets[weekIndex].thermal += row.thermal
+      })
+      return buckets
+    }
+    // Raw label fallback (backend returned non-date labels like "Week 1")
+    return trendData.slice(0, 4).map((row, i) => ({
+      t: row.label || row.t || `Week ${i + 1}`,
+      electricity: Number(row.electricity || 0),
+      water: Number(row.water || 0),
+      thermal: Number(row.thermal || 0),
     }))
-    .filter((row) => row.electricity > 0 || row.water > 0 || row.thermal > 0)
-    .map((row) => ({
-      ...row,
-      total: row.electricity + row.water + row.thermal,
-    }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 6)
+  }
+
+  // ── 1Y: rolling latest 7 months ──────────────────────────────────────────
+if (normalizedRows.length > 0) {
+  const now = new Date()
+
+  const buckets = []
+
+  // build latest 7 months including previous year if needed
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+
+    buckets.push({
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      t: d.toLocaleDateString('en-US', {
+        month: 'short',
+      }),
+      electricity: 0,
+      water: 0,
+      thermal: 0,
+    })
+  }
+
+  normalizedRows.forEach((row) => {
+    const bucket = buckets.find(
+      (b) =>
+        b.year === row.date.getFullYear() &&
+        b.month === row.date.getMonth()
+    )
+
+    if (bucket) {
+      bucket.electricity += row.electricity
+      bucket.water += row.water
+      bucket.thermal += row.thermal
+    }
+  })
+
+  return buckets
 }
+
+  return buildEmptyBuckets(filter)
+}
+
+function buildEmptyBuckets(filter) {
+  if (isSevenDayFilter(filter)) {
+    const today = new Date()
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today)
+      d.setDate(today.getDate() - (6 - i))
+      return { t: d.toLocaleDateString('en-US', { weekday: 'short' }), electricity: 0, water: 0, thermal: 0 }
+    })
+  }
+  if (filter === '1M') {
+    return ['Week 1', 'Week 2', 'Week 3', 'Week 4'].map((t) => ({ t, electricity: 0, water: 0, thermal: 0 }))
+  }
+  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    .map((t) => ({ t, electricity: 0, water: 0, thermal: 0 }))
+}
+
+// ─── Utility card trend (same pattern as superadmin/admin) ───────────────────
 
 function computeSeriesTrend(rows = [], key) {
   if (!Array.isArray(rows) || rows.length < 2) return 0
   const last = safeNumber(rows[rows.length - 1]?.[key])
   const prev = safeNumber(rows[rows.length - 2]?.[key])
-  if (prev === 0) {
-    if (last === 0) return 0
-    return 100
-  }
+  if (prev === 0) return last === 0 ? 0 : 100
   return Number((((last - prev) / prev) * 100).toFixed(1))
 }
 
-function parseDateValue(value) {
-  if (!value) return null
-  const direct = new Date(value)
-  if (!Number.isNaN(direct.getTime())) return direct
-  const fallback = new Date(String(value).replace(/-/g, '/'))
-  return Number.isNaN(fallback.getTime()) ? null : fallback
+// ─── Area comparison ─────────────────────────────────────────────────────────
+
+function buildAreaUsageRows(rows = []) {
+  return rows
+    .map((row, i) => ({
+      name: getAreaLabel(row, i),
+      electricity: safeNumber(row.electricity),
+      water: safeNumber(row.water),
+      thermal: safeNumber(row.thermal),
+    }))
+    .filter((row) => row.electricity > 0 || row.water > 0 || row.thermal > 0)
+    .map((row) => ({ ...row, total: row.electricity + row.water + row.thermal }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6)
 }
+
+// ─── Maintenance trend ────────────────────────────────────────────────────────
 
 function buildMaintenanceTrend(filter, tickets) {
   const now = new Date()
   const normalized = Array.isArray(tickets) ? tickets : []
 
-  if (filter === '1D') {
-    const labels = Array.from({ length: 7 }, (_, index) => {
+  if (isSevenDayFilter(filter)) {
+    const labels = Array.from({ length: 7 }, (_, i) => {
       const date = new Date(now)
-      date.setDate(now.getDate() - (6 - index))
+      date.setDate(now.getDate() - (6 - i))
       return {
         key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
         label: date.toLocaleDateString('en-US', { weekday: 'short' }),
       }
     })
-
     return labels.map(({ key, label }) => {
       const bucket = { t: label, open: 0, inProgress: 0, resolved: 0 }
       normalized.forEach((ticket) => {
@@ -287,68 +276,43 @@ function buildMaintenanceTrend(filter, tickets) {
   }
 
   if (filter === '1M') {
-    const latestTicketDate = normalized
-      .map((ticket) => parseDateValue(ticket.date || ticket.created_at || ticket.updated_at))
-      .filter(Boolean)
-      .sort((left, right) => left - right)
-      .at(-1)
-
-    const monthDate = latestTicketDate || now
-    const buckets = Array.from({ length: 4 }, (_, index) => ({
-      t: `Week ${index + 1}`,
-      open: 0,
-      inProgress: 0,
-      resolved: 0,
-    }))
-
+    const buckets = Array.from({ length: 4 }, (_, i) => ({ t: `Week ${i + 1}`, open: 0, inProgress: 0, resolved: 0 }))
     normalized.forEach((ticket) => {
       const date = parseDateValue(ticket.date || ticket.created_at || ticket.updated_at)
       if (!date) return
-      if (date.getMonth() !== monthDate.getMonth() || date.getFullYear() !== monthDate.getFullYear()) return
-
+      if (date.getMonth() !== now.getMonth() || date.getFullYear() !== now.getFullYear()) return
       const weekIndex = Math.min(3, Math.floor((date.getDate() - 1) / 7))
       const bucket = buckets[weekIndex]
       if (ticket.status === 'resolved') bucket.resolved += 1
       else if (ticket.status === 'in-progress') bucket.inProgress += 1
       else bucket.open += 1
     })
-
     return buckets
   }
 
-  // 1Y
-  const year = normalized
-    .map((ticket) => parseDateValue(ticket.date || ticket.created_at || ticket.updated_at))
-    .filter(Boolean)
-    .sort((left, right) => left - right)
-    .at(-1)?.getFullYear() || now.getFullYear()
-
-  const buckets = Array.from({ length: 4 }, (_, index) => ({
-    t: `Q${index + 1}`,
-    open: 0,
-    inProgress: 0,
-    resolved: 0,
-  }))
-
+  // 1Y → quarterly
+  const buckets = Array.from({ length: 4 }, (_, i) => ({ t: `Q${i + 1}`, open: 0, inProgress: 0, resolved: 0 }))
   normalized.forEach((ticket) => {
     const date = parseDateValue(ticket.date || ticket.created_at || ticket.updated_at)
-    if (!date || date.getFullYear() !== year) return
-    const quarterIndex = Math.floor(date.getMonth() / 3)
-    const bucket = buckets[quarterIndex]
+    if (!date || date.getFullYear() !== now.getFullYear()) return
+    const qi = Math.floor(date.getMonth() / 3)
+    const bucket = buckets[qi]
     if (ticket.status === 'resolved') bucket.resolved += 1
     else if (ticket.status === 'in-progress') bucket.inProgress += 1
     else bucket.open += 1
   })
-
   return buckets
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FacilityDashboard() {
   const pageLoading = usePageLoader(800)
   const { addToast } = useApp()
   const { isDark } = useTheme()
   const { rates: billingRates } = useAdminRates()
-  const [filter, setFilter] = useState('1M')
+
+  const [filter, setFilter] = useState('7D')
   const [utilityFocus, setUtilityFocus] = useState('all')
   const [showTicketForm, setShowTicketForm] = useState(false)
   const [ticketForm, setTicketForm] = useState(EMPTY_TICKET)
@@ -358,99 +322,106 @@ export default function FacilityDashboard() {
   const maintenance = useFacilityMaintenance()
   const equipment = useFacilityEquipment()
 
-  const coreLoading = pageLoading
-    || (monitoring.loading && monitoring.floorData.length === 0 && monitoring.liveData.length === 0 && !monitoring.error)
-    || (consumption.loading && consumption.trendData.length === 0 && !consumption.error)
+  // Loading states
+  const coreLoading =
+    pageLoading ||
+    (monitoring.loading && monitoring.floorData.length === 0 && monitoring.liveData.length === 0 && !monitoring.error) ||
+    (consumption.loading && consumption.trendData.length === 0 && !consumption.error)
   const isInitialLoading = coreLoading
   const isRefreshing = !isInitialLoading && (monitoring.loading || consumption.loading || maintenance.loading || equipment.loading)
 
+  // ── Chart data ──────────────────────────────────────────────────────────────
   const chartData = useMemo(
-    () => mapTrendData(filter, consumption.trendData, consumption.summary),
-    [consumption.summary, consumption.trendData, filter]
+    () => mapTrendData(filter, consumption.trendData),
+    [filter, consumption.trendData],
   )
-  const activeAlerts = monitoring.floorData.filter((row) => row.status === 'alert' || row.status === 'high')
-  const recentTickets = maintenance.tickets.slice(0, 6)
-  const recentFloors = monitoring.floorData.slice(0, 6)
-  const utilityTrendData = useMemo(() => (
-    chartData.map((row) => ({
+
+  const utilityTrendData = useMemo(
+    () => chartData.map((row) => ({
       ...row,
       combined: safeNumber(row.electricity) + safeNumber(row.water) + safeNumber(row.thermal),
-    }))
-  ), [chartData])
+    })),
+    [chartData],
+  )
 
+  // ── Utility cards ───────────────────────────────────────────────────────────
+  
   const utilityMeters = useMemo(() => {
-    const totals = {
-      electricity: safeNumber(consumption.summary.electricity),
-      water: safeNumber(consumption.summary.water),
-      thermal: safeNumber(consumption.summary.thermal),
-    }
+    const elecSeriesTotal = utilityTrendData.reduce((s, r) => s + safeNumber(r.electricity), 0)
+    const waterSeriesTotal = utilityTrendData.reduce((s, r) => s + safeNumber(r.water), 0)
+    const thermalSeriesTotal = utilityTrendData.reduce((s, r) => s + safeNumber(r.thermal), 0)
+
+    const elecUsage = elecSeriesTotal > 0 ? elecSeriesTotal : safeNumber(consumption.summary.electricity)
+    const waterUsage = waterSeriesTotal > 0 ? waterSeriesTotal : safeNumber(consumption.summary.water)
+    const thermalUsage = thermalSeriesTotal > 0 ? thermalSeriesTotal : safeNumber(consumption.summary.thermal)
 
     return {
       electric: buildUtilityCardMetric({
         type: 'electricity',
-        usage: totals.electricity,
-        fallbackEstimatedCost: totals.electricity,
-        rates: billingRates,
-        trend: computeSeriesTrend(utilityTrendData, 'electricity'),
+        usage: elecUsage,
         unit: 'kWh',
+        trend: computeSeriesTrend(utilityTrendData, 'electricity'),
+        rates: billingRates,
+        fallbackEstimatedCost: elecUsage,
+        series: utilityTrendData.map((r) => ({ label: r.t, value: safeNumber(r.electricity) })),
       }),
       water: buildUtilityCardMetric({
         type: 'water',
-        usage: totals.water,
-        fallbackEstimatedCost: totals.water,
-        rates: billingRates,
-        trend: computeSeriesTrend(utilityTrendData, 'water'),
+        usage: waterUsage,
         unit: 'm3',
+        trend: computeSeriesTrend(utilityTrendData, 'water'),
+        rates: billingRates,
+        fallbackEstimatedCost: waterUsage,
+        series: utilityTrendData.map((r) => ({ label: r.t, value: safeNumber(r.water) })),
       }),
       thermal: buildUtilityCardMetric({
         type: 'thermal',
-        usage: totals.thermal,
-        fallbackEstimatedCost: totals.thermal,
-        rates: billingRates,
-        trend: computeSeriesTrend(utilityTrendData, 'thermal'),
+        usage: thermalUsage,
         unit: 'kBTU',
+        trend: computeSeriesTrend(utilityTrendData, 'thermal'),
+        rates: billingRates,
+        fallbackEstimatedCost: thermalUsage,
+        series: utilityTrendData.map((r) => ({ label: r.t, value: safeNumber(r.thermal) })),
       }),
     }
-  }, [billingRates, consumption.summary.electricity, consumption.summary.thermal, consumption.summary.water, utilityTrendData])
+  }, [billingRates, consumption.summary, utilityTrendData])
+
+  // ── Other memos ─────────────────────────────────────────────────────────────
+  const activeAlerts = monitoring.floorData.filter((row) => row.status === 'alert' || row.status === 'high')
+  const recentTickets = maintenance.tickets.slice(0, 6)
+  const recentFloors = monitoring.floorData.slice(0, 6)
 
   const utilityDistributionData = useMemo(() => ([
-    { name: 'Electricity', value: safeNumber(consumption.summary.electricity), color: '#f59e0b' },
-    { name: 'Water', value: safeNumber(consumption.summary.water), color: '#06b6d4' },
-    { name: 'Thermal', value: safeNumber(consumption.summary.thermal), color: '#f43f5e' },
-  ]), [consumption.summary.electricity, consumption.summary.water, consumption.summary.thermal])
+    { name: 'Electricity', value: safeNumber(utilityMeters.electric.usage), color: '#f59e0b' },
+    { name: 'Water', value: safeNumber(utilityMeters.water.usage), color: '#06b6d4' },
+    { name: 'Thermal', value: safeNumber(utilityMeters.thermal.usage), color: '#f43f5e' },
+  ]), [utilityMeters])
 
   const anomalyTrendData = useMemo(() => {
-    const averages = utilityTrendData.reduce((acc, row) => ({
-      electricity: acc.electricity + safeNumber(row.electricity),
-      water: acc.water + safeNumber(row.water),
-      thermal: acc.thermal + safeNumber(row.thermal),
-    }), { electricity: 0, water: 0, thermal: 0 })
-
     const count = utilityTrendData.length || 1
-    const mean = {
-      electricity: averages.electricity / count,
-      water: averages.water / count,
-      thermal: averages.thermal / count,
-    }
+    const avg = utilityTrendData.reduce(
+      (acc, row) => ({
+        electricity: acc.electricity + safeNumber(row.electricity),
+        water: acc.water + safeNumber(row.water),
+        thermal: acc.thermal + safeNumber(row.thermal),
+      }),
+      { electricity: 0, water: 0, thermal: 0 },
+    )
+    const mean = { electricity: avg.electricity / count, water: avg.water / count, thermal: avg.thermal / count }
 
-    return utilityTrendData.map((row) => {
-      const warningCount = [
+    return utilityTrendData.map((row) => ({
+      t: row.t,
+      warnings: [
         safeNumber(row.electricity) > mean.electricity * 1.08,
         safeNumber(row.water) > mean.water * 1.08,
         safeNumber(row.thermal) > mean.thermal * 1.08,
-      ].filter(Boolean).length
-      const criticalCount = [
+      ].filter(Boolean).length,
+      critical: [
         safeNumber(row.electricity) > mean.electricity * 1.18,
         safeNumber(row.water) > mean.water * 1.18,
         safeNumber(row.thermal) > mean.thermal * 1.18,
-      ].filter(Boolean).length
-
-      return {
-        t: row.t,
-        warnings: warningCount,
-        critical: criticalCount,
-      }
-    })
+      ].filter(Boolean).length,
+    }))
   }, [utilityTrendData])
 
   const maintenanceTrendData = useMemo(
@@ -462,90 +433,46 @@ export default function FacilityDashboard() {
     { name: 'Online', value: equipment.stats.online, color: STATUS_COLORS.online },
     { name: 'Warning', value: equipment.stats.warning, color: STATUS_COLORS.warning },
     { name: 'Offline', value: equipment.stats.offline, color: STATUS_COLORS.offline },
-  ]), [equipment.stats.offline, equipment.stats.online, equipment.stats.warning])
+  ]), [equipment.stats])
 
   const equipmentAttentionList = useMemo(() => (
     equipment.meters
-      .filter((meter) => meter.status === 'offline' || meter.status === 'warning')
+      .filter((m) => m.status === 'offline' || m.status === 'warning')
       .slice(0, 4)
-      .map((meter, index) => ({
-        id: meter.id || meter.meter_id || index,
-        label: meter.name || meter.meter_name || meter.serial_number || `Meter ${index + 1}`,
-        location: meter.location || meter.floor || meter.zone || 'Facility zone',
-        status: meter.status || 'warning',
-        lastReading: meter.last_reading_at || meter.lastReading || meter.last_reading || 'No recent reading',
+      .map((m, i) => ({
+        id: m.id || m.meter_id || i,
+        label: m.name || m.meter_name || m.serial_number || `Meter ${i + 1}`,
+        location: m.location || m.floor || m.zone || 'Facility zone',
+        status: m.status || 'warning',
+        lastReading: m.last_reading_at || m.lastReading || m.last_reading || 'No recent reading',
       }))
   ), [equipment.meters])
 
-  const areaComparisonData = useMemo(() => (
-    (() => {
-      const consumptionRows = buildAreaUsageRows(consumption.unitConsumption)
-      if (consumptionRows.length > 0) {
-        return consumptionRows
-      }
+  const areaComparisonData = useMemo(() => {
+    const consumptionRows = buildAreaUsageRows(consumption.unitConsumption)
+    if (consumptionRows.length > 0) return consumptionRows
 
-      const floorRows = buildAreaUsageRows(monitoring.floorData)
-      if (floorRows.length > 0) {
-        return floorRows
-      }
+    const floorRows = buildAreaUsageRows(monitoring.floorData)
+    if (floorRows.length > 0) return floorRows
 
-      const groupedAreas = monitoring.actualReadings.reduce((acc, reading, index) => {
-        const name = getAreaLabel(reading, index)
-        const utilityType = mapUtilityType(reading.type)
-        if (!utilityType) return acc
+    const grouped = monitoring.actualReadings.reduce((acc, reading, i) => {
+      const name = getAreaLabel(reading, i)
+      const utilityType = mapUtilityType(reading.type)
+      if (!utilityType) return acc
+      const current = acc.get(name) || { name, electricity: 0, water: 0, thermal: 0 }
+      current[utilityType] += safeNumber(reading.usage_value ?? reading.latest_usage)
+      acc.set(name, current)
+      return acc
+    }, new Map())
 
-        const current = acc.get(name) || {
-          name,
-          electricity: 0,
-          water: 0,
-          thermal: 0,
-        }
+    return Array.from(grouped.values())
+      .map((row) => ({ ...row, total: row.electricity + row.water + row.thermal }))
+      .filter((row) => row.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6)
+  }, [consumption.unitConsumption, monitoring.actualReadings, monitoring.floorData])
 
-        current[utilityType] += safeNumber(reading.usage_value ?? reading.latest_usage)
-        acc.set(name, current)
-        return acc
-      }, new Map())
-
-      return Array.from(groupedAreas.values())
-        .map((row) => ({
-          ...row,
-          total: row.electricity + row.water + row.thermal,
-        }))
-        .filter((row) => row.total > 0)
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 6)
-    })()
-  ), [consumption.unitConsumption, monitoring.actualReadings, monitoring.floorData])
-
-  const handleCreateTicket = async () => {
-    if (!ticketForm.title.trim()) {
-      addToast('Issue title is required.', 'error')
-      return
-    }
-
-    const result = await maintenance.createTicket({
-      title: ticketForm.title,
-      type: ticketForm.type,
-      priority: ticketForm.priority,
-      technician: ticketForm.technician === 'Unassigned' ? '' : ticketForm.technician,
-      status: ticketForm.status,
-    })
-
-    addToast(result.message, result.success ? 'success' : 'error')
-    if (result.success) {
-      setTicketForm(EMPTY_TICKET)
-      setShowTicketForm(false)
-    }
-  }
-
-  const handleTicketStatus = async (ticketId, status) => {
-    const result = await maintenance.updateStatus(ticketId, status)
-    addToast(result.message, result.success ? 'success' : 'error')
-  }
-
-  const utilityFocusConfig = UTILITY_FOCUS[utilityFocus] || UTILITY_FOCUS.all
-  const distributionTotal = utilityDistributionData.reduce((sum, row) => sum + row.value, 0)
-
+  // ── Summary strips ───────────────────────────────────────────────────────────
   const summaryTop = [
     {
       label: 'Monitored Floors',
@@ -592,7 +519,7 @@ export default function FacilityDashboard() {
   const summaryToday = [
     {
       label: 'Electricity Today',
-      value: `${Math.round(consumption.summary.electricity).toLocaleString()} kWh`,
+      value: `${Math.round(utilityMeters.electric.usage).toLocaleString()} kWh`,
       icon: Zap,
       gradient: 'from-yellow-400 to-amber-500',
       shadow: 'shadow-yellow-500/25',
@@ -602,17 +529,17 @@ export default function FacilityDashboard() {
     },
     {
       label: 'Water Today',
-      value: `${Math.round(consumption.summary.water).toLocaleString()} m3`,
+      value: `${Math.round(utilityMeters.water.usage).toLocaleString()} m3`,
       icon: Droplets,
       gradient: 'from-cyan-500 to-blue-500',
       shadow: 'shadow-cyan-500/25',
-      trend: `${activeAlerts.filter((row) => row.status === 'high').length} floors high`,
-      trendUp: activeAlerts.filter((row) => row.status === 'high').length > 0,
+      trend: `${activeAlerts.filter((r) => r.status === 'high').length} floors high`,
+      trendUp: activeAlerts.filter((r) => r.status === 'high').length > 0,
       sub: 'Rolling 24h estimate',
     },
     {
       label: 'Thermal Energy',
-      value: `${Math.round(consumption.summary.thermal).toLocaleString()} kBTU`,
+      value: `${Math.round(utilityMeters.thermal.usage).toLocaleString()} kBTU`,
       icon: Flame,
       gradient: 'from-rose-400 to-red-500',
       shadow: 'shadow-rose-500/25',
@@ -622,11 +549,44 @@ export default function FacilityDashboard() {
     },
   ]
 
+  // ── Ticket handlers ──────────────────────────────────────────────────────────
+  const handleCreateTicket = async () => {
+    if (!ticketForm.title.trim()) {
+      addToast('Issue title is required.', 'error')
+      return
+    }
+    const result = await maintenance.createTicket({
+      title: ticketForm.title,
+      type: ticketForm.type,
+      priority: ticketForm.priority,
+      technician: ticketForm.technician === 'Unassigned' ? '' : ticketForm.technician,
+      status: ticketForm.status,
+    })
+    addToast(result.message, result.success ? 'success' : 'error')
+    if (result.success) {
+      setTicketForm(EMPTY_TICKET)
+      setShowTicketForm(false)
+    }
+  }
+
+  const handleTicketStatus = async (ticketId, status) => {
+    const result = await maintenance.updateStatus(ticketId, status)
+    addToast(result.message, result.success ? 'success' : 'error')
+  }
+
+  const utilityFocusConfig = UTILITY_FOCUS[utilityFocus] || UTILITY_FOCUS.all
+  const distributionTotal = utilityDistributionData.reduce((sum, row) => sum + row.value, 0)
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="section-gap animate-in pb-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="page-title flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-500" />Facility Dashboard</h1>
+          <h1 className="page-title flex items-center gap-2">
+            <Activity className="w-5 h-5 text-emerald-500" />
+            Facility Dashboard
+          </h1>
           <p className="muted-text mt-0.5">Real-time building operations and utility monitoring</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -635,24 +595,30 @@ export default function FacilityDashboard() {
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>
           </div>
-          <FilterPills options={['7D', '1M', '1Y']} value={filter} onChange={setFilter} />
+          {/* ✅ Single filter drives everything — utility cards, charts, maintenance */}
+          <FilterPills options={FILTER_OPTIONS} value={filter} onChange={setFilter} />
         </div>
       </div>
 
+      {/* Error banner */}
       {(monitoring.error || consumption.error || maintenance.error || equipment.error) && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {monitoring.error || consumption.error || maintenance.error || equipment.error}
         </div>
       )}
 
+      {/* Utility cards — now react to filter */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <UtilityCard type="electric" {...utilityMeters.electric} loading={isInitialLoading} updating={isRefreshing} />
         <UtilityCard type="thermal" {...utilityMeters.thermal} loading={isInitialLoading} updating={isRefreshing} />
         <UtilityCard type="water" {...utilityMeters.water} loading={isInitialLoading} updating={isRefreshing} />
       </div>
 
-      <SummaryCardStrip cards={[...summaryTop, ...summaryToday].map((card) => ({ ...card, loading: isInitialLoading, updating: isRefreshing }))} />
+      <SummaryCardStrip
+        cards={[...summaryTop, ...summaryToday].map((card) => ({ ...card, loading: isInitialLoading, updating: isRefreshing }))}
+      />
 
+      {/* Trend + Distribution */}
       <div className="grid gap-4 lg:grid-cols-5">
         <ChartCard
           className="lg:col-span-3"
@@ -661,7 +627,7 @@ export default function FacilityDashboard() {
           exportRows={utilityTrendData}
           loading={isInitialLoading && utilityTrendData.length === 0}
           updating={isRefreshing}
-          subtitle={`${isSevenDayFilter(filter) ? 'Daily (7 days)' : filter === '1M' ? 'Monthly (4 weeks)' : 'Yearly (12 months)'} operational view across facility utilities`}
+          subtitle={`${isSevenDayFilter(filter) ? 'Daily (7 days)' : filter === '1M' ? 'Monthly (4 weeks)' : 'Yearly (12 months)'} operational view`}
           accentHex={utilityFocusConfig.color}
           action={(
             <div className="flex flex-wrap items-center gap-1">
@@ -688,14 +654,7 @@ export default function FacilityDashboard() {
                 <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
                 <XAxis dataKey="t" tick={CHART_AXIS_TICK_SM} />
                 <YAxis tick={CHART_AXIS_TICK_SM} tickFormatter={formatChartNumber} />
-                <Tooltip
-                  content={(
-                    <ThemedChartTooltip
-                      isDark={isDark}
-                      formatter={(value, name) => [formatChartNumber(value), name]}
-                    />
-                  )}
-                />
+                <Tooltip content={<ThemedChartTooltip isDark={isDark} formatter={(v, n) => [formatChartNumber(v), n]} />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Line type="monotone" dataKey="electricity" stroke="#f59e0b" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} name="Electricity" />
                 <Line type="monotone" dataKey="water" stroke="#06b6d4" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} name="Water" />
@@ -720,14 +679,7 @@ export default function FacilityDashboard() {
                 <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
                 <XAxis dataKey="t" tick={CHART_AXIS_TICK_SM} />
                 <YAxis tick={CHART_AXIS_TICK_SM} tickFormatter={formatChartNumber} />
-                <Tooltip
-                  content={(
-                    <ThemedChartTooltip
-                      isDark={isDark}
-                      formatter={(value, name) => [formatChartNumber(value), name]}
-                    />
-                  )}
-                />
+                <Tooltip content={<ThemedChartTooltip isDark={isDark} formatter={(v, n) => [formatChartNumber(v), n]} />} />
                 <Area
                   type="monotone"
                   dataKey={utilityFocus}
@@ -746,7 +698,7 @@ export default function FacilityDashboard() {
           title="Consumption Distribution"
           exportable
           exportRows={utilityDistributionData}
-          loading={isInitialLoading && utilityDistributionData.every((item) => Number(item.value || 0) === 0)}
+          loading={isInitialLoading && utilityDistributionData.every((item) => item.value === 0)}
           updating={isRefreshing}
           subtitle="Current utility mix across the facility"
         >
@@ -755,29 +707,22 @@ export default function FacilityDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={utilityDistributionData} dataKey="value" cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={3}>
-                    {utilityDistributionData.map((entry, index) => (
-                      <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    {utilityDistributionData.map((entry, i) => (
+                      <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    content={(
-                      <ThemedChartTooltip
-                        isDark={isDark}
-                        formatter={(value, name) => [formatChartNumber(value), name]}
-                      />
-                    )}
-                  />
+                  <Tooltip content={<ThemedChartTooltip isDark={isDark} formatter={(v, n) => [formatChartNumber(v), n]} />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
             <div className="flex-1 space-y-3">
-              {utilityDistributionData.map((item, index) => {
+              {utilityDistributionData.map((item, i) => {
                 const share = distributionTotal ? Math.round((item.value / distributionTotal) * 100) : 0
                 return (
                   <div key={item.name} className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-white/5 dark:bg-[#090c13]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{item.name}</span>
                       </div>
                       <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{share}%</span>
@@ -794,6 +739,7 @@ export default function FacilityDashboard() {
         </ChartCard>
       </div>
 
+      {/* Anomaly + Equipment + Maintenance */}
       <div className="grid gap-4 xl:grid-cols-12">
         <ChartCard
           className="xl:col-span-4"
@@ -810,14 +756,7 @@ export default function FacilityDashboard() {
               <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
               <XAxis dataKey="t" tick={CHART_AXIS_TICK} />
               <YAxis allowDecimals={false} tick={CHART_AXIS_TICK} />
-              <Tooltip
-                content={(
-                  <ThemedChartTooltip
-                    isDark={isDark}
-                    formatter={(value, name) => [formatChartNumber(value), name]}
-                  />
-                )}
-              />
+              <Tooltip content={<ThemedChartTooltip isDark={isDark} formatter={(v, n) => [formatChartNumber(v), n]} />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line type="monotone" dataKey="warnings" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} name="Warnings" />
               <Line type="monotone" dataKey="critical" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 3 }} name="Critical" />
@@ -839,7 +778,7 @@ export default function FacilityDashboard() {
           className="xl:col-span-4"
           title="Equipment Status Overview"
           subtitle="Operational health of meters and monitored devices"
-          loading={isInitialLoading && equipmentStatusData.every((item) => Number(item.value || 0) === 0)}
+          loading={isInitialLoading && equipmentStatusData.every((item) => item.value === 0)}
           updating={isRefreshing}
         >
           <div className="grid grid-cols-3 gap-3">
@@ -867,8 +806,7 @@ export default function FacilityDashboard() {
                     meter.status === 'offline'
                       ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
                       : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                  }`}
-                  >
+                  }`}>
                     {meter.status}
                   </span>
                   <p className="mt-1 text-[10px] text-slate-400">{meter.lastReading}</p>
@@ -893,14 +831,7 @@ export default function FacilityDashboard() {
               <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
               <XAxis dataKey="t" tick={CHART_AXIS_TICK} />
               <YAxis allowDecimals={false} tick={CHART_AXIS_TICK} />
-              <Tooltip
-                content={(
-                  <ThemedChartTooltip
-                    isDark={isDark}
-                    formatter={(value, name) => [formatChartNumber(value), name]}
-                  />
-                )}
-              />
+              <Tooltip content={<ThemedChartTooltip isDark={isDark} formatter={(v, n) => [formatChartNumber(v), n]} />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="open" stackId="maintenance" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Open" />
               <Bar dataKey="inProgress" stackId="maintenance" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="In Progress" />
@@ -924,6 +855,7 @@ export default function FacilityDashboard() {
         </ChartCard>
       </div>
 
+      {/* Area comparison */}
       <ChartCard
         title="Building / Floor / Zone Comparison"
         exportable
@@ -938,14 +870,7 @@ export default function FacilityDashboard() {
             <CartesianGrid {...CHART_GRID_PROPS_LIGHT} />
             <XAxis type="number" tick={CHART_AXIS_TICK} tickFormatter={formatChartNumber} />
             <YAxis type="category" dataKey="name" tick={CHART_AXIS_TICK} width={86} />
-            <Tooltip
-              content={(
-                <ThemedChartTooltip
-                  isDark={isDark}
-                  formatter={(value, name) => [formatChartNumber(value), name]}
-                />
-              )}
-            />
+            <Tooltip content={<ThemedChartTooltip isDark={isDark} formatter={(v, n) => [formatChartNumber(v), n]} />} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="electricity" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Electricity" />
             <Bar dataKey="water" fill="#06b6d4" radius={[0, 4, 4, 0]} name="Water" />
@@ -954,6 +879,7 @@ export default function FacilityDashboard() {
         </ResponsiveContainer>
       </ChartCard>
 
+      {/* Floor monitoring table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-md overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex-wrap gap-2">
           <div>
@@ -966,8 +892,8 @@ export default function FacilityDashboard() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                {['Floor', 'Electricity', 'Water', 'Thermal', 'Status'].map((header) => (
-                  <th key={header} className="text-left px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 whitespace-nowrap">{header}</th>
+                {['Floor', 'Electricity', 'Water', 'Thermal', 'Status'].map((h) => (
+                  <th key={h} className="text-left px-4 py-3 text-[10px] font-mono uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -997,7 +923,9 @@ export default function FacilityDashboard() {
         </div>
       </div>
 
+      {/* Live alerts + Maintenance tickets */}
       <div className="grid lg:grid-cols-2 gap-4">
+        {/* Live alerts */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-md overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
             <div>
@@ -1006,9 +934,17 @@ export default function FacilityDashboard() {
             </div>
           </div>
           <div className="p-5 space-y-3">
-            <div className={`rounded-xl border px-4 py-3 ${monitoring.anomaly?.severity === 'alert' ? 'border-rose-200 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-700/40' : monitoring.anomaly?.severity === 'high' ? 'border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/40' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700/40'}`}>
+            <div className={`rounded-xl border px-4 py-3 ${
+              monitoring.anomaly?.severity === 'alert'
+                ? 'border-rose-200 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-700/40'
+                : monitoring.anomaly?.severity === 'high'
+                  ? 'border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/40'
+                  : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700/40'
+            }`}>
               <p className="font-semibold text-slate-800 dark:text-white">{monitoring.anomaly?.title || 'No anomaly detected'}</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{monitoring.anomaly?.message || 'All monitored floors are within expected ranges.'}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {monitoring.anomaly?.message || 'All monitored floors are within expected ranges.'}
+              </p>
             </div>
             {activeAlerts.length === 0 ? (
               <p className="text-sm text-slate-400">No active floor alerts right now.</p>
@@ -1016,21 +952,29 @@ export default function FacilityDashboard() {
               <div key={row.floor} className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-4 py-3">
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{row.floor}</p>
-                  <p className="text-[11px] text-slate-400">Electric {Number(row.electricity || 0).toLocaleString()} · Water {Number(row.water || 0).toLocaleString()} · Thermal {Number(row.thermal || 0).toLocaleString()}</p>
+                  <p className="text-[11px] text-slate-400">
+                    Electric {Number(row.electricity || 0).toLocaleString()} · Water {Number(row.water || 0).toLocaleString()} · Thermal {Number(row.thermal || 0).toLocaleString()}
+                  </p>
                 </div>
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${floorStatusCls[row.status] || floorStatusCls.normal}`}>{row.status}</span>
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${floorStatusCls[row.status] || floorStatusCls.normal}`}>
+                  {row.status}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
+        {/* Maintenance tickets */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-md overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h2 className="font-semibold text-[15px] text-slate-800 dark:text-white">Recent Maintenance</h2>
               <p className="text-[11px] text-slate-400 mt-0.5">Latest facility tickets and status</p>
             </div>
-            <button onClick={() => setShowTicketForm((value) => !value)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition-all">
+            <button
+              onClick={() => setShowTicketForm((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition-all"
+            >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Create Ticket</span>
             </button>
@@ -1038,20 +982,29 @@ export default function FacilityDashboard() {
 
           {showTicketForm && (
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-4">
-              <input value={ticketForm.title} onChange={(e) => setTicketForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Issue title" className={inputCls} />
+              <input
+                value={ticketForm.title}
+                onChange={(e) => setTicketForm((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Issue title"
+                className={inputCls}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <select value={ticketForm.type} onChange={(e) => setTicketForm((prev) => ({ ...prev, type: e.target.value }))} className={inputCls}>
-                  {['Electrical', 'Plumbing', 'Thermal', 'HVAC', 'Structural', 'Other'].map((type) => <option key={type}>{type}</option>)}
+                  {['Electrical', 'Plumbing', 'Thermal', 'HVAC', 'Structural', 'Other'].map((t) => <option key={t}>{t}</option>)}
                 </select>
                 <select value={ticketForm.priority} onChange={(e) => setTicketForm((prev) => ({ ...prev, priority: e.target.value }))} className={inputCls}>
-                  {['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority}>{priority}</option>)}
+                  {['low', 'medium', 'high', 'critical'].map((p) => <option key={p}>{p}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <select value={ticketForm.technician} onChange={(e) => setTicketForm((prev) => ({ ...prev, technician: e.target.value }))} className={inputCls}>
-                  {TECHNICIANS.map((technician) => <option key={technician}>{technician}</option>)}
+                  {TECHNICIANS.map((t) => <option key={t}>{t}</option>)}
                 </select>
-                <button onClick={handleCreateTicket} disabled={maintenance.saving} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all disabled:opacity-50">
+                <button
+                  onClick={handleCreateTicket}
+                  disabled={maintenance.saving}
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all disabled:opacity-50"
+                >
                   {maintenance.saving ? 'Creating...' : 'Save Ticket'}
                 </button>
               </div>
@@ -1061,9 +1014,11 @@ export default function FacilityDashboard() {
           <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 380 }}>
             <table className="w-full text-xs min-w-[560px]">
               <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/90 backdrop-blur border-b border-slate-100 dark:border-slate-800">
-                <tr>{['ID', 'Issue', 'Type', 'Technician', 'Status', 'Date'].map((header) => (
-                  <th key={header} className="text-left px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 whitespace-nowrap">{header}</th>
-                ))}</tr>
+                <tr>
+                  {['ID', 'Issue', 'Type', 'Technician', 'Status', 'Date'].map((h) => (
+                    <th key={h} className="text-left px-4 py-2.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {recentTickets.length === 0 ? (
@@ -1073,11 +1028,17 @@ export default function FacilityDashboard() {
                 ) : recentTickets.map((ticket) => (
                   <tr key={ticket.ticket_id || ticket.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3 font-mono text-slate-400 whitespace-nowrap">{ticket.id}</td>
-                    <td className="px-4 py-3 max-w-[150px]"><p className="truncate font-medium text-slate-700 dark:text-slate-200">{ticket.title}</p></td>
+                    <td className="px-4 py-3 max-w-[150px]">
+                      <p className="truncate font-medium text-slate-700 dark:text-slate-200">{ticket.title}</p>
+                    </td>
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{ticket.type}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{ticket.technician || 'Unassigned'}</td>
                     <td className="px-4 py-3">
-                      <select value={ticket.status} onChange={(e) => handleTicketStatus(ticket.ticket_id, e.target.value)} className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border-0 outline-none cursor-pointer ${ticketStatusCls[ticket.status] || ticketStatusCls.open}`}>
+                      <select
+                        value={ticket.status}
+                        onChange={(e) => handleTicketStatus(ticket.ticket_id, e.target.value)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border-0 outline-none cursor-pointer ${ticketStatusCls[ticket.status] || ticketStatusCls.open}`}
+                      >
                         <option value="open">Open</option>
                         <option value="in-progress">In Progress</option>
                         <option value="resolved">Resolved</option>

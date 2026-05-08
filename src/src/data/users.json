@@ -1,7 +1,0 @@
-[
-  { "id": 0, "name": "Super Admin",      "email": "superadmin@enye.com", "password": "super123",  "role": "super_admin",      "initials": "SA", "title": "Super Administrator", "status": "active" },
-  { "id": 1, "name": "Admin Enye",       "email": "admin@enye.com",      "password": "admin123",  "role": "admin",            "initials": "AE", "title": "Administrator",       "status": "active" },
-  { "id": 2, "name": "Vince Carlo",      "email": "tenant@enye.com",     "password": "tenant123", "role": "tenant",           "initials": "VC", "title": "Tenant",              "status": "active", "tenantId": "T-001", "unit": "12F-A", "company": "ABC Corporation" },
-  { "id": 3, "name": "Facility Manager", "email": "facility@enye.com",   "password": "123456",    "role": "facility_manager", "initials": "FM", "title": "Facility Manager",    "status": "active" },
-  { "id": 4, "name": "Finance Officer",  "email": "finance@example.com", "password": "password",  "role": "finance",          "initials": "FO", "title": "Finance Officer",     "status": "active" }
-]

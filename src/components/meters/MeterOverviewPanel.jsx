@@ -34,7 +34,9 @@ export default function MeterOverviewPanel({ compact = false, meters: providedMe
   const meters = Array.isArray(providedMeters) ? providedMeters : overviewMeters
   const meterManagementPath = location.pathname.startsWith('/super-admin')
     ? '/super-admin/meters'
-    : '/admin/meters'
+    : location.pathname.startsWith('/finance')
+      ? '/finance/utility-meters'
+      : '/admin/meters'
 
   const byType = useMemo(() => {
     return Object.entries(TYPE_CONFIG).map(([type, config]) => ({

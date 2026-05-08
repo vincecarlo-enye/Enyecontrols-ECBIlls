@@ -21,6 +21,7 @@ const FinanceBillingMgmt     = lazy(() => import('@/pages/finance/BillManagement
 const FinancePaymentReview   = lazy(() => import('@/pages/finance/PaymentReview'))
 const FinanceReports         = lazy(() => import('@/pages/finance/Reports'))
 const FinanceBillingTickets  = lazy(() => import('@/pages/finance/BillingTickets'))
+
 const NotificationsPage      = lazy(() => import('@/pages/common/Notifications'))
 const ActivityLogsPage       = lazy(() => import('@/pages/common/ActivityLogs'))
 const GlobalSearchPage       = lazy(() => import('@/pages/common/GlobalSearch'))
@@ -42,6 +43,7 @@ export function financeRoutes() {
       <Route path="payment-review"  element={<FinancePaymentReview />} />
       <Route path="billing-tickets" element={<FinanceBillingTickets />} />
       <Route path="reports"         element={<FinanceReports />} />
+
       <Route path="activity-logs"   element={<ActivityLogsPage />} />
       <Route path="notifications"   element={<NotificationsPage />} />
       <Route path="search"          element={<GlobalSearchPage />} />

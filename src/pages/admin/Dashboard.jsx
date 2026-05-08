@@ -221,52 +221,31 @@ export default function Dashboard() {
       activeSeries.thermal,
     )
 
-    const electricityRows = comparisonRows.map((row) => ({ value: Number(row.electricity || 0) }))
-    const waterRows = comparisonRows.map((row) => ({ value: Number(row.water || 0) }))
-    const thermalRows = comparisonRows.map((row) => ({ value: Number(row.thermal || 0) }))
-    const electricitySeries = comparisonRows.map((row) => ({ label: row.label, value: Number(row.electricity || 0) }))
-    const waterSeries = comparisonRows.map((row) => ({ label: row.label, value: Number(row.water || 0) }))
-    const thermalSeries = comparisonRows.map((row) => ({ label: row.label, value: Number(row.thermal || 0) }))
+    const buildCard = (summaryKey, rateKey, rowKey) => {
+      const cardSummary = utilityStats?.[summaryKey] || {}
+      const values = comparisonRows.map((row) => ({
+        label: row.label,
+        value: Number(row?.[rowKey] || 0),
+      }))
+      const seriesTotal = values.reduce((sum, row) => sum + row.value, 0)
+
+      return buildUtilityCardMetric({
+        type: rateKey,
+        usage: seriesTotal > 0 ? seriesTotal : Number(cardSummary.usage ?? cardSummary.value ?? 0),
+        unit: cardSummary.unit || (summaryKey === 'electric' ? 'kWh' : summaryKey === 'thermal' ? 'kBTU' : 'm3'),
+        trend: seriesTotal > 0 ? computeUsageTrend(values) : Number(cardSummary.trend ?? cardSummary.delta ?? 0),
+        rates: billingRates,
+        fallbackEstimatedCost: Number(cardSummary.estimatedCost ?? cardSummary.cost ?? 0),
+        series: values,
+      })
+    }
 
     return {
-      electric: {
-        ...utilityStats.electric,
-        ...buildUtilityCardMetric({
-          type: 'electricity',
-          usage: electricityRows.reduce((sum, row) => sum + row.value, 0),
-          unit: utilityStats.electric?.unit || 'kWh',
-          trend: computeUsageTrend(electricityRows),
-          rates: billingRates,
-          fallbackEstimatedCost: utilityStats.electric?.estimatedCost,
-          series: electricitySeries,
-        }),
-      },
-      water: {
-        ...utilityStats.water,
-        ...buildUtilityCardMetric({
-          type: 'water',
-          usage: waterRows.reduce((sum, row) => sum + row.value, 0),
-          unit: utilityStats.water?.unit || 'm3',
-          trend: computeUsageTrend(waterRows),
-          rates: billingRates,
-          fallbackEstimatedCost: utilityStats.water?.estimatedCost,
-          series: waterSeries,
-        }),
-      },
-      thermal: {
-        ...utilityStats.thermal,
-        ...buildUtilityCardMetric({
-          type: 'thermal',
-          usage: thermalRows.reduce((sum, row) => sum + row.value, 0),
-          unit: utilityStats.thermal?.unit || 'kBTU',
-          trend: computeUsageTrend(thermalRows),
-          rates: billingRates,
-          fallbackEstimatedCost: utilityStats.thermal?.estimatedCost,
-          series: thermalSeries,
-        }),
-      },
+      electric: buildCard('electric', 'electricity', 'electricity'),
+      water: buildCard('water', 'water', 'water'),
+      thermal: buildCard('thermal', 'thermal', 'thermal'),
     }
-  }, [billingRates, comparison, comparisonFilter, daily.electric, daily.thermal, daily.water, utilityStats.electric, utilityStats.thermal, utilityStats.water])
+  }, [billingRates, comparison, comparisonFilter, daily.electric, daily.thermal, daily.water, utilityStats])
 
   const billingStatusData = useMemo(() => {
     const counts = getBillingStatusCounts(bills)

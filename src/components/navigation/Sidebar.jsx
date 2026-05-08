@@ -63,6 +63,7 @@ const financeNavItems = [
   { path: '/finance/bill-adjustments', label: 'Adjustment Ledger', icon: Receipt },
   { path: '/finance/payment-review', label: 'Payment Review', icon: CheckSquare },
   { path: '/finance/billing-tickets', label: 'Billing Tickets', icon: Ticket },
+
   { path: '/finance/reports', label: 'Financial Reports', icon: BarChart3 },
   { path: '/finance/activity-logs', label: 'Activity Logs', icon: ClipboardList },
   { path: '/finance/notifications', label: 'Notifications', icon: Bell },
