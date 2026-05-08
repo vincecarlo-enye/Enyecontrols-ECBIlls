@@ -201,6 +201,24 @@ function renderUtilityCell(entry) {
   )
 }
 
+function getReadingMeterKey(reading = {}) {
+  return String(
+    reading.meter_id ??
+    reading.meterId ??
+    reading.watch_id ??
+    reading.watchId ??
+    reading.watch_name ??
+    reading.type ??
+    reading.id
+  )
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
 export default function Monitoring() {
   const { addToast } = useApp()
   const auditPrintRef = useRef(null)
@@ -220,7 +238,6 @@ export default function Monitoring() {
     reload,
     approveReading,
     rejectReading,
-    bulkApproveReadings,
     bulkRejectReadings,
   } = useFacilityMonitoring()
   const [selected, setSelected] = useState('electricity')
@@ -415,9 +432,37 @@ export default function Monitoring() {
       return
     }
 
-    const result = await bulkApproveReadings(selectedPendingIds)
-    addToast(result.message, result.success ? 'success' : 'error')
-    if (result.success) setSelectedPendingIds([])
+    const selectedReadings = selectedPendingIds
+      .map((id) => pendingReadings.find((reading) => String(reading.id) === String(id)))
+      .filter(Boolean)
+
+    const failures = []
+    const lastApprovedByMeter = new Map()
+
+    for (const reading of selectedReadings) {
+      const meterKey = getReadingMeterKey(reading)
+      const lastApprovedAt = lastApprovedByMeter.get(meterKey) || 0
+      const elapsed = Date.now() - lastApprovedAt
+
+      if (elapsed < 1100) {
+        await wait(1100 - elapsed)
+      }
+
+      const result = await approveReading(reading.id)
+      if (!result.success) {
+        failures.push(reading)
+      } else {
+        lastApprovedByMeter.set(meterKey, Date.now())
+      }
+    }
+
+    if (failures.length > 0) {
+      addToast(`Approved ${selectedReadings.length - failures.length} reading(s). ${failures.length} failed.`, 'error')
+      return
+    }
+
+    addToast('Selected readings approved successfully.', 'success')
+    setSelectedPendingIds([])
   }
 
   const handleBulkReject = async () => {
