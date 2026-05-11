@@ -16,7 +16,7 @@ import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import PageSection, { PageHeader } from '@/components/layout/PageSection'
 import { usePageLoader } from '@/hooks/usePageLoader'
 import { buildUtilityCardMetric } from '@/utils/utilityCards'
-import { buildUtilityComparisonRows, computeUsageTrend } from '@/utils/dashboardCharts'
+import { buildUtilityComparisonRows } from '@/utils/dashboardCharts'
 import { fetchFinanceBills, fetchFinancePayments, fetchSharedRates, getFinanceBillsSnapshot, getFinancePaymentsSnapshot, getSharedRatesSnapshot } from '@/services/financeService/financeBillService'
 import { useFinanceUtilityDashboard } from '@/hooks/financeHooks/useFinanceUtilityDashboard'
 import {
@@ -837,14 +837,14 @@ export default function FinanceDashboard() {
         label: row.label,
         value: Number(row?.[rowKey] || 0),
       }))
-      const seriesTotal = values.reduce((sum, row) => sum + row.value, 0)
+      const periodConsumption = Number(cardSummary.periodConsumption ?? cardSummary.usage ?? cardSummary.value ?? 0)
 
       return buildUtilityCardMetric({
         type: rateKey,
-        usage: seriesTotal > 0 ? seriesTotal : Number(cardSummary.periodConsumption ?? cardSummary.usage ?? cardSummary.value ?? 0),
+        usage: periodConsumption,
         unit: cardSummary.unit || (summaryKey === 'electric' ? 'kWh' : summaryKey === 'thermal' ? 'kBTU' : 'm3'),
         fallbackEstimatedCost: Number(cardSummary.estimatedCost ?? cardSummary.cost ?? 0),
-        trend: seriesTotal > 0 ? computeUsageTrend(values) : Number(cardSummary.trend ?? cardSummary.delta ?? 0),
+        trend: Number(cardSummary.trend ?? cardSummary.delta ?? 0),
         rates: billingRates,
         series: values,
       })

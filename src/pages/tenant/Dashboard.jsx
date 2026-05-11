@@ -27,6 +27,7 @@ import SummaryCardStrip from '@/components/dashboard/SummaryCardStrip'
 import { useBills } from '@/components/billing/hooks/useBills'
 import { useTenantDashboardData } from '@/hooks/tenantHooks/useTenantDashboardData'
 import useTenantRates from '@/hooks/tenantHooks/useTenantRates'
+import { useTenantUtilityCards } from '@/hooks/tenantHooks/useTenantUtilityCards'
 import { LoadingValue, TableLoadingRow, UpdatingBadge } from '@/components/common/InlineLoadingState'
 
 
@@ -413,26 +414,7 @@ export default function TenantDashboard() {
     },
   ]
 
-  const utilityMeters = {
-    electric: {
-      usage: Number(electric.consumption || 0),
-      unit: electric.unit || 'kWh',
-      estimatedCost: Number((Number(electric.consumption || 0) * getRateValue(billingRates, 'electricity')).toFixed(2)),
-      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).electricity.usage || 0))),
-    },
-    water: {
-      usage: Number(water.consumption || 0),
-      unit: water.unit || 'm3',
-      estimatedCost: Number((Number(water.consumption || 0) * getRateValue(billingRates, 'water')).toFixed(2)),
-      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).water.usage || 0))),
-    },
-    thermal: {
-      usage: Number(thermal.consumption || 0),
-      unit: thermal.unit || 'kBTU',
-      estimatedCost: Number((Number(thermal.consumption || 0) * getRateValue(billingRates, 'thermal')).toFixed(2)),
-      trend: computeTrendFromValues(rangeBills.map((bill) => Number(getBillUtilityMetrics(bill, billingRates).thermal.usage || 0))),
-    },
-  }
+  const utilityMeters = useTenantUtilityCards(rangeBills, billingRates, selectedTimeRange)
   const isInitialLoading = (pageLoading || billsLoading) && bills.length === 0
   const isRefreshing = !isInitialLoading && billsLoading
 
@@ -490,7 +472,7 @@ export default function TenantDashboard() {
 
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <UtilityCard type="electric" {...utilityMeters.electric} loading={isInitialLoading} updating={isRefreshing} />
+        <UtilityCard type="electric" {...utilityMeters.electricity} loading={isInitialLoading} updating={isRefreshing} />
         <UtilityCard type="thermal" {...utilityMeters.thermal} loading={isInitialLoading} updating={isRefreshing} />
         <UtilityCard type="water" {...utilityMeters.water} loading={isInitialLoading} updating={isRefreshing} />
       </div>

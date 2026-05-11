@@ -347,13 +347,9 @@ export default function FacilityDashboard() {
   // ── Utility cards ───────────────────────────────────────────────────────────
   
   const utilityMeters = useMemo(() => {
-    const elecSeriesTotal = utilityTrendData.reduce((s, r) => s + safeNumber(r.electricity), 0)
-    const waterSeriesTotal = utilityTrendData.reduce((s, r) => s + safeNumber(r.water), 0)
-    const thermalSeriesTotal = utilityTrendData.reduce((s, r) => s + safeNumber(r.thermal), 0)
-
-    const elecUsage = elecSeriesTotal > 0 ? elecSeriesTotal : safeNumber(consumption.summary.electricity)
-    const waterUsage = waterSeriesTotal > 0 ? waterSeriesTotal : safeNumber(consumption.summary.water)
-    const thermalUsage = thermalSeriesTotal > 0 ? thermalSeriesTotal : safeNumber(consumption.summary.thermal)
+    const elecUsage = safeNumber(consumption.summary.electricity)
+    const waterUsage = safeNumber(consumption.summary.water)
+    const thermalUsage = safeNumber(consumption.summary.thermal)
 
     return {
       electric: buildUtilityCardMetric({

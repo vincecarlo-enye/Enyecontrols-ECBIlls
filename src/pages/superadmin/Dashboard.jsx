@@ -44,7 +44,6 @@ import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
 import { useAdminUtilityDashboard } from '@/hooks/adminHooks/useAdminUtilityDashboard'
 import {
   buildUtilityComparisonRows,
-  computeUsageTrend,
   normalizeDashboardBillStatus,
 } from '@/utils/dashboardCharts'
 import { buildUtilityCardMetric } from '@/utils/utilityCards'
@@ -321,13 +320,13 @@ export default function SuperAdminDashboard() {
         label: row.label,
         value: toNumber(row?.[rowKey]),
       }))
-      const seriesTotal = values.reduce((sum, row) => sum + row.value, 0)
+      const periodConsumption = toNumber(cardSummary.periodConsumption ?? cardSummary.usage ?? cardSummary.value)
 
       return buildUtilityCardMetric({
         type: rateKey,
-        usage: seriesTotal > 0 ? seriesTotal : toNumber(cardSummary.usage ?? cardSummary.value),
+        usage: periodConsumption,
         unit: cardSummary.unit || (summaryKey === 'electric' ? 'kWh' : summaryKey === 'thermal' ? 'kBTU' : 'm3'),
-        trend: seriesTotal > 0 ? computeUsageTrend(values) : toNumber(cardSummary.trend ?? cardSummary.delta),
+        trend: toNumber(cardSummary.trend ?? cardSummary.delta),
         rates: billingRates,
         fallbackEstimatedCost: toNumber(cardSummary.estimatedCost ?? cardSummary.cost),
         series: values,

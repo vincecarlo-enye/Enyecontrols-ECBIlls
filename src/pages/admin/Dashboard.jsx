@@ -21,7 +21,6 @@ import { useAdminRates } from '@/hooks/adminHooks/useAdminRates'
 import { UpdatingBadge } from '@/components/common/InlineLoadingState'
 import {
   buildUtilityComparisonRows,
-  computeUsageTrend,
   getBillingStatusCounts,
   getPaymentReviewCounts,
 } from '@/utils/dashboardCharts'
@@ -227,13 +226,13 @@ export default function Dashboard() {
         label: row.label,
         value: Number(row?.[rowKey] || 0),
       }))
-      const seriesTotal = values.reduce((sum, row) => sum + row.value, 0)
+      const periodConsumption = Number(cardSummary.periodConsumption ?? cardSummary.usage ?? cardSummary.value ?? 0)
 
       return buildUtilityCardMetric({
         type: rateKey,
-        usage: seriesTotal > 0 ? seriesTotal : Number(cardSummary.usage ?? cardSummary.value ?? 0),
+        usage: periodConsumption,
         unit: cardSummary.unit || (summaryKey === 'electric' ? 'kWh' : summaryKey === 'thermal' ? 'kBTU' : 'm3'),
-        trend: seriesTotal > 0 ? computeUsageTrend(values) : Number(cardSummary.trend ?? cardSummary.delta ?? 0),
+        trend: Number(cardSummary.trend ?? cardSummary.delta ?? 0),
         rates: billingRates,
         fallbackEstimatedCost: Number(cardSummary.estimatedCost ?? cardSummary.cost ?? 0),
         series: values,
