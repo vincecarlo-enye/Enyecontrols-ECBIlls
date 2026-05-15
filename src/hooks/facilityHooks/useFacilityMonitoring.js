@@ -15,6 +15,7 @@ const EMPTY_ANOMALY = {
   severity: 'normal',
 }
 
+const EMPTY_APPROVAL_SUMMARY = { pending: 0, approved: 0, auto_approved: 0, rejected: 0 }
 
 export function useFacilityMonitoring() {
   const [liveData, setLiveData] = useState([])
@@ -24,7 +25,7 @@ export function useFacilityMonitoring() {
   const [anomaly, setAnomaly] = useState(EMPTY_ANOMALY)
   const [pendingReadings, setPendingReadings] = useState([])
   const [actualReadings, setActualReadings] = useState([])
-  const [approvalSummary, setApprovalSummary] = useState({ pending: 0, approved: 0, rejected: 0 })
+  const [approvalSummary, setApprovalSummary] = useState(EMPTY_APPROVAL_SUMMARY)
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
   const [error, setError] = useState('')
@@ -49,7 +50,7 @@ export function useFacilityMonitoring() {
       setAnomaly(data.anomaly || EMPTY_ANOMALY)
       setPendingReadings(Array.isArray(data.pending_readings) ? data.pending_readings : [])
       setActualReadings(Array.isArray(data.actual_readings) ? data.actual_readings : [])
-      setApprovalSummary(data.approval_summary || { pending: 0, approved: 0, rejected: 0 })
+      setApprovalSummary(data.approval_summary || EMPTY_APPROVAL_SUMMARY)
       setLastUpdated(new Date().toISOString())
     } catch (err) {
       setLiveData([])
@@ -59,7 +60,7 @@ export function useFacilityMonitoring() {
       setAnomaly(EMPTY_ANOMALY)
       setPendingReadings([])
       setActualReadings([])
-      setApprovalSummary({ pending: 0, approved: 0, rejected: 0 })
+      setApprovalSummary(EMPTY_APPROVAL_SUMMARY)
       setError(err?.response?.data?.message || err?.message || 'Failed to load monitoring data.')
     } finally {
       if (!silent) {
@@ -167,4 +168,3 @@ export function useFacilityMonitoring() {
     bulkRejectReadings,
   }
 }
-

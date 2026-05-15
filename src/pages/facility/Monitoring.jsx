@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Activity, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock, Calculator, Download, Printer, Search } from 'lucide-react'
+import { Activity, TrendingUp, TrendingDown, AlertTriangle, RefreshCw, CheckCircle2, XCircle, Clock, Calculator, Download, Printer, Search, Zap } from 'lucide-react'
 import ChartExportButton from '@/components/common/ChartExportButton'
 import { useFacilityMonitoring } from '@/hooks/facilityHooks/useFacilityMonitoring'
 import { useApp } from '@/context/AppContext'
@@ -162,8 +162,6 @@ function buildLiveTrendFromReadingRows(rows = []) {
     .map(({ sortKey, ...row }) => row)
 }
 
-
-
 function csvEscape(value) {
   const text = String(value ?? '')
   if (text.includes(',') || text.includes('"') || text.includes('\n')) {
@@ -250,6 +248,7 @@ export default function Monitoring() {
 
   const isInitialLoading = loading && liveData.length === 0 && floorData.length === 0 && pendingReadings.length === 0 && actualReadings.length === 0 && !error
   const isRefreshing = loading && (liveData.length > 0 || floorData.length > 0 || pendingReadings.length > 0 || actualReadings.length > 0)
+
   const liveUsageTrend = useMemo(() => {
     if (Array.isArray(liveData) && liveData.length > 0) {
       const firstRow = liveData[0] || {}
@@ -278,11 +277,13 @@ export default function Monitoring() {
 
     return buildLiveTrendFromReadingRows(actualReadings)
   }, [actualReadings, liveData])
+
   const latestTrendPoint = liveUsageTrend[liveUsageTrend.length - 1] || {
     electricity: 0,
     water: 0,
     thermal: 0,
   }
+
   const average = useMemo(() => {
     if (!floorData.length) return 0
     return floorData.reduce((sum, row) => sum + Number(row?.[selected] || 0), 0) / floorData.length
@@ -348,6 +349,7 @@ export default function Monitoring() {
           reviewedBy: reading.reviewed_by_name || '-',
           notes: reading.review_notes || '-',
           statuses: [],
+          autoApproved: false,
           utilities: {
             electricity: null,
             water: null,
@@ -360,6 +362,8 @@ export default function Monitoring() {
       group.statuses.push(reading.status)
       if (group.notes === '-' && reading.review_notes) group.notes = reading.review_notes
       if (group.reviewedBy === '-' && reading.reviewed_by_name) group.reviewedBy = reading.reviewed_by_name
+      // Mark group as auto-approved if any reading in the group is auto-approved
+      if (reading.auto_approved) group.autoApproved = true
 
       const type = String(reading.type || '').toLowerCase()
       if (['electricity', 'water', 'thermal'].includes(type)) {
@@ -561,7 +565,7 @@ export default function Monitoring() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Building Monitoring</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Relative utility activity view plus meter reading approval queue</p>
+          <p className="text-sm text-slate-400 mt-0.5">Normal readings are auto-approved. Only anomalous consumption requires manual review.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -580,13 +584,24 @@ export default function Monitoring() {
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
 
+      {/* Auto-approval info banner */}
+      <div className="flex items-start gap-3 p-4 rounded-2xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700/40">
+        <Zap className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-500" />
+        <div>
+          <p className="font-semibold text-sm text-blue-700 dark:text-blue-300">Auto-Approval Active</p>
+          <p className="text-xs mt-0.5 text-blue-600 dark:text-blue-400">
+            Readings within normal range are automatically approved on sync. Only readings where consumption exceeds 1.2× the 7-day baseline average — or spikes 3× the per-reading average — are flagged for manual review.
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           { label: 'Current Activity', value: `${Math.round(currentLoad)}%`, tone: 'text-blue-600 dark:text-blue-400', icon: Activity },
           { label: 'Trend', value: `${trend > 0 ? '+' : ''}${trend.toFixed(1)}%`, tone: trend > 0 ? 'text-rose-500' : 'text-emerald-500', icon: trend > 0 ? TrendingUp : TrendingDown },
           { label: 'Peak Floor', value: peakFloor?.floor || '-', tone: 'text-slate-800 dark:text-white', icon: AlertTriangle },
-          { label: 'Pending Approval', value: approvalSummary?.pending || 0, tone: 'text-amber-600 dark:text-amber-400', icon: Clock },
-          { label: 'Approved Today', value: approvalSummary?.approved || 0, tone: 'text-emerald-600 dark:text-emerald-400', icon: CheckCircle2 },
+          { label: 'Needs Review', value: approvalSummary?.pending || 0, tone: 'text-amber-600 dark:text-amber-400', icon: Clock },
+          { label: 'Auto-Approved Today', value: approvalSummary?.auto_approved || 0, tone: 'text-emerald-600 dark:text-emerald-400', icon: Zap },
         ].map((card) => (
           <div key={card.label} className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
             <div className="flex items-center gap-3">
@@ -640,18 +655,26 @@ export default function Monitoring() {
         )}
       </div>
 
+      {/* Pending Reading Approval — only flagged anomalous readings */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-slate-200/70 dark:border-slate-700/50 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold text-slate-800 dark:text-white">Pending Reading Approval</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Grouped by assigned unit and tenant for faster approval review</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              These readings were flagged as anomalous (consumption ≥ 1.2× baseline). Review and approve or reject each one.
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="px-3 py-1 rounded-xl bg-amber-50 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">{pendingReadings.length} pending</span>
+            <span className="px-3 py-1 rounded-xl bg-amber-50 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">{pendingReadings.length} flagged</span>
             <button type="button" onClick={toggleAllPending} className="px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
               {selectedPendingIds.length === allPendingIds.length && allPendingIds.length > 0 ? 'Clear All' : 'Select All'}
             </button>
-            <button type="button" onClick={handleBulkApprove} disabled={acting || selectedPendingIds.length === 0} className="px-3 py-1 rounded-xl bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <button
+              type="button"
+              onClick={handleBulkApprove}
+              disabled={acting || selectedPendingIds.length === 0}
+              className="px-3 py-1 rounded-xl bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:bg-emerald-900/20 dark:text-emerald-300"
+            >
               Approve Selected
             </button>
             <button type="button" onClick={handleBulkReject} disabled={acting || selectedPendingIds.length === 0} className="px-3 py-1 rounded-xl bg-rose-50 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:bg-rose-900/20 dark:text-rose-300">
@@ -663,14 +686,19 @@ export default function Monitoring() {
           {isInitialLoading ? (
             <div className="py-10 text-center text-sm text-slate-400">Loading...</div>
           ) : pendingGroups.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-400">No pending meter readings. Finance can generate bills from approved readings.</div>
+            <div className="py-10 text-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No flagged readings</p>
+              <p className="text-xs text-slate-400 mt-1">All recent readings were within normal range and auto-approved.</p>
+            </div>
           ) : pendingGroups.map((group) => (
-            <div key={group.key} className="rounded-2xl border border-slate-200/70 dark:border-slate-700/50 overflow-hidden">
-              <div className="px-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200/70 dark:border-slate-700/50 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div key={group.key} className="rounded-2xl border border-amber-200/70 dark:border-amber-700/30 overflow-hidden">
+              <div className="px-4 py-3.5 bg-amber-50/60 dark:bg-amber-900/10 border-b border-amber-200/70 dark:border-amber-700/30 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                     <span className="text-sm font-semibold text-slate-800 dark:text-white">Unit {group.unitLabel}</span>
-                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">{group.count} pending</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{group.count} anomalous</span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{group.tenantLabel} · {group.floorLabel}</p>
                 </div>
@@ -679,14 +707,14 @@ export default function Monitoring() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
-                      {['Select', 'Recorded At', 'Meter', 'Page', 'Type', 'Reading', 'Usage', 'Actions'].map((header) => (
+                      {['Select', 'Recorded At', 'Meter', 'Page', 'Type', 'Reading', 'Usage', 'Anomaly Reason', 'Actions'].map((header) => (
                         <th key={header} className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-slate-400 whitespace-nowrap">{header}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {isInitialLoading ? (
-                      <TableLoadingRow colSpan={8} />
+                      <TableLoadingRow colSpan={9} />
                     ) : group.readings.map((reading) => (
                       <tr key={reading.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="px-4 py-3.5 whitespace-nowrap">
@@ -703,6 +731,9 @@ export default function Monitoring() {
                         <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400 capitalize whitespace-nowrap">{reading.type || '-'}</td>
                         <td className="px-4 py-3.5 font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap">{formatNumber(reading.reading_value)} {reading.unit || ''}</td>
                         <td className="px-4 py-3.5 font-mono text-slate-700 dark:text-slate-200 whitespace-nowrap">{formatNumber(reading.usage_value)}</td>
+                        <td className="px-4 py-3.5 text-xs text-amber-700 dark:text-amber-300 max-w-[240px]">
+                          {reading.anomaly_reason || 'Anomaly detected'}
+                        </td>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2">
                             <button onClick={() => handleApprove(reading.id)} disabled={acting} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60 dark:bg-emerald-900/20 dark:text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /> Approve</button>
@@ -723,7 +754,7 @@ export default function Monitoring() {
         <div className="px-5 py-4 border-b border-slate-200/70 dark:border-slate-700/50 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-semibold text-slate-800 dark:text-white">Actual Reading Audit Trail</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Grouped per unit and timestamp with separate electricity, water, and thermal columns</p>
+            <p className="text-xs text-slate-400 mt-0.5">Grouped per unit and timestamp. Auto-approved rows are marked with a ⚡ badge.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative">
@@ -767,8 +798,17 @@ export default function Monitoring() {
                   <td className="px-4 py-3.5">{renderUtilityCell(reading.utilities.electricity)}</td>
                   <td className="px-4 py-3.5">{renderUtilityCell(reading.utilities.water)}</td>
                   <td className="px-4 py-3.5">{renderUtilityCell(reading.utilities.thermal)}</td>
-                  <td className="px-4 py-3.5 whitespace-nowrap"><span className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${readingStatusColor[reading.status] || readingStatusColor.mixed}`}>{reading.statusLabel}</span></td>
-                  <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 dark:text-slate-300">{reading.reviewedBy}</td>
+                  <td className="px-4 py-3.5 whitespace-nowrap">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium capitalize ${readingStatusColor[reading.status] || readingStatusColor.mixed}`}>
+                      {reading.statusLabel}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center gap-1">
+                      {reading.autoApproved && <Zap className="w-3 h-3 text-emerald-500 flex-shrink-0" title="Auto-approved" />}
+                      {reading.reviewedBy}
+                    </span>
+                  </td>
                   <td className="px-4 py-3.5 text-xs text-slate-500 dark:text-slate-400 min-w-[220px]">{reading.notes}</td>
                 </tr>
               ))}
