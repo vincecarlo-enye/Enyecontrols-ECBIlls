@@ -1,1 +1,8 @@
 .certs/
+node_modules/
+.env.localnode_modules/
+.env.local
+node_modules/
+.env.local
+node_modules/
+.env.local
