@@ -307,44 +307,78 @@ export default function FinanceReports() {
   const isRefreshing = loading && (bills.length > 0 || payments.length > 0)
   return (
     <div className="space-y-6 animate-in">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />
-            Financial Reports
-          </h1>
-          <p className="text-sm text-slate-400 mt-0.5">Revenue analysis, collection rates and outstanding balances</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-800/70">
-            {['3M', '6M', '12M'].map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setRange(option)}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                  range === option
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live Finance Data</span>
-          </div>
-          <UpdatingBadge show={isRefreshing} />
-          <PageActionBar
-            onExport={handleExport}
-            onPrint={handlePrint}
-            exportLabel="Export Transactions"
-            printLabel="Print Report"
-            iconOnly
-          />
-        </div>
-      </div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+
+  {/* LEFT */}
+  <div>
+    <h1 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2">
+      <BarChart3 className="w-5 h-5 text-blue-500" />
+      Financial Reports
+    </h1>
+    <p className="text-sm text-slate-400 mt-0.5">
+      Revenue analysis, collection rates and outstanding balances
+    </p>
+  </div>
+
+  {/* RIGHT */}
+  <div className="
+    flex items-center gap-2
+    flex-wrap sm:flex-nowrap
+    sm:justify-end
+    sm:ml-auto
+    w-full sm:w-auto
+  ">
+
+    {/* Range toggle */}
+    <div className="
+      inline-flex items-center gap-2
+      rounded-2xl border border-slate-200 bg-slate-50 p-1.5
+      dark:border-slate-700 dark:bg-slate-800/70
+      w-full sm:w-auto
+    ">
+      {['3M', '6M', '12M'].map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => setRange(option)}
+          className={`
+            rounded-xl px-3 py-2 text-xs font-semibold transition-colors
+            flex-1 sm:flex-none
+            ${
+              range === option
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700'
+            }
+          `}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+
+    {/* Live badge */}
+    <div className="
+      flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+      bg-blue-50 dark:bg-blue-900/20
+      border border-blue-200 dark:border-blue-700/40
+      whitespace-nowrap ml-auto
+    ">
+      <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+        Live Finance Data
+      </span>
+    </div>
+
+    <UpdatingBadge show={isRefreshing} />
+
+    <PageActionBar
+      onExport={handleExport}
+      onPrint={handlePrint}
+      exportLabel="Export Transactions"
+      printLabel="Print Report"
+      iconOnly
+    />
+  </div>
+</div>
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -420,7 +454,7 @@ export default function FinanceReports() {
             </div>
             <ChartExportButton title="Utility Revenue Breakdown" rows={rangedUtilityByMonth} />
           </div>
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
             {[
               { label: 'Electricity', value: totalElec, cls: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', icon: Zap },
               { label: 'Water', value: totalWater, cls: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20', icon: Droplets },
@@ -509,7 +543,7 @@ export default function FinanceReports() {
           <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-3">
             <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full" style={{ width: `${collRate}%` }} />
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
             {[
               { label: 'Paid', count: paidBills.length, amount: paidAmount, cls: 'text-emerald-600 dark:text-emerald-400' },
               { label: 'Unpaid', count: unpaidBills.filter((bill) => bill.status === 'unpaid').length, amount: unpaidBills.filter((bill) => bill.status === 'unpaid').reduce((sum, bill) => sum + bill.amount, 0), cls: 'text-red-600 dark:text-red-400' },

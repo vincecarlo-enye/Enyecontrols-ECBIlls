@@ -45,7 +45,7 @@ export default function EquipmentStatus() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 sm:gap-4 gap-2">
         {[
           { label: 'Online', value: stats.online, color: 'text-emerald-600' },
           { label: 'Offline', value: stats.offline, color: 'text-slate-500' },

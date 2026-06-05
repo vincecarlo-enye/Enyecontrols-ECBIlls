@@ -112,26 +112,29 @@ export default function Reconciliation() {
           <p className="text-sm text-slate-400 mt-0.5">
             Validate building totals against tenant submeters before billing disputes happen.
           </p>
+          <UpdatingBadge show={isRefreshing} />
+
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
+          <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 px-2 py-2 text-sm text-slate-600 dark:text-slate-300">
             <CalendarRange className="w-4 h-4" />
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent outline-none"
+              className="bg-transparent outline-none w-[135px]"
             />
           </label>
 
           <button
             onClick={() => reload(selectedMonth)}
+            aria-label="Refresh reconciliation report"
+            title="Refresh reconciliation report"
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </button>
 
           <button

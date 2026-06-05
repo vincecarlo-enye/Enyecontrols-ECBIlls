@@ -356,16 +356,26 @@ export default function Dashboard() {
 
   return (
     <PageSection>
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="page-title">Admin Dashboard</h1>
-          <p className="muted-text mt-0.5">Building-wide billing, utility, and tenant performance overview.</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <UpdatingBadge show={isRefreshing} />
-          <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
-        </div>
-      </div>
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+  
+  {/* Left */}
+  <div>
+    <h1 className="page-title">Admin Dashboard</h1>
+    <p className="muted-text mt-0.5">
+      Building-wide billing, utility, and tenant performance overview.
+    </p>
+  </div>
+
+  {/* Right */}
+  <div className="flex items-center justify-end gap-2 flex-wrap w-full md:w-auto">
+    <UpdatingBadge show={isRefreshing} />
+    <FilterPills
+      options={FILTER_OPTIONS}
+      value={comparisonFilter}
+      onChange={setComparisonFilter}
+    />
+  </div>
+</div>
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">

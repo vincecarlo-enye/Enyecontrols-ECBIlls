@@ -284,18 +284,37 @@ export default function FinanceBillingTickets() {
                 className="pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-100 dark:bg-slate-800 border border-transparent text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all w-40"
               />
             </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              <Filter className="w-3 h-3 text-slate-400" />
-              {FINANCE_STATUSES.map((status) => (
-                <button
-                  key={status}
-                  onClick={() => { setStatusFilter(status); setPage(1) }}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium capitalize transition-all ${statusFilter === status ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
+            <div className="
+  flex items-center gap-1
+  overflow-x-auto
+  whitespace-nowrap
+  w-full
+">
+  <Filter className="w-3 h-3 text-slate-400 shrink-0" />
+
+  {FINANCE_STATUSES.map((status) => (
+    <button
+      key={status}
+      onClick={() => {
+        setStatusFilter(status)
+        setPage(1)
+      }}
+      className={`
+        px-2.5 py-1 rounded-lg text-[10px] font-medium capitalize
+        shrink-0 whitespace-nowrap
+        transition-all
+
+        ${
+          statusFilter === status
+            ? 'bg-emerald-600 text-white shadow-sm'
+            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }
+      `}
+    >
+      {status}
+    </button>
+  ))}
+</div>
           </div>
         </div>
 

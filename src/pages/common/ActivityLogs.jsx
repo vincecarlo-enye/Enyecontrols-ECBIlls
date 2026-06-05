@@ -173,26 +173,34 @@ export default function ActivityLogsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            aria-label={exporting ? 'Exporting activity logs as CSV' : 'Export activity logs as CSV'}
-            title={exporting ? 'Exporting activity logs as CSV' : 'Export activity logs as CSV'}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export CSV'}</span>
-          </button>
-          <button
-            onClick={() => loadLogs(page, perPage)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
-        </div>
+        <div className="flex items-center gap-2 w-full">
+  <UpdatingBadge show={isRefreshing} />
+
+  <div className="ml-auto flex items-center gap-2">
+    <button
+      onClick={handleExport}
+      disabled={exporting}
+      aria-label={exporting ? 'Exporting activity logs as CSV' : 'Export activity logs as CSV'}
+      title={exporting ? 'Exporting activity logs as CSV' : 'Export activity logs as CSV'}
+      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Download className="w-4 h-4" />
+      <span className="hidden sm:inline">
+        {exporting ? 'Exporting...' : 'Export CSV'}
+      </span>
+    </button>
+
+    <button
+      onClick={() => loadLogs(page, perPage)}
+      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+      aria-label="Refresh activity logs"
+      title="Refresh activity logs"
+    >
+      <RefreshCw className="w-4 h-4" />
+      <span className="hidden sm:inline">Refresh</span>
+    </button>
+  </div>
+</div>
       </div>
 
       {error ? (
@@ -210,50 +218,54 @@ export default function ActivityLogsPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_180px_180px] gap-3">
-            <form onSubmit={handleSearch} className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search by user, action, description, path..."
-                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all"
-              />
-            </form>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_1fr_1fr]">
+  {/* Search full width */}
+  <form onSubmit={handleSearch} className="relative">
+    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+    <input
+      value={searchInput}
+      onChange={(event) => setSearchInput(event.target.value)}
+      placeholder="Search by user, action, description, path..."
+      className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all"
+    />
+  </form>
 
-            <select
-              value={roleFilter}
-              onChange={(event) => {
-                setRoleFilter(event.target.value)
-                setPage(1)
-              }}
-              disabled={!isGlobalView}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all disabled:opacity-60"
-            >
-              <option value="">All Roles</option>
-              {roleOptions.map((role) => (
-                <option key={role} value={role}>
-                  {prettyLabel(role)}
-                </option>
-              ))}
-            </select>
+  {/* Filters row (always 2 columns) */}
+  <div className="grid grid-cols-2 gap-3">
+    <select
+      value={roleFilter}
+      onChange={(event) => {
+        setRoleFilter(event.target.value)
+        setPage(1)
+      }}
+      disabled={!isGlobalView}
+      className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all disabled:opacity-60"
+    >
+      <option value="">All Roles</option>
+      {roleOptions.map((role) => (
+        <option key={role} value={role}>
+          {prettyLabel(role)}
+        </option>
+      ))}
+    </select>
 
-            <select
-              value={actionFilter}
-              onChange={(event) => {
-                setActionFilter(event.target.value)
-                setPage(1)
-              }}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all"
-            >
-              <option value="">All Actions</option>
-              {actionOptions.map((action) => (
-                <option key={action} value={action}>
-                  {prettyLabel(action)}
-                </option>
-              ))}
-            </select>
-          </div>
+    <select
+      value={actionFilter}
+      onChange={(event) => {
+        setActionFilter(event.target.value)
+        setPage(1)
+      }}
+      className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-all"
+    >
+      <option value="">All Actions</option>
+      {actionOptions.map((action) => (
+        <option key={action} value={action}>
+          {prettyLabel(action)}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
         </div>
 
         <div className="overflow-x-auto">

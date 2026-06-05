@@ -479,7 +479,7 @@ export default function TenantDashboard() {
 
       <SummaryCardStrip
         stretch
-        stretchGridClassName="grid-cols-1 md:grid-cols-2 xl:grid-cols-5"
+        stretchGridClassName="grid-cols-2 md:grid-cols-2 xl:grid-cols-5"
         cards={stats.map((item) => ({
           label: item.label,
           value: item.value,

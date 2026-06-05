@@ -756,10 +756,18 @@ export default function Monitoring() {
             <h2 className="font-semibold text-slate-800 dark:text-white">Actual Reading Audit Trail</h2>
             <p className="text-xs text-slate-400 mt-0.5">Grouped per unit and timestamp. Auto-approved rows are marked with a ⚡ badge.</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative">
+          <div className="flex flex-row flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-full sm:min-w-0">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input value={readingsSearch} onChange={(event) => { setReadingsSearch(event.target.value); setReadingsPage(1) }} placeholder="Search unit, tenant, meter..." className="w-full sm:w-64 pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200" />
+              <input
+                value={readingsSearch}
+                onChange={(event) => {
+                  setReadingsSearch(event.target.value);
+                  setReadingsPage(1);
+                }}
+                placeholder="Search unit, tenant, meter..."
+                className="w-full sm:w-64 pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200"
+              />
             </div>
             <select value={readingsStatus} onChange={(event) => { setReadingsStatus(event.target.value); setReadingsPage(1) }} className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200">
               <option value="all">All Statuses</option>
@@ -767,8 +775,29 @@ export default function Monitoring() {
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
-            <button type="button" onClick={handlePrintAudit} aria-label="Print monitoring audit" title="Print monitoring audit" className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"><Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span></button>
-            <button type="button" onClick={handleExportCsv} aria-label="Export monitoring audit as CSV" title="Export monitoring audit as CSV" className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"><Download className="w-4 h-4" /> <span className="hidden sm:inline">Export CSV</span></button>
+            <div className="flex ml-auto items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrintAudit}
+                aria-label="Print monitoring audit"
+                title="Print monitoring audit"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="hidden sm:inline">Print</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                aria-label="Export monitoring audit as CSV"
+                title="Export monitoring audit as CSV"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </button>
+            </div>
           </div>
         </div>
         <div className="px-5 py-3 bg-blue-50/70 text-xs text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border-b border-slate-200/70 dark:border-slate-700/50 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -827,7 +856,7 @@ export default function Monitoring() {
         )}
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
         {['electricity', 'water', 'thermal'].map((utility) => (
           <button key={utility} onClick={() => setSelected(utility)} className={`px-4 py-2 text-sm font-medium rounded-xl capitalize transition-all ${selected === utility ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'}`}>
             {utilityLabel[utility]}

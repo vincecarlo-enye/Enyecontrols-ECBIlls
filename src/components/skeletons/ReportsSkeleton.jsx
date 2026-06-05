@@ -32,8 +32,9 @@ function MonthlyTableSkeleton({ rows = 7 }) {
         </div>
         <Skeleton className="h-8 w-24 rounded-xl" />
       </div>
+      <div className="overflow-x-auto">
       {/* Col headers */}
-      <div className="grid grid-cols-5 gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+      <div className="grid grid-cols-5 gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800" style={{minWidth: "400px"}}>
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-3" />
         ))}
@@ -50,6 +51,7 @@ function MonthlyTableSkeleton({ rows = 7 }) {
           <Skeleton className="h-4 w-24" />
         </div>
       ))}
+      </div>
     </div>
   )
 }

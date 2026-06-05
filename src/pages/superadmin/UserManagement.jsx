@@ -103,7 +103,7 @@ function UserFormModal({ open, onClose, onSave, initial }) {
 
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">Role</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ROLE_OPTIONS.map((r) => (
                 <button key={r.value} onClick={() => set('role', r.value)}
                   className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${form.role === r.value ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'border-slate-200 dark:border-slate-600 text-slate-500 hover:border-violet-300'}`}>
@@ -267,7 +267,7 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">User Management</h2>
@@ -277,13 +277,17 @@ export default function UserManagement() {
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Manage all system users, roles, and access</p>
         </div>
-        <div className="flex items-center gap-3">
-          <UpdatingBadge show={isRefreshing} />
-          <button onClick={() => { setEditingUser(null); setShowForm(true) }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all">
-            <Plus className="w-4 h-4" />Add User
-          </button>
-        </div>
+        <div className="flex w-full items-center justify-end gap-3">
+  <UpdatingBadge show={isRefreshing} />
+
+  <button
+    onClick={() => { setEditingUser(null); setShowForm(true) }}
+    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+  >
+    <Plus className="w-4 h-4" />
+    <span className="hidden sm:inline">ADD USER</span>
+  </button>
+</div>
       </div>
 
       {error && (
@@ -293,20 +297,37 @@ export default function UserManagement() {
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all" />
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {[{ value: 'all', label: 'All' }, ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))].map((f) => (
-            <button key={f.value} onClick={() => { setRoleFilter(f.value); setPage(1) }}
-              className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${roleFilter === f.value ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'}`}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
+
+  {/* Search */}
+  <div className="relative flex-1">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+    <input
+      type="text"
+      placeholder="Search by name or email..."
+      value={search}
+      onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+      className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
+    />
+  </div>
+
+  {/* Filters */}
+  <div className="flex sm:flex-wrap gap-2 overflow-x-auto sm:overflow-visible whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    {[{ value: 'all', label: 'All' }, ...ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))].map((f) => (
+      <button
+        key={f.value}
+        onClick={() => { setRoleFilter(f.value); setPage(1) }}
+        className={`shrink-0 px-3 py-2 text-xs font-medium rounded-xl border transition-all ${
+          roleFilter === f.value
+            ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+        }`}
+      >
+        {f.label}
+      </button>
+    ))}
+  </div>
+
+</div>
 
       <div className="glass rounded-2xl shadow-md overflow-hidden">
         <div className="overflow-x-auto">

@@ -130,8 +130,9 @@ function MaintenancePanelSkeleton() {
         <Skeleton className="h-8 w-28 rounded-xl" />
       </div>
 
+      <div className="overflow-x-auto">
       {/* Col headers */}
-      <div className="grid grid-cols-6 gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+      <div className="grid grid-cols-6 gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800" style={{minWidth: "480px"}}>
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-3" />
         ))}
@@ -152,6 +153,7 @@ function MaintenancePanelSkeleton() {
         </div>
       ))}
 
+      </div>
       {/* Footer */}
       <div className="flex items-center gap-4 px-5 py-3 border-t border-slate-100 dark:border-slate-800">
         {Array.from({ length: 3 }).map((_, i) => (

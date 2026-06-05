@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell,
 } from 'recharts'
-import { Download, Gauge, Clock3, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Search, Gauge, Clock3, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useFacilityReports } from '@/hooks/facilityHooks/useFacilityReports'
 import PageActionBar from '@/components/common/PageActionBar'
 import ChartExportButton from '@/components/common/ChartExportButton'
@@ -157,10 +157,14 @@ export default function Reports() {
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Operational Reports</h1>
           <p className="text-sm text-slate-400 mt-0.5">Cleaner facility reports with live meter reading visibility and trend analytics</p>
         </div>
-        <div className="flex items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <PageActionBar onExport={handleExport} onPrint={handlePrint} exportLabel="Export Visible Data" />
-        </div>
+        <div className="flex items-center gap-2 w-full justify-end sm:w-auto sm:justify-start">
+  <UpdatingBadge show={isRefreshing} />
+  <PageActionBar
+    onExport={handleExport}
+    onPrint={handlePrint}
+    exportLabel="Export Visible Data"
+  />
+</div>
       </div>
 
       {error && (
@@ -191,14 +195,14 @@ export default function Reports() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr,1fr] print-facility-report-main">
+      <div className="grid gap-6 grid-cols-1 xl:grid-cols-[1.5fr,1fr] print-facility-report-main">
         <div data-chart-export-panel="true" className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-5 shadow-sm print-facility-chart-card">
-          <div className="flex flex-wrap gap-2 mb-5">
+          <div className="flex gap-2 mb-5 overflow-x-auto whitespace-nowrap flex-nowrap pb-1">
             {reportTypes.map((reportType) => (
               <button
                 key={reportType}
                 onClick={() => setSelected(reportType)}
-                className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${
+                className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-xl transition-all ${
                   selected === reportType
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
                     : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -209,10 +213,10 @@ export default function Reports() {
             ))}
           </div>
 
-          <div className="mb-5 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-slate-800 dark:text-white">{selected}</h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="min-w-0">
+  <h2 className="font-semibold text-slate-800 dark:text-white">{selected}</h2>
+  <p className="text-xs text-slate-400 mt-0.5">
                 {selected === 'Daily Energy' && 'Electricity consumption for today by hour.'}
                 {selected === 'Monthly Water' && 'Three-month water comparison per floor.'}
                 {selected === 'Thermal Distribution' && 'Thermal usage share by monitored system.'}
@@ -327,18 +331,24 @@ export default function Reports() {
           <h2 className="font-semibold text-slate-800 dark:text-white">Latest Meter Readings</h2>
           <p className="text-xs text-slate-400 mt-0.5">Clear view of each meter's latest reading, latest usage delta, and approval state.</p>
         </div>
-        <div className="grid gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50 md:grid-cols-[minmax(0,1.2fr),180px,180px]">
-          <input
-            type="search"
-            value={readingSearch}
-            onChange={(event) => setReadingSearch(event.target.value)}
-            placeholder="Search meter, watch, unit, floor, or page"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr_auto] items-center gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
+          <div className="relative w-full md:w-[300px]">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+
+    <input
+      type="search"
+      value={readingSearch}
+      onChange={(event) => setReadingSearch(event.target.value)}
+      placeholder="Search meter, watch, unit, floor, or page"
+      className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 py-2.5 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+    />
+  </div>
+
+            <div className="flex gap-3 justify-end">
           <select
             value={readingType}
             onChange={(event) => setReadingType(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            className="w-full md:w-[180px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             <option value="all">All Utility Types</option>
             <option value="electricity">Electricity</option>
@@ -348,7 +358,7 @@ export default function Reports() {
           <select
             value={approvalFilter}
             onChange={(event) => setApprovalFilter(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            className="w-full md:w-[180px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             <option value="all">All Approval States</option>
             <option value="approved">Approved</option>
@@ -356,6 +366,7 @@ export default function Reports() {
             <option value="rejected">Rejected</option>
             <option value="no_data">No Data</option>
           </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

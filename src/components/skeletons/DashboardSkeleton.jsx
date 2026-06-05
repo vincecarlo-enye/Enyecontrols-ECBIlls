@@ -69,8 +69,9 @@ function TableSkeleton({ rows = 5 }) {
           <Skeleton className="h-9 w-24 rounded-xl" />
         </div>
       </div>
+      <div className="overflow-x-auto">
       {/* Column headers */}
-      <div className="grid grid-cols-6 gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+      <div className="grid grid-cols-6 gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800" style={{minWidth: '480px'}}>
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-3" />
         ))}
@@ -80,6 +81,7 @@ function TableSkeleton({ rows = 5 }) {
         <div
           key={i}
           className="grid grid-cols-6 gap-4 px-5 py-4 border-b border-slate-100 dark:border-slate-800 last:border-0"
+          style={{minWidth: '480px'}}
         >
           <Skeleton className="h-4" />
           <Skeleton className="h-4 w-3/4" />
@@ -89,6 +91,7 @@ function TableSkeleton({ rows = 5 }) {
           <Skeleton className="h-4 w-1/2" />
         </div>
       ))}
+      </div>
     </div>
   )
 }

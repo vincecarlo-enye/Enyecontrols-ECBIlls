@@ -577,7 +577,7 @@ export default function FacilityDashboard() {
   return (
     <div className="section-gap animate-in pb-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div>
           <h1 className="page-title flex items-center gap-2">
             <Activity className="w-5 h-5 text-emerald-500" />
@@ -585,7 +585,7 @@ export default function FacilityDashboard() {
           </h1>
           <p className="muted-text mt-0.5">Real-time building operations and utility monitoring</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center justify-end gap-2 flex-wrap">
           <UpdatingBadge show={isRefreshing} />
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/40">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -626,7 +626,7 @@ export default function FacilityDashboard() {
           subtitle={`${isSevenDayFilter(filter) ? 'Daily (7 days)' : filter === '1M' ? 'Monthly (4 weeks)' : 'Yearly (12 months)'} operational view`}
           accentHex={utilityFocusConfig.color}
           action={(
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-wrap justify-end gap-1">
               {Object.entries(UTILITY_FOCUS).map(([key, config]) => (
                 <button
                   key={key}
@@ -699,7 +699,7 @@ export default function FacilityDashboard() {
           subtitle="Current utility mix across the facility"
         >
           <div className="flex flex-col gap-4 lg:h-[240px] lg:flex-row lg:items-center">
-            <div className="h-[190px] flex-1">
+            <div className="h-[190px] w-full lg:flex-1">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={utilityDistributionData} dataKey="value" cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={3}>
@@ -777,7 +777,7 @@ export default function FacilityDashboard() {
           loading={isInitialLoading && equipmentStatusData.every((item) => item.value === 0)}
           updating={isRefreshing}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {equipmentStatusData.map((item) => (
               <div key={item.name} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-center dark:border-white/5 dark:bg-[#090c13]">
                 <div className="mx-auto mb-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
@@ -834,7 +834,7 @@ export default function FacilityDashboard() {
               <Bar dataKey="resolved" stackId="maintenance" fill="#10b981" radius={[4, 4, 0, 0]} name="Resolved" />
             </BarChart>
           </ResponsiveContainer>
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-white/5 dark:bg-[#090c13]">
               <p className="text-[11px] uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Open</p>
               <p className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{maintenance.stats.open}</p>

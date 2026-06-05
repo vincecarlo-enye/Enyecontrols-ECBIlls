@@ -170,30 +170,21 @@ export default function NotificationsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
-            <CheckCheck className="w-4 h-4 text-blue-500" />
-            <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={`${unreadCount} unread on this page`} className="text-xs font-semibold text-blue-700 dark:text-blue-300" spinnerClassName="h-4 w-4 text-blue-500" />
-          </div>
-          {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              disabled={markingAllRead}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <CheckCheck className="w-4 h-4" />
-              {markingAllRead ? 'Marking...' : 'Read All'}
-            </button>
-          )}
-          <button
-            onClick={() => loadNotifications(page, perPage)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
-        </div>
+        <div className="flex items-center gap-2 w-full">
+  <UpdatingBadge show={isRefreshing} />
+
+  <div className="ml-auto flex items-center gap-2">
+    
+
+    <button
+      onClick={() => loadNotifications(page, perPage)}
+      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+    >
+      <RefreshCw className="w-4 h-4" />
+      <span className="hidden sm:inline">Refresh</span>
+    </button>
+  </div>
+</div>
       </div>
 
       {error ? (
@@ -205,13 +196,43 @@ export default function NotificationsPage() {
       <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-5">
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-700/50 shadow-md overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-            <p className="font-semibold text-[14px] text-slate-800 dark:text-white">
-              Recent Notifications
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {meta.total || notifications.length} total notifications
-            </p>
-          </div>
+  
+  {/* Top row */}
+  <div className="flex items-center">
+    <p className="font-semibold text-[14px] text-slate-800 dark:text-white">
+      Recent Notifications
+    </p>
+
+    <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
+        <CheckCheck className="w-4 h-4 text-blue-500" />
+        <LoadingValue
+          loading={isInitialLoading}
+          updating={isRefreshing}
+          value={`${unreadCount} unread`}
+          className="text-xs font-semibold text-blue-700 dark:text-blue-300"
+          spinnerClassName="h-4 w-4 text-blue-500"
+        />
+      </div>
+
+      {unreadCount > 0 && (
+        <button
+          onClick={handleMarkAllRead}
+          disabled={markingAllRead}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <CheckCheck className="w-4 h-4" />
+          {markingAllRead ? 'Marking...' : 'Read All'}
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* Bottom row */}
+  <p className="text-xs text-slate-400 mt-0.5">
+    {meta.total || notifications.length} total notifications
+  </p>
+</div>
 
           {isInitialLoading ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">

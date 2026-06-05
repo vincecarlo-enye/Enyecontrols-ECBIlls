@@ -174,14 +174,13 @@ export default function OccupancyTimeline() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+          <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/60 px-2 py-2 text-sm text-slate-600 dark:text-slate-300">
             <CalendarRange className="h-4 w-4" />
             <input
               type="month"
               value={selectedMonth}
               onChange={(event) => setSelectedMonth(event.target.value)}
-              className="bg-transparent outline-none"
+              className="bg-transparent outline-none w-[135px]"
             />
           </label>
 
@@ -190,7 +189,7 @@ export default function OccupancyTimeline() {
             className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60"
           >
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </button>
 
           <button
@@ -229,6 +228,7 @@ export default function OccupancyTimeline() {
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">Print</span>
           </button>
+          <UpdatingBadge show={isRefreshing} />
         </div>
       </div>
 
@@ -239,7 +239,7 @@ export default function OccupancyTimeline() {
       ) : null}
 
       <div ref={printRef} className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5 print-occupancy-summary">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5 xl:grid-cols-5 print-occupancy-summary">
           {summaryCards.map(({ key, ...card }) => (
             <SummaryCard key={key} {...card} loading={isInitialLoading} updating={isRefreshing} />
           ))}

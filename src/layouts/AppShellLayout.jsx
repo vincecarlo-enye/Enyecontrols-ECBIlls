@@ -179,7 +179,7 @@ export default function AppShellLayout() {
         <div className={`fixed top-0 left-0 right-0 z-20 ${desktopOffsetClass}`}>
           <Navbar onMenuClick={() => setMobileOpen(true)} />
         </div>
-        <main className="app-shell-main flex-1 h-full min-w-0 overflow-x-hidden p-6 pt-[88px]">
+        <main className="app-shell-main flex-1 h-full min-w-0 overflow-x-hidden sm:p-4 p-2 sm:pt-[78px] pt-[78px]">
           <ShellOutlet />
         </main>
       </div>

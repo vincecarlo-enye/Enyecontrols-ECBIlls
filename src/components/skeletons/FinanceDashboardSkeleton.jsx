@@ -42,7 +42,7 @@ function ChartCardSkeleton({ height = 'h-56', className = '', children }) {
 
 function UtilityTotalsRowSkeleton() {
   return (
-    <div className="grid grid-cols-3 gap-2 mb-2">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="rounded-xl p-3 bg-slate-50 dark:bg-slate-800/50 text-center space-y-1.5">
           <Skeleton className="h-4 w-4 mx-auto rounded" />

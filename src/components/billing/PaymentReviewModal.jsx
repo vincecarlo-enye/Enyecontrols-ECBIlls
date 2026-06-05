@@ -74,7 +74,7 @@ export default function PaymentReviewModal({ bill, isOpen, onClose, onApprove, o
             {bill.breakdown && (
               <div>
                 <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-2">Utility Breakdown</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {Object.entries(bill.breakdown).map(([key, val]) => {
                     const Icon = utilityIcons[key]
                     return (

@@ -235,7 +235,7 @@ export default function FinancePaymentReview() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Review tenant receipts, approve or reject payments, and track the payment ledger</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <UpdatingBadge show={isRefreshing} />
           <PageActionBar
             onExport={handleExport}
