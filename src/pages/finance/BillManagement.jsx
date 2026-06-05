@@ -272,7 +272,7 @@ function BillDetailModal({ bill, onClose }) {
 
           <div>
             <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-3">Utility Breakdown</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {Object.entries(bill.breakdown || {}).map(([key, val]) => {
                 const Icon = UTIL_ICONS[key]
                 return (
@@ -809,48 +809,72 @@ export default function FinanceBillManagement() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">Generate, publish, regenerate, and adjust tenant bills</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <UpdatingBadge show={isRefreshing} />
-          <PageActionBar
-            onExport={handleExportCurrent}
-            onPrint={handlePrintCurrent}
-            exportLabel={
-              activeTab === 'prepare'
-                ? 'Export Prepare Queue'
-                : activeTab === 'payments'
-                  ? 'Export Payment Queue'
-                  : activeTab === 'exceptions'
-                    ? 'Export Exceptions Queue'
-                    : 'Export Bill Ledger'
-            }
-            printLabel={
-              activeTab === 'prepare'
-                ? 'Print Prepare Queue'
-                : activeTab === 'payments'
-                  ? 'Print Payment Queue'
-                  : activeTab === 'exceptions'
-                    ? 'Print Exceptions Queue'
-                    : 'Print Bill Ledger'
-            }
-            iconOnly
-          />
-          {activeTab === 'prepare' && (
-            <>
-            <button
-              onClick={openBatch}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-            >
-              <LayoutList className="w-4 h-4" /> Run Bill Generation
-            </button>
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0"
-            >
-              <Plus className="w-4 h-4" /> Generate Bill
-            </button>
-            </>
-          )}
-        </div>
+        <div className="flex items-center gap-2 flex-wrap ml-auto">
+  <UpdatingBadge show={isRefreshing} />
+
+  <PageActionBar
+    onExport={handleExportCurrent}
+    onPrint={handlePrintCurrent}
+    exportLabel={
+      activeTab === 'prepare'
+        ? 'Export Prepare Queue'
+        : activeTab === 'payments'
+          ? 'Export Payment Queue'
+          : activeTab === 'exceptions'
+            ? 'Export Exceptions Queue'
+            : 'Export Bill Ledger'
+    }
+    printLabel={
+      activeTab === 'prepare'
+        ? 'Print Prepare Queue'
+        : activeTab === 'payments'
+          ? 'Print Payment Queue'
+          : activeTab === 'exceptions'
+            ? 'Print Exceptions Queue'
+            : 'Print Bill Ledger'
+    }
+    iconOnly
+  />
+
+  {activeTab === 'prepare' && (
+    <>
+      <button
+        onClick={openBatch}
+        className="
+          flex items-center gap-2
+          px-3 py-2 sm:px-4 sm:py-2
+          text-sm font-semibold rounded-xl
+          bg-slate-900 dark:bg-slate-700
+          hover:bg-slate-800 dark:hover:bg-slate-600
+          text-white shadow-lg
+          transition-all hover:-translate-y-0.5 active:translate-y-0
+        "
+      >
+        <LayoutList className="w-4 h-4" />
+        <span className="hidden sm:inline">
+          Run Bill Generation
+        </span>
+      </button>
+
+      <button
+        onClick={openCreate}
+        className="
+          flex items-center gap-2
+          px-3 py-2 sm:px-4 sm:py-2
+          text-sm font-semibold rounded-xl
+          bg-blue-600 hover:bg-blue-700
+          text-white shadow-lg shadow-blue-500/25
+          transition-all hover:-translate-y-0.5 active:translate-y-0
+        "
+      >
+        <Plus className="w-4 h-4" />
+        <span className="hidden sm:inline">
+          Generate Bill
+        </span>
+      </button>
+    </>
+  )}
+</div>
       </div>
 
       {error && (
@@ -859,52 +883,78 @@ export default function FinanceBillManagement() {
         </div>
       )}
 
-      <div className="relative flex w-full items-center justify-between gap-3">
-        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-1.5 shadow-sm">
-          {[
-            { key: 'prepare', label: 'Prepare Bills', Icon: Settings2 },
-            { key: 'payments', label: 'Payment Queue', Icon: Send },
-            { key: 'exceptions', label: 'Exceptions', Icon: Edit2 },
-            { key: 'ledger', label: 'Bill Ledger', Icon: LayoutList },
-          ].map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            onClick={() => {
-              setActiveTab(key)
-              setShowPrepareFlow(false)
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeTab === key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Icon className="w-4 h-4" />{label}
-          </button>
-          ))}
-        </div>
-        {activeTab === 'prepare' && (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowPrepareFlow((value) => !value)}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-slate-500 shadow-sm transition-all hover:-translate-y-0.5 dark:text-slate-300 ${
-                showPrepareFlow
-                  ? 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
-                  : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
-              }`}
-              aria-label="Show prepare bills flow"
-              title="Prepare Bills Flow"
-            >
-              <HelpCircle className="h-4 w-4" />
-            </button>
-            <PrepareBillsFlowPopover open={showPrepareFlow} onClose={() => setShowPrepareFlow(false)} />
-          </>
-        )}
-      </div>
+      <div className="relative flex w-full items-center justify-between gap-2">
+  
+  {/* Tabs */}
+  <div className="
+    flex items-center gap-1
+    bg-white dark:bg-slate-900
+    border border-slate-200/70 dark:border-slate-700/50
+    rounded-2xl p-1.5 shadow-sm
+
+    overflow-x-auto
+    whitespace-nowrap
+    scrollbar-hide
+    max-w-full
+  ">
+    {[
+      { key: 'prepare', label: 'Prepare Bills', Icon: Settings2 },
+      { key: 'payments', label: 'Payment Queue', Icon: Send },
+      { key: 'exceptions', label: 'Exceptions', Icon: Edit2 },
+      { key: 'ledger', label: 'Bill Ledger', Icon: LayoutList },
+    ].map(({ key, label, Icon }) => (
+      <button
+        key={key}
+        onClick={() => {
+          setActiveTab(key)
+          setShowPrepareFlow(false)
+        }}
+        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+          activeTab === key
+            ? 'bg-blue-600 text-white shadow-sm'
+            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }`}
+      >
+        <Icon className="w-4 h-4" />
+        {label}
+      </button>
+    ))}
+  </div>
+
+  {/* Right actions */}
+  {activeTab === 'prepare' && (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowPrepareFlow((value) => !value)}
+        className={`
+          inline-flex h-10 w-10 items-center justify-center rounded-xl border
+          text-slate-500 shadow-sm transition-all hover:-translate-y-0.5
+          dark:text-slate-300
+          ${
+            showPrepareFlow
+              ? 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+              : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
+          }
+        `}
+        aria-label="Show prepare bills flow"
+        title="Prepare Bills Flow"
+      >
+        <HelpCircle className="h-4 w-4" />
+      </button>
+
+      <PrepareBillsFlowPopover
+        open={showPrepareFlow}
+        onClose={() => setShowPrepareFlow(false)}
+      />
+    </>
+  )}
+</div>
 
       <div ref={printRef}>
       {activeTab === 'prepare' && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {[
               { label: 'Drafts', value: draftBills.length, color: 'text-slate-600 dark:text-slate-300', sub: 'Not yet published' },
               { label: 'Published', value: publishedBills.length, color: 'text-blue-600 dark:text-blue-400', sub: 'Tenants can see' },
@@ -1108,7 +1158,7 @@ export default function FinanceBillManagement() {
 
       {activeTab === 'payments' && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {[
               { label: 'Submitted', value: submittedBills.length, color: 'text-amber-600 dark:text-amber-400', sub: 'Need finance review' },
               { label: 'Paid', value: paidBills.length, color: 'text-emerald-600 dark:text-emerald-400', sub: 'Already cleared' },
@@ -1207,7 +1257,7 @@ export default function FinanceBillManagement() {
 
       {activeTab === 'exceptions' && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {[
               { label: 'Adj Pending', value: adjustmentMetrics.pending, color: 'text-orange-600 dark:text-orange-400', sub: 'Awaiting approval' },
               { label: 'Adjusted', value: adjustmentMetrics.applied, color: 'text-cyan-600 dark:text-cyan-400', sub: 'Applied changes' },
@@ -1326,7 +1376,7 @@ export default function FinanceBillManagement() {
 
       {activeTab === 'ledger' && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { label: 'Total Bills', value: bills.length, color: 'text-slate-800 dark:text-white', sub: 'All time' },
               { label: 'Collected', value: `PHP ${totalRevenue.toLocaleString()}`, color: 'text-emerald-600 dark:text-emerald-400', sub: `${paidBills.length} paid` },
@@ -1341,38 +1391,80 @@ export default function FinanceBillManagement() {
             ))}
           </div>
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-md flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                value={allSearch}
-                onChange={(e) => setAllSearch(e.target.value)}
-                placeholder="Search tenant, unit, or bill ID..."
-                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
-              />
-            </div>
-            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-              {LEDGER_STATUS_TABS.map(({ k, l }) => (
-                <button
-                  key={k}
-                  onClick={() => setAllStatus(k)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${allStatus === k ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'}`}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <select
-              value={allUtility}
-              onChange={(e) => setAllUtility(e.target.value)}
-              className="px-3 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all"
-            >
-              <option value="all">All Utilities</option>
-              <option value="electricity">Electricity</option>
-              <option value="water">Water</option>
-              <option value="thermal">Thermal</option>
-            </select>
-          </div>
+          <div className="
+  bg-white dark:bg-slate-900
+  border border-slate-200/70 dark:border-slate-700/50
+  rounded-2xl p-4 shadow-md
+  flex flex-col sm:flex-row
+  gap-3 sm:items-center
+">
+
+  {/* Search */}
+  <div className="relative w-full sm:flex-1 min-w-0">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+    <input
+      value={allSearch}
+      onChange={(e) => setAllSearch(e.target.value)}
+      placeholder="Search tenant, unit, or bill ID..."
+      className="
+        w-full pl-9 pr-4 py-2.5 text-sm
+        rounded-xl bg-slate-50 dark:bg-slate-800/60
+        border border-slate-200 dark:border-slate-700
+        text-slate-700 dark:text-slate-200
+        placeholder-slate-400 outline-none
+        focus:border-blue-400 transition-all
+      "
+    />
+  </div>
+
+  {/* Status Tabs */}
+  <div className="
+    flex items-center gap-1
+    bg-slate-50 dark:bg-slate-800/60
+    border border-slate-200 dark:border-slate-700
+    rounded-xl p-1
+    overflow-x-auto
+    whitespace-nowrap
+    scrollbar-hide
+    w-full sm:w-auto
+  ">
+    {LEDGER_STATUS_TABS.map(({ k, l }) => (
+      <button
+        key={k}
+        onClick={() => setAllStatus(k)}
+        className={`
+          px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap
+          ${
+            allStatus === k
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'
+          }
+        `}
+      >
+        {l}
+      </button>
+    ))}
+  </div>
+
+  {/* Select */}
+  <select
+    value={allUtility}
+    onChange={(e) => setAllUtility(e.target.value)}
+    className="
+      w-full sm:w-auto
+      px-3 py-2.5 text-sm
+      rounded-xl bg-slate-50 dark:bg-slate-800/60
+      border border-slate-200 dark:border-slate-700
+      text-slate-700 dark:text-slate-200
+      outline-none focus:border-blue-400 transition-all
+    "
+  >
+    <option value="all">All Utilities</option>
+    <option value="electricity">Electricity</option>
+    <option value="water">Water</option>
+    <option value="thermal">Thermal</option>
+  </select>
+</div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl shadow-md overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">

@@ -206,7 +206,7 @@ export default function TenantBillingReports() {
             Track your submitted billing concerns
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <UpdatingBadge show={isRefreshing} />
           <button
             onClick={() => setPickerOpen(true)}
@@ -259,21 +259,31 @@ export default function TenantBillingReports() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((item) => (
-          <button
-            key={item}
-            onClick={() => setFilter(item)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
-              filter === item
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
+      <div className="
+  flex items-center gap-1.5
+  overflow-x-auto sm:flex-wrap
+  whitespace-nowrap
+  scrollbar-hide
+">
+  {FILTERS.map((item) => (
+    <button
+      key={item}
+      onClick={() => setFilter(item)}
+      className={`
+        px-3 py-1.5 rounded-lg text-xs font-medium capitalize
+        transition-all shrink-0 whitespace-nowrap
+
+        ${
+          filter === item
+            ? 'bg-blue-600 text-white shadow-sm'
+            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }
+      `}
+    >
+      {item}
+    </button>
+  ))}
+</div>
 
       {isInitialLoading ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">

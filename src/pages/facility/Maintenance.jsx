@@ -66,21 +66,22 @@ export default function Maintenance() {
 
   return (
     <div className="space-y-6 animate-in">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-bold text-xl text-slate-800 dark:text-white">Maintenance Requests</h1>
           <p className="text-sm text-slate-400 mt-0.5">Track and manage utility-related incidents</p>
         </div>
-        <div className="flex items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5"
-          >
-            <Plus className="w-4 h-4" />
-            New Ticket
-          </button>
-        </div>
+        <div className="flex items-center gap-2 w-full justify-end sm:w-auto sm:justify-start">
+  <UpdatingBadge show={isRefreshing} />
+
+  <button
+    onClick={() => setShowForm(true)}
+    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5"
+  >
+    <Plus className="w-4 h-4" />
+    New Ticket
+  </button>
+</div>
       </div>
 
       {error && (
@@ -89,7 +90,7 @@ export default function Maintenance() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-4">
         {[
           { label: 'Open', value: stats.open, color: 'text-blue-600' },
           { label: 'In Progress', value: stats.inProgress, color: 'text-violet-600' },

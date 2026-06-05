@@ -72,16 +72,17 @@ export default function SystemHealth() {
           <p className="mt-1 text-xs text-slate-400">Last generated: {formatDateTime(data.generatedAt)}</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <UpdatingBadge show={isRefreshing} />
-          <button
-            onClick={reload}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh Health
-          </button>
-        </div>
+        <div className="flex w-full items-center justify-end gap-3">
+  <UpdatingBadge show={isRefreshing} />
+
+  <button
+    onClick={reload}
+    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60"
+  >
+    <RefreshCw className="h-4 w-4" />
+    <span className="hidden sm:inline">Refresh</span>
+  </button>
+</div>
       </div>
 
       {error ? (
@@ -90,7 +91,7 @@ export default function SystemHealth() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {summaryCards.map(({ key, ...card }) => (
           <SummaryCard key={key} {...card} loading={isInitialLoading} updating={isRefreshing} />
         ))}

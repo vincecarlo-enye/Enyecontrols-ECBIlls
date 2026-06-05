@@ -77,40 +77,52 @@ export default function AnnouncementPanel() {
   return (
     <>
       <div className="glass rounded-2xl p-5 shadow-lg animate-in h-[440px] flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-display font-700 text-[16px] text-slate-800 dark:text-white">
-              Announcements
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Building notices &amp; alerts</p>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+  {/* Left */}
+  <div>
+    <h2 className="font-display font-700 text-[16px] sm:text-[16px] text-slate-800 dark:text-white">
+      Announcements
+    </h2>
+    <p className="text-xs text-slate-400 mt-0.5">
+      Building notices &amp; alerts
+    </p>
+  </div>
 
-          <div className="flex items-center gap-2">
-            {systemWideCount > 0 && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-[10px] font-bold">
-                <Globe className="w-2.5 h-2.5" />
-                {systemWideCount} system
-              </span>
-            )}
+  {/* Right */}
+  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2">
+    {systemWideCount > 0 && (
+      <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-[10px] font-bold">
+        <Globe className="w-2.5 h-2.5" />
+        {systemWideCount} system
+      </span>
+    )}
 
-            <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-lg">
-              {visibleAnnouncements.length} active
-            </span>
+    <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-lg">
+      {visibleAnnouncements.length} active
+    </span>
 
-            {canCreate && (
-              <button
-                onClick={() => {
-                  setEditingAnn(null)
-                  setShowModal(true)
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-semibold shadow-sm hover:opacity-90 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Add</span>
-              </button>
-            )}
-          </div>
-        </div>
+    {canCreate && (
+      <button
+        onClick={() => {
+          setEditingAnn(null)
+          setShowModal(true)
+        }}
+        className="
+  ml-auto sm:ml-0
+  flex items-center gap-1.5
+  px-2.5 py-1.5 sm:px-3 sm:py-1.5
+  rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500
+  text-white text-xs font-semibold shadow-sm
+  hover:opacity-90 transition-all
+  whitespace-nowrap
+"
+      >
+        <Plus className="w-4 h-4" />
+        <span className="hidden sm:inline">Add</span>
+      </button>
+    )}
+  </div>
+</div>
 
         {isTenantView && (
           <div className="mb-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">

@@ -309,16 +309,19 @@ export default function Units() {
           <p className="mt-1 text-sm text-slate-400">Review unit occupancy, tenant assignments, and meter readiness.</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <UpdatingBadge show={isRefreshing} />
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Add Unit
-          </button>
-        </div>
+        <div className="flex items-center gap-3 w-full">
+  <UpdatingBadge show={isRefreshing} />
+
+  <div className="ml-auto flex items-center gap-3">
+    <button
+      onClick={openAdd}
+      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+    >
+      <Plus className="h-4 w-4" />
+      <span className="hidden sm:inline">Add Unit</span>
+    </button>
+  </div>
+</div>
       </div>
 
       {error ? (
@@ -327,7 +330,7 @@ export default function Units() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" style={{ maxWidth: '460px' }}>
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3" style={{ maxWidth: '460px' }}>
         <StatCard label="Total Units" value={units.length} sub="All registered units" loading={isInitialLoading} updating={isRefreshing} />
         <StatCard label="Occupied" value={occupied} sub="Units with active occupants" tone="emerald" loading={isInitialLoading} updating={isRefreshing} />
         <StatCard label="Vacant" value={vacant} sub="Units available or unassigned" tone="amber" loading={isInitialLoading} updating={isRefreshing} />
@@ -501,7 +504,7 @@ export default function Units() {
             {errors.unit_number ? <p className="mt-1 text-xs text-red-500">{errors.unit_number}</p> : null}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Floor</label>
               <input value={form.floor} onChange={(event) => setForm((current) => ({ ...current, floor: event.target.value }))} placeholder="e.g. 1" className={fieldCls(errors.floor)} />

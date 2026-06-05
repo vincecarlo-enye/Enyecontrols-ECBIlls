@@ -511,29 +511,44 @@ export default function SuperAdminDashboard() {
 
   return (
     <PageSection>
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 px-5 py-3.5 dark:border-violet-700/40">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-500 shadow-lg shadow-violet-500/30">
-            <Shield className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-display text-[15px] font-700 text-violet-700 dark:text-violet-300">System Overview</p>
-              <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-2 py-0.5 text-[9px] font-bold text-white">
-                <Globe className="h-2.5 w-2.5" />
-                System-wide
-              </span>
-            </div>
-            <p className="text-xs text-violet-500 dark:text-violet-400">
-              Viewing all tenants, meters, and consumption data across the entire building.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <FilterPills options={FILTER_OPTIONS} value={comparisonFilter} onChange={setComparisonFilter} />
-        </div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 px-5 py-3.5 dark:border-violet-700/40 lg:flex-row lg:items-center lg:justify-between">
+
+  {/* LEFT */}
+  <div className="flex items-start gap-3">
+    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-500 shadow-lg shadow-violet-500/30">
+      <Shield className="h-4.5 w-4.5 text-white" />
+    </div>
+
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-display text-[15px] font-700 text-violet-700 dark:text-violet-300">
+          System Overview
+        </p>
+
+        <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-2 py-0.5 text-[9px] font-bold text-white shrink-0">
+          <Globe className="h-2.5 w-2.5" />
+          System-wide
+        </span>
       </div>
+
+      <p className="text-xs text-violet-500 dark:text-violet-400">
+        Viewing all tenants, meters, and consumption data across the entire building.
+      </p>
+    </div>
+  </div>
+
+  {/* RIGHT */}
+  <div className="flex w-full items-center justify-end gap-2 lg:w-auto">
+    <UpdatingBadge show={isRefreshing} />
+
+    <FilterPills
+      options={FILTER_OPTIONS}
+      value={comparisonFilter}
+      onChange={setComparisonFilter}
+    />
+  </div>
+
+</div>
 
       {dashboardError ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-300">

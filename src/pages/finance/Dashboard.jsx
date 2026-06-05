@@ -980,13 +980,13 @@ export default function FinanceDashboard() {
         icon={BarChart3}
         actions={(
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
-              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Live</span>
-            </div>
+            
             <UpdatingBadge show={isRefreshing} />
             <FilterPills options={FINANCE_FILTER_OPTIONS} value={chartRange} onChange={setChartRange} />
-            
+            <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 dark:border-blue-700/40 dark:bg-blue-900/20">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-xs font-medium text-blue-700 dark:text-blue-400 hidden sm:inline">Live</span>
+            </div>
           </div>
         )}
       />
@@ -1011,7 +1011,9 @@ export default function FinanceDashboard() {
       />
 
       <ChartCard
-        className="mb-4"
+        className="
+  text-sm sm:text-base leading-tight
+"
         title="Revenue Trend"
         exportable
         exportRows={rangedMonthlyRevenue}
@@ -1024,21 +1026,30 @@ export default function FinanceDashboard() {
         }
         action={<Activity className="w-4 h-4 text-blue-500" />}
         badge={(
-          <span className="flex items-center gap-3 text-[11px]">
-            <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-              <span className="inline-block h-1.5 w-3 rounded-full bg-blue-500" />
-              Billed
-            </span>
-            <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-              <span className="inline-block h-1.5 w-3 rounded-full bg-emerald-500" />
-              Collected
-            </span>
-            <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-              <span className="inline-block h-1.5 w-3 rounded-full bg-amber-500" />
-              Gap
-            </span>
-          </span>
-        )}
+  <span
+    className="
+      flex flex-col sm:flex-row
+      sm:items-center
+      gap-2 sm:gap-3
+      text-[11px]
+    "
+  >
+    <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+      <span className="inline-block h-1.5 w-3 rounded-full bg-blue-500" />
+      Billed
+    </span>
+
+    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+      <span className="inline-block h-1.5 w-3 rounded-full bg-emerald-500" />
+      Collected
+    </span>
+
+    <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+      <span className="inline-block h-1.5 w-3 rounded-full bg-amber-500" />
+      Gap
+    </span>
+  </span>
+)}
         badgeCls=""
         updating={isRefreshing}
       >
@@ -1139,7 +1150,7 @@ export default function FinanceDashboard() {
             </div>
           )}
         >
-          <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               { label: 'Electricity', value: utilitySummary.electric.periodConsumption, unit: utilitySummary.electric.unit || 'kWh', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', icon: Zap },
               { label: 'Water', value: utilitySummary.water.periodConsumption, unit: utilitySummary.water.unit || 'm3', color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20', icon: Droplets },

@@ -245,7 +245,7 @@ export default function AdminBilling() {
         </div>
 
         {activeTab === 'manage' && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
             <UpdatingBadge show={isRefreshing} />
             <button
               onClick={() => navigate(`${billingBasePath}/new`)}
@@ -424,7 +424,7 @@ export default function AdminBilling() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               { label: 'Pending Adjustments', value: adjustmentMetrics.pending, color: 'text-orange-600 dark:text-orange-400', sub: 'Needs approval' },
               { label: 'Applied Adjustments', value: adjustmentMetrics.applied, color: 'text-cyan-600 dark:text-cyan-400', sub: 'Already reflected on bills' },

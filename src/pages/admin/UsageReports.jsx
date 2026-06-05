@@ -261,24 +261,30 @@ export default function UsageReports() {
           <p className="mt-0.5 text-sm text-slate-400">Detailed utility consumption analytics for Omni page: {PAGE_NAME}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <UpdatingBadge show={isRefreshing} />
-          <FilterPills options={RANGE_OPTIONS} value={range} onChange={setRange} />
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">Print</span>
-          </button>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
-        </div>
+        <div className="ml-auto flex items-center justify-end gap-2">
+  <UpdatingBadge show={isRefreshing} />
+  <FilterPills
+    options={RANGE_OPTIONS}
+    value={range}
+    onChange={setRange}
+  />
+
+  <button
+    onClick={handlePrint}
+    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+  >
+    <Printer className="h-4 w-4" />
+    <span className="hidden sm:inline">Print</span>
+  </button>
+
+  <button
+    onClick={handleExport}
+    className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+  >
+    <Download className="h-4 w-4" />
+    <span className="hidden sm:inline">Export</span>
+  </button>
+</div>
       </div>
 
       <div ref={printRef} className="space-y-6">

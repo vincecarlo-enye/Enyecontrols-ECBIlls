@@ -85,7 +85,7 @@ export default function ConcernModal({ bill, isOpen, onClose, onSubmit }) {
 
         <div className="p-6 space-y-5">
           {/* Bill info summary */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 grid grid-cols-2 gap-3">
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               ['Bill ID', bill.id],
               ['Unit', bill.unit],

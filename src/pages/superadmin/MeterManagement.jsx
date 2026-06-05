@@ -140,7 +140,7 @@ function MeterFormModal({ open, onClose, onSave, units, getAvailableWatches, ini
         <div className="p-6 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">Meter Type</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {METER_TYPES.map((item) => {
                 const Icon = item.icon
                 const selected = form.type === item.value
@@ -426,7 +426,7 @@ export default function MeterManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">Meter Management</h2>
@@ -437,19 +437,20 @@ export default function MeterManagement() {
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">Manage all electric, water, and thermal energy meters across units</p>
         </div>
-        <div className="flex items-center gap-3">
-          <UpdatingBadge show={isRefreshing} />
-          <button
-            onClick={() => {
-              setEditing(null)
-              setShowForm(true)
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            Add Meter
-          </button>
-        </div>
+        <div className="flex w-full items-center justify-end gap-3">
+  <UpdatingBadge show={isRefreshing} />
+
+  <button
+    onClick={() => {
+      setEditing(null)
+      setShowForm(true)
+    }}
+    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all"
+  >
+    <Plus className="w-4 h-4" />
+    <span className="hidden sm:inline">Add Meter</span>
+  </button>
+</div>
       </div>
 
       {error && (
@@ -494,21 +495,26 @@ export default function MeterManagement() {
             className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none focus:border-blue-400 transition-all"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {[{ value: 'all', label: 'All' }, ...METER_TYPES.map((item) => ({ value: item.value, label: item.label }))].map((filter) => (
-            <button
-              key={filter.value}
-              onClick={() => { setTypeFilter(filter.value); setPage(1) }}
-              className={`px-3 py-2 text-xs font-medium rounded-xl border transition-all ${
-                typeFilter === filter.value
-                  ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
+        <div className="flex gap-2 sm:flex-wrap overflow-x-auto sm:overflow-visible whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
+  {[{ value: 'all', label: 'All' }, ...METER_TYPES.map((item) => ({
+    value: item.value,
+    label: item.label
+  }))].map((filter) => (
+    <button
+      key={filter.value}
+      onClick={() => { setTypeFilter(filter.value); setPage(1) }}
+      className={`shrink-0 px-3 py-2 text-xs font-medium rounded-xl border transition-all ${
+        typeFilter === filter.value
+          ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+      }`}
+    >
+      {filter.label}
+    </button>
+  ))}
+
+</div>
       </div>
 
       {isInitialLoading ? (

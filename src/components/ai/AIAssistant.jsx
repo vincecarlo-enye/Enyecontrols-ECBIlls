@@ -590,6 +590,7 @@ export default function AIAssistant() {
   const shouldHideAssistant = loading || !isAuthenticated || location.pathname === '/login'
 
   const [isOpen, setIsOpen] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -624,6 +625,7 @@ export default function AIAssistant() {
   const audioRef = useRef(null)
   const historyRequestIdRef = useRef(0)
   const hasInitializedHistoryRef = useRef(false)
+  const panelRef = useRef(null)
 
   const voice = useVoiceInput({
     onTranscript: (text) => {
@@ -644,11 +646,11 @@ export default function AIAssistant() {
   }, [messages, isTyping, isOpen, voice.interimText, isAISpeaking])
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isMinimized) {
       const timer = setTimeout(() => inputRef.current?.focus(), 150)
       return () => clearTimeout(timer)
     }
-  }, [isOpen])
+  }, [isOpen, isMinimized])
 
   useEffect(() => {
     try {
@@ -1117,17 +1119,31 @@ export default function AIAssistant() {
   }
 
   const handleDragStart = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const isTouch = e.touches && e.touches.length > 0
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY
+
     dragStart.current = {
-      x: e.clientX - dragPos.x,
-      y: e.clientY - dragPos.y,
+      x: clientX - dragPos.x,
+      y: clientY - dragPos.y,
       moved: false,
     }
 
     setIsDragging(false)
 
     const onMove = (moveEvent) => {
-      const dx = moveEvent.clientX - dragStart.current.x
-      const dy = moveEvent.clientY - dragStart.current.y
+      moveEvent.preventDefault()
+      moveEvent.stopPropagation()
+
+      const isMoveTouchEvent = moveEvent.touches && moveEvent.touches.length > 0
+      const moveClientX = isMoveTouchEvent ? moveEvent.touches[0].clientX : moveEvent.clientX
+      const moveClientY = isMoveTouchEvent ? moveEvent.touches[0].clientY : moveEvent.clientY
+
+      const dx = moveClientX - dragStart.current.x
+      const dy = moveClientY - dragStart.current.y
 
       if (Math.abs(dx - dragPos.x) > 4 || Math.abs(dy - dragPos.y) > 4) {
         dragStart.current.moved = true
@@ -1138,13 +1154,17 @@ export default function AIAssistant() {
     }
 
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onUp)
       setTimeout(() => setIsDragging(false), 50)
     }
 
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, { passive: false })
+    document.addEventListener('mouseup', onUp)
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onUp)
   }
 
   const handleButtonClick = () => {
@@ -1175,8 +1195,7 @@ export default function AIAssistant() {
   }[outputMode]
 
   const panelStyle = {
-    bottom: `calc(5rem - ${dragPos.y}px)`,
-    right: `calc(1rem - ${dragPos.x}px)`,
+    transform: `translate(${dragPos.x}px, ${dragPos.y}px)`,
   }
 
   const buttonStyle = {
@@ -1192,13 +1211,15 @@ export default function AIAssistant() {
       <div className="fixed bottom-4 right-4 z-[9998] select-none" style={buttonStyle}>
         <button
           onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
           onClick={handleButtonClick}
           aria-label={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
-          className={`relative w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center transition-all duration-300 cursor-grab active:cursor-grabbing ${
+          className={`relative w-14 h-14 rounded-2xl mb-2 shadow-xl flex items-center justify-center transition-all duration-300 cursor-grab active:cursor-grabbing touch-none select-none ${
             isOpen
               ? 'bg-slate-700 dark:bg-slate-600 shadow-slate-900/30 scale-95'
               : 'bg-gradient-to-br from-violet-600 to-indigo-600 shadow-violet-500/40 hover:scale-110 hover:shadow-violet-500/60'
           }`}
+          style={{ touchAction: 'none' }}
         >
           {isOpen ? <ChevronDown className="w-5 h-5 text-white" /> : <Sparkles className="w-6 h-6 text-white" />}
           <StatusDot status={isOpen ? status : 'idle'} />
@@ -1207,11 +1228,15 @@ export default function AIAssistant() {
 
       {isOpen && (
         <div
-          className="fixed z-[9997] flex h-[min(520px,calc(100vh-7rem))] w-[calc(100vw-1rem)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/95 sm:w-[420px]"
+          ref={panelRef}
+          className={`fixed z-[9997] flex flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-800/95 bottom-20 right-4 w-[calc(100vw-1rem)] max-w-[420px] sm:w-[420px] ${
+            isMinimized ? 'h-auto' : 'h-[min(520px,calc(100vh-7rem))]'
+          }`}
           style={panelStyle}
           role="dialog"
           aria-label="AI Assistant"
         >
+          {/* Header */}
           <div className="flex items-start justify-between gap-3 px-4 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 flex-shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
@@ -1233,6 +1258,7 @@ export default function AIAssistant() {
               >
                 <Settings className="w-4 h-4" />
               </button>
+              
               <button
                 onClick={handleReset}
                 className="p-2 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition-colors"
@@ -1246,14 +1272,15 @@ export default function AIAssistant() {
                   stopAllAudio()
                 }}
                 className="p-2 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition-colors"
-                title="Close"
+                title="Hide assistant"
               >
                 <Minus className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {showSettings && (
+          {/* Settings panel — only when not minimized */}
+          {!isMinimized && showSettings && (
             <div className="absolute inset-x-3 top-[60px] z-20 rounded-2xl border border-slate-200/60 bg-white/72 px-4 py-3 shadow-xl backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-800/68">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2 font-medium">
@@ -1305,137 +1332,150 @@ export default function AIAssistant() {
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
-            <div className="flex min-h-full flex-col justify-end space-y-3">
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={{
-                    ...msg,
-                    content: msg.role === 'assistant' && msg.isStreaming
-                      ? <TypingText text={msg.content} active />
-                      : msg.content,
-                  }}
-                />
-              ))}
+          {/* Body — hidden when minimized */}
+          {!isMinimized && (
+            <>
+              {/* Messages */}
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 scroll-smooth">
+                <div className="flex min-h-full flex-col justify-end space-y-3">
+                  {messages.map((msg) => (
+                    <MessageBubble
+                      key={msg.id}
+                      message={{
+                        ...msg,
+                        content: msg.role === 'assistant' && msg.isStreaming
+                          ? <TypingText text={msg.content} active />
+                          : msg.content,
+                      }}
+                    />
+                  ))}
 
-              {isTyping && <TypingIndicator />}
+                  {isTyping && <TypingIndicator />}
 
-              {voice.interimText && (
-                <div className="flex justify-end">
-                  <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-br-sm bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 text-xs italic opacity-80">
-                    {voice.interimText}...
-                  </div>
+                  {voice.interimText && (
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] px-3 py-2 rounded-2xl rounded-br-sm bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 text-xs italic opacity-80">
+                        {voice.interimText}...
+                      </div>
+                    </div>
+                  )}
+
+                  {showSuggestions && messages.length <= 1 && !isTyping && !isAnimatingReply && hasLoadedHistory && (
+                    <div className="pt-1">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1">Suggested</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(pageContext.suggestions || []).map((suggestion, index) => (
+                          <SuggestionChip key={index} text={suggestion} onClick={sendMessage} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isAISpeaking && (
+                    <div className="flex items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200/70 dark:border-violet-700/40 px-3 py-2">
+                      <div className="flex items-end gap-1 h-6">
+                        {[0, 1, 2, 3, 4, 5].map((i) => (
+                          <span
+                            key={i}
+                            className="w-1.5 rounded-full bg-gradient-to-t from-violet-600 to-fuchsia-400"
+                            style={{
+                              height: `${10 + (i % 4) * 3}px`,
+                              animation: 'aiTyping 0.75s ease-in-out infinite',
+                              animationDelay: `${i * 0.08}s`,
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[10px] text-violet-600 dark:text-violet-300 font-medium">AI speaking...</span>
+                    </div>
+                  )}
+
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
+
+              {/* Voice error */}
+              {voiceError && (
+                <div className="mx-3 mb-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-xl text-xs text-red-600 dark:text-red-400 flex-shrink-0">
+                  {voiceError}
                 </div>
               )}
 
-              {showSuggestions && messages.length <= 1 && !isTyping && !isAnimatingReply && hasLoadedHistory && (
-                <div className="pt-1">
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1">Suggested</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(pageContext.suggestions || []).map((suggestion, index) => (
-                      <SuggestionChip key={index} text={suggestion} onClick={sendMessage} />
-                    ))}
+              {/* Input area */}
+              <div className="p-3 border-t border-slate-200/60 dark:border-slate-700/50 flex-shrink-0 bg-slate-50/80 dark:bg-slate-800/80 space-y-2.5">
+                {voice.isListening && (
+                  <div className="rounded-xl border border-violet-200 dark:border-violet-700/40 bg-violet-50 dark:bg-violet-900/20 px-3 py-2 text-xs text-violet-700 dark:text-violet-300">
+                    {voice.interimText || 'Listening... speak now'}
                   </div>
-                </div>
-              )}
+                )}
 
-              {isAISpeaking && (
-                <div className="flex items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200/70 dark:border-violet-700/40 px-3 py-2">
-                  <div className="flex items-end gap-1 h-6">
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <span
-                        key={i}
-                        className="w-1.5 rounded-full bg-gradient-to-t from-violet-600 to-fuchsia-400"
-                        style={{
-                          height: `${10 + (i % 4) * 3}px`,
-                          animation: 'aiTyping 0.75s ease-in-out infinite',
-                          animationDelay: `${i * 0.08}s`,
-                        }}
-                      />
-                    ))}
+                {!voice.isListening && voice.availabilityReason && (
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                    {voice.availabilityReason}
+                    {!voice.isSupported && (
+                      <div className="mt-1 text-[11px] opacity-80">
+                        Try Chrome or Microsoft Edge for built-in voice input.
+                      </div>
+                    )}
+                    {voice.isSupported && voice.availabilityReason.includes('HTTPS or localhost') && (
+                      <div className="mt-1 text-[11px] opacity-80">
+                        Text chat still works here. For voice input, use `localhost` in development or serve the app over HTTPS.
+                      </div>
+                    )}
                   </div>
-                  <span className="text-[10px] text-violet-600 dark:text-violet-300 font-medium">AI speaking...</span>
+                )}
+
+                {/* Mic + textarea + send in one row */}
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={handleMicToggle}
+                    title={voice.isListening ? 'Stop recording' : 'Record voice message'}
+                    className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                      voice.isListening
+                        ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105'
+                        : voice.availabilityReason
+                          ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-900/30 hover:text-violet-600 dark:hover:text-violet-400'
+                    }`}
+                  >
+                    {voice.isListening ? <WaveAnimation active size="sm" /> : <Mic className="w-4 h-4" />}
+                  </button>
+
+                  <textarea
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={voice.isListening ? 'Listening...' : 'Ask anything...'}
+                    rows={1}
+                    className="flex-1 resize-none px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-all max-h-24 overflow-y-auto leading-relaxed"
+                    style={{ minHeight: '40px' }}
+                    onInput={(e) => {
+                      e.target.style.height = 'auto'
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`
+                    }}
+                    disabled={isTyping || isAnimatingReply || !hasLoadedHistory}
+                  />
+
+                  <button
+                    onClick={() => sendMessage()}
+                    disabled={!inputValue.trim() || isTyping || isAnimatingReply || !hasLoadedHistory}
+                    className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-violet-500/25 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
+                    title="Send message"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
+              </div>
 
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          {voiceError && (
-            <div className="mx-3 mb-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-xl text-xs text-red-600 dark:text-red-400 flex-shrink-0">
-              {voiceError}
-            </div>
+              {/* Footer */}
+              <div className="px-3 py-1.5 border-t border-slate-200/60 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 flex-shrink-0 flex items-center justify-between">
+                <p className="text-[10px] text-center flex-1 text-slate-400 dark:text-slate-500">
+                  {isAISpeaking ? 'ECBills AI - Speaking...' : 'ECBills AI - Context-aware assistant'}
+                </p>
+              </div>
+            </>
           )}
-
-          <div className="p-3 border-t border-slate-200/60 dark:border-slate-700/50 flex-shrink-0 bg-slate-50/80 dark:bg-slate-800/80 space-y-2.5">
-            {voice.isListening && (
-              <div className="rounded-xl border border-violet-200 dark:border-violet-700/40 bg-violet-50 dark:bg-violet-900/20 px-3 py-2 text-xs text-violet-700 dark:text-violet-300">
-                {voice.interimText || 'Listening... speak now'}
-              </div>
-            )}
-
-            {!voice.isListening && voice.availabilityReason && (
-              <div className="rounded-xl border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                {voice.availabilityReason}
-                {!voice.isSupported && (
-                  <div className="mt-1 text-[11px] opacity-80">
-                    Try Chrome or Microsoft Edge for built-in voice input.
-                  </div>
-                )}
-                {voice.isSupported && voice.availabilityReason.includes('HTTPS or localhost') && (
-                  <div className="mt-1 text-[11px] opacity-80">
-                    Text chat still works here. For voice input, use `localhost` in development or serve the app over HTTPS.
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              <button
-                onClick={handleMicToggle}
-                title={voice.isListening ? 'Stop recording' : 'Record voice message'}
-                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  voice.isListening
-                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-105'
-                    : voice.availabilityReason
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-70'
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-violet-100 dark:hover:bg-violet-900/30 hover:text-violet-600 dark:hover:text-violet-400'
-                }`}
-              >
-                {voice.isListening ? <WaveAnimation active size="sm" /> : <Mic className="w-4 h-4" />}
-              </button>
-              <textarea
-                ref={inputRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={voice.isListening ? 'Listening...' : 'Ask anything...'}
-                rows={1}
-                className="flex-1 resize-none px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-all max-h-24 overflow-y-auto leading-relaxed"
-                style={{ minHeight: '40px' }}
-                onInput={(e) => {
-                  e.target.style.height = 'auto'
-                  e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`
-                }}
-                disabled={isTyping || isAnimatingReply || !hasLoadedHistory}
-              />
-              <button
-                onClick={() => sendMessage()}
-                disabled={!inputValue.trim() || isTyping || isAnimatingReply || !hasLoadedHistory}
-                className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-violet-500/25 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="px-3 py-1.5 border-t border-slate-200/60 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 flex-shrink-0">
-            <p className="text-[10px] text-center text-slate-400 dark:text-slate-500">
-              {isAISpeaking ? 'ECBills AI - Speaking...' : 'ECBills AI - Context-aware assistant'}
-            </p>
-          </div>
         </div>
       )}
 
@@ -1443,4 +1483,3 @@ export default function AIAssistant() {
     </>
   )
 }
-

@@ -68,7 +68,7 @@ export default function PaginationBar({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap ml-auto">
         <button
           type="button"
           onClick={() => onPageChange?.(currentPage - 1)}

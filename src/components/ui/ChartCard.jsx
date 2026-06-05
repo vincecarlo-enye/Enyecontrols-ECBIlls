@@ -33,35 +33,55 @@ export default function ChartCard({
         className,
       ].join(' ')}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 pb-4 pt-5 dark:border-white/6">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-2 text-[14px] font-semibold leading-snug text-slate-800 dark:text-slate-100">
-            {(accent || accentHex) && (
-              <span
-                className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${accent && !accentHex ? accent : ''}`}
-                style={accentHex ? { background: accentHex } : undefined}
-              />
-            )}
-            {title}
-          </h3>
-          {subtitle && (
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-500">
-              {subtitle}
-            </p>
-          )}
-        </div>
+      <div className="border-b border-slate-100 px-5 pb-4 pt-5 dark:border-white/6">
+  <div className="flex items-start justify-between gap-3">
+    <div className="min-w-0">
+      <h3 className="flex items-center gap-2 text-[14px] font-semibold leading-snug text-slate-800 dark:text-slate-100">
+        {(accent || accentHex) && (
+          <span
+            className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+              accent && !accentHex ? accent : ''
+            }`}
+            style={accentHex ? { background: accentHex } : undefined}
+          />
+        )}
+        {title}
+      </h3>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {exportable ? <ChartExportButton title={exportTitle || title} rows={exportRows} filename={exportFilename} /> : null}
-          {action}
-          <UpdatingBadge show={updating} />
-          {badge && (
-            <span className={`inline-flex min-h-8 items-center rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.06em] shadow-sm ${badgeCls}`}>
-              {badge}
-            </span>
-          )}
-        </div>
-      </div>
+      {subtitle && (
+        <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-500">
+          {subtitle}
+        </p>
+      )}
+    </div>
+
+    <div className="flex flex-shrink-0 items-center gap-2">
+      <UpdatingBadge show={updating} />
+
+      {badge && (
+        <span
+          className={`inline-flex min-h-8 items-center rounded-full px-3 py-1.5 text-[11px] font-semibold tracking-[0.06em] shadow-sm ${badgeCls}`}
+        >
+          {badge}
+        </span>
+      )}
+
+      {exportable ? (
+        <ChartExportButton
+          title={exportTitle || title}
+          rows={exportRows}
+          filename={exportFilename}
+        />
+      ) : null}
+    </div>
+  </div>
+
+  {action ? (
+    <div className="mt-3 flex justify-end">
+      {action}
+    </div>
+  ) : null}
+</div>
 
       <div className={noPad ? '' : 'px-5 pb-5 pt-4'}>
         {loading ? <ChartLoadingState text={loadingText} className="h-[220px]" /> : children}

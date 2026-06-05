@@ -440,7 +440,7 @@ export default function Tenants() {
         <UpdatingBadge show={isRefreshing} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Tenants" value={tenantRows.length} sub="Tenant users shown in the directory" loading={isInitialLoading} updating={isRefreshing} />
         <StatCard label="Active" value={activeCount} sub="Currently active tenant users" tone="emerald" loading={isInitialLoading} updating={isRefreshing} />
         <StatCard label="Billing Ready" value={billingReadyCount} sub="Ready for bill generation" tone="emerald" loading={isInitialLoading} updating={isRefreshing} />
@@ -737,7 +737,7 @@ export default function Tenants() {
               </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Phone Number</label>
               <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="e.g. 09123456789" className={fieldCls(errors.phone)} />
@@ -756,7 +756,7 @@ export default function Tenants() {
             {errors.contact_person_phone ? <p className="mt-1 text-xs text-red-500">{errors.contact_person_phone}</p> : null}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-slate-400">Move In Date</label>
               <input type="date" value={form.move_in_date} onChange={(event) => setForm((current) => ({ ...current, move_in_date: event.target.value }))} className={fieldCls(errors.move_in_date)} />

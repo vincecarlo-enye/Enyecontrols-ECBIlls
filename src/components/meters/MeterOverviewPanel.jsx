@@ -83,7 +83,7 @@ export default function MeterOverviewPanel({ compact = false, meters: providedMe
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 mb-4">
         {byType.map((item) => {
           const Icon = item.icon
           return (

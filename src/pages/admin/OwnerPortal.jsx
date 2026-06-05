@@ -83,25 +83,32 @@ export default function OwnerPortal() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Month</span>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="bg-transparent outline-none"
-            />
-          </label>
-          <UpdatingBadge show={isRefreshing} />
-          <button
-            onClick={reload}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh Snapshot
-          </button>
-        </div>
+        <div className="flex items-center gap-3 overflow-x-auto">
+  <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300 whitespace-nowrap">
+    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+      Month
+    </span>
+    <input
+      type="month"
+      value={month}
+      onChange={(e) => setMonth(e.target.value)}
+      className="bg-transparent outline-none"
+    />
+  </label>
+
+  <UpdatingBadge show={isRefreshing} />
+
+  {/* spacer pushes refresh to right on mobile */}
+  <div className="flex-1 sm:hidden" />
+
+  <button
+    onClick={reload}
+    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/60 whitespace-nowrap ml-auto sm:ml-0"
+  >
+    <RefreshCw className="h-4 w-4" />
+    <span className="hidden sm:inline">Refresh Snapshot</span>
+  </button>
+</div>
       </div>
 
       {error ? (
@@ -110,7 +117,7 @@ export default function OwnerPortal() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5 xl:grid-cols-5">
         {executiveCards.map((card) => (
           <SummaryCard key={card.key} card={card} loading={isInitialLoading} updating={isRefreshing} />
         ))}
@@ -189,7 +196,7 @@ export default function OwnerPortal() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {[
               { label: 'Open Disputes', value: operations.open_disputes || 0 },
               { label: 'Pending Payments', value: operations.pending_payments || 0 },

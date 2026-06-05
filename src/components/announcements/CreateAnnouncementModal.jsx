@@ -98,7 +98,7 @@ export default function CreateAnnouncementModal({ isOpen, onClose, onSave, creat
             {errors.body && <p className="text-xs text-red-500 mt-1">{errors.body}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-mono uppercase tracking-wider text-slate-400 mb-1.5">Type</label>
               <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}

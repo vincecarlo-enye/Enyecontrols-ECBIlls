@@ -89,7 +89,7 @@ export default function SAnnouncements() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="font-display font-700 text-2xl text-slate-800 dark:text-white">Announcements</h2>
@@ -109,7 +109,7 @@ export default function SAnnouncements() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-2">
         <div className="p-4 rounded-2xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50">
           <div className="flex items-center gap-2 mb-2"><Globe className="w-4 h-4 text-violet-500"/><p className="text-xs text-violet-500 font-semibold uppercase tracking-wider">System-wide</p></div>
           <LoadingValue loading={isInitialLoading} updating={isRefreshing} value={systemCount} className="text-2xl font-display font-700 text-slate-800 dark:text-white" spinnerClassName="h-5 w-5 text-slate-400" />

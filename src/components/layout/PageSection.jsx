@@ -25,7 +25,11 @@ export function PageHeader({ title, subtitle, icon: Icon, actions }) {
         </h1>
         {subtitle ? <p className="muted-text mt-0.5">{subtitle}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? (
+  <div className="flex w-full justify-end sm:w-auto sm:justify-start">
+    {actions}
+  </div>
+) : null}
     </div>
   )
 }

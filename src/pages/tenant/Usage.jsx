@@ -147,7 +147,7 @@ export default function Usage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <UpdatingBadge show={isRefreshing} />
           <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50">
             <span className="relative flex h-2 w-2">
@@ -156,7 +156,7 @@ export default function Usage() {
             </span>
             <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              Live data
+              Live
             </span>
           </div>
         </div>
